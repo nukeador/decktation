@@ -137,6 +137,47 @@ class TestWoWSendBehavior:
 
 
 # ---------------------------------------------------------------------------
+# Timing configuration
+# ---------------------------------------------------------------------------
+
+class TestTypingTiming:
+    @patch("os.path.exists", side_effect=mock_path_exists)
+    @patch("subprocess.run")
+    def test_default_key_timing_is_passed_to_ydotool(self, mock_run, mock_exists):
+        """Presets without timing options use the fast, safe defaults."""
+        mock_run.return_value = MagicMock(returncode=0)
+        svc = make_service(WOW_PRESET)
+
+        svc.send_to_wow_chat("hello", channel="say")
+
+        type_call = get_type_calls(mock_run)[0]
+        assert type_call.args[0][1:] == [
+            "type", "-d", "1", "-H", "0", "--", "/s hello"
+        ]
+
+    @patch("time.sleep")
+    @patch("os.path.exists", side_effect=mock_path_exists)
+    @patch("subprocess.run")
+    def test_preset_timing_overrides_are_applied(self, mock_run, mock_exists, mock_sleep):
+        mock_run.return_value = MagicMock(returncode=0)
+        preset = {
+            **WOW_PRESET,
+            "key_delay": 5,
+            "key_hold": 2,
+            "chat_open_delay": 0.25,
+            "chat_send_delay": 0.5,
+        }
+        svc = make_service(preset)
+
+        svc.send_to_wow_chat("hello", channel="say")
+
+        type_call = get_type_calls(mock_run)[0]
+        assert type_call.args[0][1:] == [
+            "type", "-d", "5", "-H", "2", "--", "/s hello"
+        ]
+        assert mock_sleep.call_args_list == [call(0.25), call(0.5)]
+
+# ---------------------------------------------------------------------------
 # Guild Wars 2 preset
 # ---------------------------------------------------------------------------
 
