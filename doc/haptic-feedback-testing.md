@@ -15,7 +15,10 @@ but remained too subtle for gameplay even at +6 dB. The Deck's evdev devices
 reported no force-feedback capability. The 0xeb rumble command was clear and
 comfortable in WoW with the QAM closed at speed 45000: one 150 ms burst for
 start and two 100 ms bursts for stop. Controller input continued working. The
-integrated plugin has not yet been installed or tested on the Deck.
+integrated plugin was then tested on a v0.3.16 stable installation with the
+v0.3.17 `audio_runtime.py` added: the QAM test transcribed without sending,
+and physical push-to-talk worked in WoW with the QAM closed. Each transition
+produced its expected cue once.
 
 To repeat the standalone manual test, copy only the script to `/tmp`:
 
