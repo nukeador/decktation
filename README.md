@@ -41,8 +41,10 @@ Voice dictation plugin for Steam Deck using faster-whisper with context-aware tr
    choose the file locally. Decky imports the archive and reloads the plugin
    automatically.
 
-For example, branch `feature/chat polish` becomes
-`feature%2Fchat%20polish` in the URL path.
+For example, branch `feature/chat polish` uses the URL path segment
+`feature%252Fchat%2520polish`: the branch name is first encoded for its storage
+folder, then the percent signs are encoded for the URL. The Actions summary and
+branch page show the exact link to use.
 
 Every GitHub Actions build also uploads the complete `decktation.zip`. Open the
 build run for the branch or pull request and use the download link in its
