@@ -34,6 +34,7 @@ const setConfirmModeRpc = callable<[enabled: boolean], RpcResponse>("set_confirm
 const setManualSendRpc = callable<[enabled: boolean], RpcResponse>("set_manual_send");
 const setRememberLastChannelRpc = callable<[enabled: boolean], RpcResponse>("set_remember_last_channel");
 const setShareDiagnosticsRpc = callable<[enabled: boolean], RpcResponse>("set_share_diagnostics");
+const setHapticFeedbackRpc = callable<[enabled: boolean], RpcResponse>("set_haptic_feedback");
 const setActivePresetRpc = callable<[game: string], RpcResponse>("set_active_preset");
 const setModelSizeRpc = callable<[modelSize: string], RpcResponse>("set_model_size");
 const setTranscriptionOptionsRpc = callable<
@@ -287,6 +288,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [controllerReady, setControllerReady] = useState<boolean>(false);
 	const [buttons, setButtons] = useState<string[]>(["L1", "R1"]);
 	const [showNotifications, setShowNotifications] = useState<boolean>(true);
+	const [hapticFeedback, setHapticFeedback] = useState<boolean>(false);
 	const [activePreset, setActivePreset] = useState<string>("wow");
 	const [presets, setPresets] = useState<DropdownOption[]>([]);
 	const [confirmMode, setConfirmMode] = useState<boolean>(false);
@@ -314,6 +316,9 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					if (config.showNotifications !== undefined) {
 						setShowNotifications(config.showNotifications);
 						logic.showNotifications = config.showNotifications;
+					}
+					if (config.hapticFeedback !== undefined) {
+						setHapticFeedback(config.hapticFeedback);
 					}
 					if (config.game) {
 						setActivePreset(config.game);
@@ -620,6 +625,18 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 			</PanelSection>
 
 			<PanelSection title="Input">
+				<PanelSectionRow>
+					<ToggleField
+						label="Haptic feedback"
+						description="Brief cues when recording starts and stops on Steam Deck"
+						checked={hapticFeedback}
+						onChange={async (enabled: boolean) => {
+							const result = await setHapticFeedbackRpc(enabled);
+							if (result.success) setHapticFeedback(enabled);
+							else setRpcError(result.error || "Could not update haptic feedback");
+						}}
+					/>
+				</PanelSectionRow>
 				<PanelSectionRow>
 					<ToggleField
 						label="Toasts"

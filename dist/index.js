@@ -5,7 +5,7 @@
 
     var React__default = /*#__PURE__*/_interopDefaultLegacy(React);
 
-    var _manifest = {"name":"Decktation","version":"0.3.16","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.17","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -133,6 +133,7 @@
     const setManualSendRpc = callable("set_manual_send");
     const setRememberLastChannelRpc = callable("set_remember_last_channel");
     const setShareDiagnosticsRpc = callable("set_share_diagnostics");
+    const setHapticFeedbackRpc = callable("set_haptic_feedback");
     const setActivePresetRpc = callable("set_active_preset");
     const setModelSizeRpc = callable("set_model_size");
     const setTranscriptionOptionsRpc = callable("set_transcription_options");
@@ -372,6 +373,7 @@
         const [controllerReady, setControllerReady] = React.useState(false);
         const [buttons, setButtons] = React.useState(["L1", "R1"]);
         const [showNotifications, setShowNotifications] = React.useState(true);
+        const [hapticFeedback, setHapticFeedback] = React.useState(false);
         const [activePreset, setActivePreset] = React.useState("wow");
         const [presets, setPresets] = React.useState([]);
         const [confirmMode, setConfirmMode] = React.useState(false);
@@ -397,6 +399,9 @@
                         if (config.showNotifications !== undefined) {
                             setShowNotifications(config.showNotifications);
                             logic.showNotifications = config.showNotifications;
+                        }
+                        if (config.hapticFeedback !== undefined) {
+                            setHapticFeedback(config.hapticFeedback);
                         }
                         if (config.game) {
                             setActivePreset(config.game);
@@ -616,6 +621,14 @@
                             }
                         } }))),
             React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Input" },
+                React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                    React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Haptic feedback", description: "Brief cues when recording starts and stops on Steam Deck", checked: hapticFeedback, onChange: async (enabled) => {
+                            const result = await setHapticFeedbackRpc(enabled);
+                            if (result.success)
+                                setHapticFeedback(enabled);
+                            else
+                                setRpcError(result.error || "Could not update haptic feedback");
+                        } })),
                 React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                     React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Toasts", description: "Recording alerts", checked: showNotifications, onChange: async (e) => {
                             setShowNotifications(e);
