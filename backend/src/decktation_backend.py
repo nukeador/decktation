@@ -34,6 +34,7 @@ for dependency_path in dependency_paths:
         logger.info(f"Added dependency path: {dependency_path}")
 
 from audio_runtime import ensure_audio_environment, setup_audio_environment
+from recording_overlay_manager import RecordingOverlay
 
 # Decky plugins run outside the desktop user's login environment.  Configure
 # the PipeWire runtime before sounddevice is imported by wow_voice_chat.
@@ -236,6 +237,7 @@ class Plugin:
     recording_start_count = 0  # Increments each time recording starts
     active_preset = "wow"
     dictation_transaction = None
+    recording_overlay = None
 
     @staticmethod
     def _controller_type():
@@ -460,6 +462,8 @@ class Plugin:
                             try:
                                 Plugin.voice_service.start_recording()
                                 Plugin.recording_start_count += 1
+                                if Plugin.recording_overlay:
+                                    Plugin.recording_overlay.show("compact")
                             except Exception as e:
                                 Plugin._finish_dictation_trace(False)
                                 if telemetry:
@@ -474,6 +478,8 @@ class Plugin:
                         # Button released
                         logger.info("Button combo released - stopping recording")
                         if Plugin.voice_service and Plugin.voice_service.is_recording:
+                            if Plugin.recording_overlay:
+                                Plugin.recording_overlay.show("transcribing")
                             try:
                                 Plugin.voice_service.stop_recording()
                             except Exception as e:
@@ -488,6 +494,9 @@ class Plugin:
                                 raise
                             else:
                                 Plugin._finish_dictation_trace(True)
+                            finally:
+                                if Plugin.recording_overlay:
+                                    Plugin.recording_overlay.hide()
 
                     last_state = state
 
@@ -541,6 +550,9 @@ class Plugin:
             except Exception as e:
                 logger.error(f"Error reading settings from config: {e}")
 
+            Plugin.recording_overlay = RecordingOverlay(
+                plugin_path, logger, enabled=saved_config.get("showNotifications", True)
+            )
             active_game = saved_config.get("game", "wow")
             active_preset = _game_presets.get(active_game, _game_presets.get("wow", {}))
             Plugin.active_preset = active_game
@@ -621,6 +633,8 @@ class Plugin:
             Plugin.poll_running = False
             Plugin.stop_controller_listener()
             Plugin.stop_ydotoold()
+            if Plugin.recording_overlay:
+                Plugin.recording_overlay.stop()
             if Plugin.voice_service and Plugin.voice_service.is_recording:
                 Plugin.voice_service.stop_recording()
                 Plugin._finish_dictation_trace(False)
@@ -637,6 +651,8 @@ class Plugin:
         Plugin.poll_running = False
         Plugin.stop_controller_listener()
         Plugin.stop_ydotoold()
+        if Plugin.recording_overlay:
+            Plugin.recording_overlay.stop()
 
     async def _migration(self):
         """Move settings created by pre-store releases into Decky's settings."""
@@ -652,6 +668,8 @@ class Plugin:
     async def set_enabled(self, enabled: bool):
         """Enable or disable controller listening"""
         Plugin.controller_enabled = enabled
+        if not enabled and Plugin.recording_overlay:
+            Plugin.recording_overlay.hide()
         logger.info(f"Controller listening {'enabled' if enabled else 'disabled'}")
         # Persist enabled state to config
         try:
@@ -711,6 +729,8 @@ class Plugin:
             config["showNotifications"] = showNotifications
 
             _write_button_config(config)
+            if Plugin.recording_overlay:
+                Plugin.recording_overlay.set_enabled(showNotifications)
 
             combo_str = "+".join(unique_buttons)
             logger.info(f"Button config updated: {combo_str}, notifications: {showNotifications}")
@@ -899,6 +919,8 @@ class Plugin:
             Plugin._start_dictation_trace()
             try:
                 Plugin.voice_service.start_recording()
+                if Plugin.recording_overlay:
+                    Plugin.recording_overlay.show("compact")
             except Exception as e:
                 Plugin._finish_dictation_trace(False)
                 if telemetry:
@@ -925,6 +947,8 @@ class Plugin:
             # Stream shutdown happens promptly in the worker, while Decky's
             # event loop remains available for status/UI requests during
             # transcription.
+            if Plugin.recording_overlay and Plugin.voice_service.is_recording:
+                Plugin.recording_overlay.show("transcribing")
             try:
                 await asyncio.to_thread(Plugin.voice_service.stop_recording, send)
             except Exception as e:
@@ -939,6 +963,9 @@ class Plugin:
                 raise
             else:
                 Plugin._finish_dictation_trace(True)
+            finally:
+                if Plugin.recording_overlay:
+                    Plugin.recording_overlay.hide()
             return {"success": True}
         except Exception as e:
             logger.error(f"Error stopping recording: {traceback.format_exc()}")

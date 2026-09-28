@@ -49,7 +49,6 @@ class DecktationLogic {
 	enabled: boolean = false;
 	recording: boolean = false;
 	showNotifications: boolean = true;
-	prevRecordingStartCount: number = 0;
 	prevPendingText: string = "";
 	lastPendingToastId: number = -1;
 
@@ -119,7 +118,6 @@ class DecktationLogic {
 	}
 
 	testRecording = async (onComplete?: (text: string, time: string) => void) => {
-		this.notify("Decktation", 1000, "Recording for 3 seconds...");
 		await startRecording();
 
 		// Wait 3 seconds
@@ -129,7 +127,6 @@ class DecktationLogic {
 		// into the active application. Change the UI state at exactly 3 seconds,
 		// then wait only for transcription to finish.
 		const transcription = stopRecording(false);
-		this.notify("Decktation", 1500, "Transcribing...");
 		await transcription;
 
 		if (onComplete) {
@@ -622,8 +619,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 			<PanelSection title="Input">
 				<PanelSectionRow>
 					<ToggleField
-						label="Toasts"
-						description="Recording alerts"
+						label="Recording overlay"
+						description="In-game cue and confirmation alerts"
 						checked={showNotifications}
 						onChange={async (e) => {
 							setShowNotifications(e);
@@ -838,15 +835,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 
 export default definePlugin(() => {
 	let logic = new DecktationLogic();
-	// Seed the recording start count so we don't fire a spurious toast on load
-	getStatus().then((result) => {
-		if (result.success) {
-			logic.prevRecordingStartCount = result.recording_start_count || 0;
-		}
-	});
-
-	// Background notification polling — runs for the full plugin lifetime regardless
-	// of whether the Decky panel is open, so toasts appear while in-game.
+	// Keep the pending-send confirmation alert while the recording cue uses Gamescope.
 	let notifyPollInFlight = false;
 	const bgNotifyInterval = setInterval(async () => {
 		if (!logic.enabled || notifyPollInFlight) return;
@@ -855,12 +844,6 @@ export default definePlugin(() => {
 			const result = await getStatus();
 			if (result.success) {
 				if (logic.showNotifications) {
-					const startCount: number = result.recording_start_count || 0;
-					if (startCount > logic.prevRecordingStartCount) {
-						logic.notify("Recording", 1500, "🎤 Recording...");
-					}
-					logic.prevRecordingStartCount = startCount;
-
 					const pendingText: string = result.pending_text || "";
 					const pendingDelay: number = result.pending_delay || 0;
 					if (pendingText && !logic.prevPendingText) {

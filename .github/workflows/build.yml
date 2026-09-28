@@ -21,7 +21,7 @@ jobs:
       - run: node --test cloudflare/tests/*.test.js
       - run: pip install pytest sentry-sdk==2.66.0
       - run: pytest tests/ -v
-      - run: python -m py_compile main.py backend/src/decktation_backend.py backend/src/wow_voice_chat.py backend/src/controller_listener.py backend/src/deck_hid.py backend/src/gamepad_evdev.py backend/src/telemetry.py
+      - run: python -m py_compile main.py backend/src/decktation_backend.py backend/src/wow_voice_chat.py backend/src/controller_listener.py backend/src/deck_hid.py backend/src/gamepad_evdev.py backend/src/telemetry.py backend/src/recording_overlay.py backend/src/recording_overlay_manager.py
 
   build:
     if: github.event_name != 'delete'
@@ -65,6 +65,8 @@ jobs:
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/lib/libportaudio.so.2'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/telemetry.py'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/decktation_backend.py'
+          unzip -l build-output/decktation.zip | grep -q 'decktation/bin/recording_overlay.py'
+          unzip -l build-output/decktation.zip | grep -q 'decktation/bin/recording_overlay_manager.py'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/controller_listener.py'
           unzip -l build-output/decktation.zip | grep -q 'decktation/game_presets.json'
           unzip -l build-output/decktation.zip | grep -q 'decktation/channel_languages.json'

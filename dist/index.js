@@ -5,7 +5,7 @@
 
     var React__default = /*#__PURE__*/_interopDefaultLegacy(React);
 
-    var _manifest = {"name":"Decktation","version":"0.3.16","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.17","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -142,7 +142,6 @@
             this.enabled = false;
             this.recording = false;
             this.showNotifications = true;
-            this.prevRecordingStartCount = 0;
             this.prevPendingText = "";
             this.lastPendingToastId = -1;
             this.notify = async (message, duration = 2000, body = "") => {
@@ -211,7 +210,6 @@
                 catch (_e) { }
             };
             this.testRecording = async (onComplete) => {
-                this.notify("Decktation", 1000, "Recording for 3 seconds...");
                 await startRecording();
                 // Wait 3 seconds
                 await new Promise(resolve => setTimeout(resolve, 3000));
@@ -219,7 +217,6 @@
                 // into the active application. Change the UI state at exactly 3 seconds,
                 // then wait only for transcription to finish.
                 const transcription = stopRecording(false);
-                this.notify("Decktation", 1500, "Transcribing...");
                 await transcription;
                 if (onComplete) {
                     const transcriptionResult = await getLastTranscription();
@@ -617,7 +614,7 @@
                         } }))),
             React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Input" },
                 React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                    React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Toasts", description: "Recording alerts", checked: showNotifications, onChange: async (e) => {
+                    React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Recording overlay", description: "In-game cue and confirmation alerts", checked: showNotifications, onChange: async (e) => {
                             setShowNotifications(e);
                             logic.showNotifications = e;
                             if (!e && confirmMode) {
@@ -744,14 +741,7 @@
     };
     var index = deckyFrontendLib.definePlugin(() => {
         let logic = new DecktationLogic();
-        // Seed the recording start count so we don't fire a spurious toast on load
-        getStatus().then((result) => {
-            if (result.success) {
-                logic.prevRecordingStartCount = result.recording_start_count || 0;
-            }
-        });
-        // Background notification polling — runs for the full plugin lifetime regardless
-        // of whether the Decky panel is open, so toasts appear while in-game.
+        // Keep the pending-send confirmation alert while the recording cue uses Gamescope.
         let notifyPollInFlight = false;
         const bgNotifyInterval = setInterval(async () => {
             if (!logic.enabled || notifyPollInFlight)
@@ -761,11 +751,6 @@
                 const result = await getStatus();
                 if (result.success) {
                     if (logic.showNotifications) {
-                        const startCount = result.recording_start_count || 0;
-                        if (startCount > logic.prevRecordingStartCount) {
-                            logic.notify("Recording", 1500, "🎤 Recording...");
-                        }
-                        logic.prevRecordingStartCount = startCount;
                         const pendingText = result.pending_text || "";
                         const pendingDelay = result.pending_delay || 0;
                         if (pendingText && !logic.prevPendingText) {
