@@ -20,9 +20,9 @@ ssh -t steamdeck 'sudo install -m 0644 /home/deck/decktation-index-before-issue-
 
 ## Physical checklist
 
-- **Main:** Open QAM using controls. Confirm Enable matches saved settings; Game, Language, and binding are correct; Ready, loading, recording, and actionable error messages appear when relevant.
+- **Main:** Open QAM using controls. Confirm it starts scrolled to the top; Enable matches saved settings; Game, Language, and binding are correct; Ready, loading, recording, and actionable error messages appear when relevant. Change Game and Language, then confirm the QAM stays open.
 - **Test Dictation:** Select it with controls. Confirm recording feedback, an approximately three-second capture, then Transcribing and a timestamped result. Confirm no text is typed into WoW. Repeat. With haptics on, confirm the existing start and stop cues.
-- **Advanced:** Enter and leave with controls. Change Model and confirm loading. Edit the existing 1–5 button combination using dropdowns; Add and Remove must work. Toggle Toasts, Confirm, Manual, Remember channel, and Haptic feedback. Close and reopen QAM to confirm persistence.
+- **Advanced:** Enter and leave with controls; confirm each page starts at the top. Change Model and confirm loading without the QAM resetting. Edit the existing 1–5 button combination using the button choice page; the adjacent trash icon and Add Button must work without resetting the QAM. Toggle Toasts, Confirm, Manual, Remember channel, and Haptic feedback. Close and reopen QAM to confirm persistence.
 - **Diagnostics:** Check controller readiness, live held-button preview, backend, keyboard helper, and model states. Toggle diagnostics sharing. Confirm backend and keyboard errors also appear on Main.
 - **Navigation:** B returns from Diagnostics or Help to Advanced, and from Advanced to Main. Repeat entry and exit, then close and reopen QAM. Confirm focus remains usable and recording/status updates do not duplicate.
 

@@ -115,6 +115,8 @@
     // THIS FILE IS AUTO GENERATED
     function FaMicrophone (props) {
       return GenIcon({"tag":"svg","attr":{"viewBox":"0 0 352 512"},"child":[{"tag":"path","attr":{"d":"M176 352c53.02 0 96-42.98 96-96V96c0-53.02-42.98-96-96-96S80 42.98 80 96v160c0 53.02 42.98 96 96 96zm160-160h-16c-8.84 0-16 7.16-16 16v48c0 74.8-64.49 134.82-140.79 127.38C96.71 376.89 48 317.11 48 250.3V208c0-8.84-7.16-16-16-16H16c-8.84 0-16 7.16-16 16v40.16c0 89.64 63.97 169.55 152 181.69V464H96c-8.84 0-16 7.16-16 16v16c0 8.84 7.16 16 16 16h160c8.84 0 16-7.16 16-16v-16c0-8.84-7.16-16-16-16h-56v-33.77C285.71 418.47 352 344.9 352 256v-48c0-8.84-7.16-16-16-16z"}}]})(props);
+    }function FaTrash (props) {
+      return GenIcon({"tag":"svg","attr":{"viewBox":"0 0 448 512"},"child":[{"tag":"path","attr":{"d":"M432 32H312l-9.4-18.7A24 24 0 0 0 281.1 0H166.8a23.72 23.72 0 0 0-21.4 13.3L136 32H16A16 16 0 0 0 0 48v32a16 16 0 0 0 16 16h416a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16zM53.2 467a48 48 0 0 0 47.9 45h245.8a48 48 0 0 0 47.9-45L416 128H32z"}}]})(props);
     }
 
     const getStatus = callable("get_status");
@@ -357,6 +359,7 @@
         { data: "small", label: "Small · Balanced" },
         { data: "medium", label: "Medium · More accurate" },
     ];
+    const LANGUAGE_LETTERS = Array.from(new Set(WHISPER_LANGUAGE_OPTIONS.filter(option => option.data !== "auto").map(option => String(option.label)[0].toUpperCase()))).sort();
     const PRESET_DISPLAY_NAMES = {
         wow: "World of Warcraft",
         guildwars2: "Guild Wars 2",
@@ -364,6 +367,9 @@
     };
     const DecktationPanel = ({ logic }) => {
         const [page, setPage] = React.useState("main");
+        const panelRef = React.useRef(null);
+        const [languageLetter, setLanguageLetter] = React.useState("A");
+        const [bindingButtonIndex, setBindingButtonIndex] = React.useState(0);
         const [enabled, setEnabled] = React.useState(false);
         const [recording, setRecording] = React.useState(false);
         const [serviceReady, setServiceReady] = React.useState(false);
@@ -490,7 +496,22 @@
                     clearTimeout(timeout);
             };
         }, [logic.enabled]);
-        const goBack = () => setPage(page === "diagnostics" || page === "help" || page === "model" ? "advanced" : "main");
+        React.useEffect(() => {
+            // Steam's QAM keeps its scroll position when the content changes in place.
+            const resetScroll = () => {
+                let node = panelRef.current?.parentElement;
+                while (node) {
+                    if (node.scrollHeight > node.clientHeight)
+                        node.scrollTop = 0;
+                    node = node.parentElement;
+                }
+            };
+            resetScroll();
+            const frame = requestAnimationFrame(resetScroll);
+            return () => cancelAnimationFrame(frame);
+        }, [page]);
+        const goBack = () => setPage(page === "language-options" ? "language"
+            : page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
         const runTest = async () => {
             if (testPhase !== "idle")
                 return;
@@ -524,7 +545,7 @@
                     goBack();
                 }
             }, onCancelActionDescription: page === "main" ? undefined : "Back" },
-            React__default["default"].createElement("div", null,
+            React__default["default"].createElement("div", { ref: panelRef },
                 page !== "main" && (React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                     React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: goBack }, "\u2190 Back"))),
                 page === "main" && React__default["default"].createElement(React__default["default"].Fragment, null,
@@ -553,18 +574,15 @@
                                 presets.find(option => option.data === activePreset)?.label || activePreset,
                                 " \u2192")),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: "Language", menuLabel: "Language", rgOptions: WHISPER_LANGUAGE_OPTIONS, selectedOption: transcriptionLanguage, onChange: async (option) => {
-                                    const language = option.data;
-                                    setTranscriptionLanguage(language);
-                                    const result = await setTranscriptionOptionsRpc(language);
-                                    if (!result.success)
-                                        setRpcError(result.error || "Could not update language setting");
-                                } })),
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("language") },
+                                "Language: ",
+                                WHISPER_LANGUAGE_OPTIONS.find(option => option.data === transcriptionLanguage)?.label || transcriptionLanguage,
+                                " \u2192")),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") },
-                                "Hold ",
-                                buttons.join('+'),
-                                " to record \u00B7 Edit binding"))),
+                                "Edit binding buttons \u00B7 ",
+                                buttons.join(' + '),
+                                " \u2192"))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Try it" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: runTest, disabled: !enabled || !modelReady || modelLoading || recording || testPhase !== "idle" },
@@ -581,7 +599,7 @@
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                         React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") }, "Advanced settings \u2192"))),
                 page === "advanced" && React__default["default"].createElement(React__default["default"].Fragment, null,
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Transcription" },
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Transcription model" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("model") },
                                 "Model: ",
@@ -595,22 +613,23 @@
                                 "Hold ",
                                 React__default["default"].createElement("strong", null, buttons.join('+')),
                                 " to record")),
-                        buttons.map((button, index) => React__default["default"].createElement("div", { key: index },
-                            React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                                React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: `Button ${index + 1}`, menuLabel: `Button ${index + 1}`, rgOptions: BUTTON_OPTIONS, selectedOption: button, onChange: async (option) => {
-                                        const next = [...buttons];
-                                        next[index] = option.data;
-                                        setButtons(next);
-                                        await setButtonConfig(next, showNotifications);
-                                    } })),
-                            buttons.length > 1 && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                                React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
+                        buttons.map((button, index) => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: index },
+                            React__default["default"].createElement("div", { style: { display: 'grid', gridTemplateColumns: buttons.length > 1 ? 'minmax(0, 1fr) 48px' : '1fr', gap: '6px', width: '100%' } },
+                                React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => { setBindingButtonIndex(index); setPage("binding-button"); } },
+                                    "Button ",
+                                    index + 1,
+                                    ": ",
+                                    button,
+                                    " \u2192"),
+                                buttons.length > 1 && React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", tooltip: `Remove button ${index + 1}`, onClick: async () => {
                                         const next = buttons.filter((_, i) => i !== index);
-                                        setButtons(next);
-                                        await setButtonConfig(next, showNotifications);
+                                        const result = await setButtonConfig(next, showNotifications);
+                                        if (result.success)
+                                            setButtons(next);
+                                        else
+                                            setRpcError(result.error || "Could not remove button");
                                     } },
-                                    "Remove Button ",
-                                    index + 1)))),
+                                    React__default["default"].createElement(FaTrash, { size: 14, "aria-label": `Remove button ${index + 1}` }))))),
                         buttons.length < 5 && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
                                     const available = BUTTON_OPTIONS.find(opt => !buttons.includes(opt.data));
@@ -728,6 +747,64 @@
                                 }
                             } },
                             option.data === modelSize ? "✓ " : "",
+                            option.label)))),
+                page === "language" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Language" },
+                    rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement("div", { role: "alert" }, rpcError)),
+                    React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
+                                setRpcError("");
+                                const result = await setTranscriptionOptionsRpc("auto");
+                                if (result.success) {
+                                    setTranscriptionLanguage("auto");
+                                    setPage("main");
+                                }
+                                else
+                                    setRpcError(result.error || "Could not update language setting");
+                            } },
+                            transcriptionLanguage === "auto" ? "✓ " : "",
+                            "Auto Detect")),
+                    LANGUAGE_LETTERS.map(letter => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: letter },
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => {
+                                setLanguageLetter(letter);
+                                setPage("language-options");
+                            } },
+                            letter,
+                            " \u2192")))),
+                page === "language-options" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: `Languages · ${languageLetter}` },
+                    rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement("div", { role: "alert" }, rpcError)),
+                    WHISPER_LANGUAGE_OPTIONS.filter(option => option.data !== "auto" && String(option.label).toUpperCase().startsWith(languageLetter)).map(option => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: String(option.data) },
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
+                                const next = option.data;
+                                setRpcError("");
+                                const result = await setTranscriptionOptionsRpc(next);
+                                if (result.success) {
+                                    setTranscriptionLanguage(next);
+                                    setPage("main");
+                                }
+                                else
+                                    setRpcError(result.error || "Could not update language setting");
+                            } },
+                            option.data === transcriptionLanguage ? "✓ " : "",
+                            option.label)))),
+                page === "binding-button" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: `Button ${bindingButtonIndex + 1}` },
+                    rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement("div", { role: "alert" }, rpcError)),
+                    BUTTON_OPTIONS.map(option => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: String(option.data) },
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
+                                const next = [...buttons];
+                                next[bindingButtonIndex] = option.data;
+                                setRpcError("");
+                                const result = await setButtonConfig(next, showNotifications);
+                                if (result.success) {
+                                    setButtons(next);
+                                    setPage("advanced");
+                                }
+                                else
+                                    setRpcError(result.error || "Could not update binding");
+                            } },
+                            option.data === buttons[bindingButtonIndex] ? "✓ " : "",
                             option.label)))),
                 page === "help" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "How to use" },
