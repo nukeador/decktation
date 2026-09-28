@@ -38,7 +38,7 @@ and `/home/deck/homebrew/plugins/decktation`.
 Back up the complete stable plugin and settings before copying anything:
 
 ```sh
-ssh -tt steamdeck 'sudo tar -C /home/deck/homebrew -czf /home/deck/decktation-stable-backup.tar.gz plugins/decktation settings/decktation && sudo chown deck:deck /home/deck/decktation-stable-backup.tar.gz'
+ssh steamdeck 'tar -C /home/deck/homebrew -czf /home/deck/decktation-stable-backup.tar.gz plugins/decktation settings/decktation'
 ```
 
 From the repository root, build the frontend and stage only the changed files:
@@ -47,7 +47,23 @@ From the repository root, build the frontend and stage only the changed files:
 npm run build
 ssh steamdeck 'mkdir -p /tmp/decktation-dev'
 scp backend/src/decktation_backend.py backend/src/wow_voice_chat.py backend/src/haptic_feedback.py dist/index.js steamdeck:/tmp/decktation-dev/
-ssh -tt steamdeck 'sudo install -m 0644 /tmp/decktation-dev/decktation_backend.py /home/deck/homebrew/plugins/decktation/bin/decktation_backend.py && sudo install -m 0644 /tmp/decktation-dev/wow_voice_chat.py /home/deck/homebrew/plugins/decktation/bin/wow_voice_chat.py && sudo install -m 0644 /tmp/decktation-dev/haptic_feedback.py /home/deck/homebrew/plugins/decktation/bin/haptic_feedback.py && sudo install -m 0644 /tmp/decktation-dev/index.js /home/deck/homebrew/plugins/decktation/dist/index.js && sudo systemctl restart plugin_loader.service'
+ssh -tt steamdeck 'sudo install -m 0644 /tmp/decktation-dev/decktation_backend.py /home/deck/homebrew/plugins/decktation/bin/decktation_backend.py && sudo install -m 0644 /tmp/decktation-dev/wow_voice_chat.py /home/deck/homebrew/plugins/decktation/bin/wow_voice_chat.py && sudo install -m 0644 /tmp/decktation-dev/haptic_feedback.py /home/deck/homebrew/plugins/decktation/bin/haptic_feedback.py && sudo install -m 0644 /tmp/decktation-dev/index.js /home/deck/homebrew/plugins/decktation/dist/index.js'
+```
+
+Check the installed `plugin.json` version first. The tested Deck had v0.3.16,
+which lacks the v0.3.17 `audio_runtime.py` imported by the current backend.
+For that older base, stage and install it before restarting Decky:
+
+```sh
+scp backend/src/audio_runtime.py steamdeck:/tmp/decktation-dev/audio_runtime.py
+ssh -tt steamdeck 'sudo install -m 0644 /tmp/decktation-dev/audio_runtime.py /home/deck/homebrew/plugins/decktation/bin/audio_runtime.py'
+```
+
+Then restart Decky and inspect the newest
+`/home/deck/homebrew/logs/decktation/*.log`:
+
+```sh
+ssh -tt steamdeck 'sudo systemctl restart plugin_loader.service'
 ```
 
 After Decky returns, enable **Haptic feedback** in Decktation. Test both the
@@ -59,8 +75,17 @@ and repeat to confirm silence. Keep the setting off on unsupported hardware.
 Restore stable files and settings from the backup:
 
 ```sh
-ssh -tt steamdeck 'sudo tar -C /home/deck/homebrew -xzf /home/deck/decktation-stable-backup.tar.gz && sudo rm -f /home/deck/homebrew/plugins/decktation/bin/haptic_feedback.py && sudo systemctl restart plugin_loader.service'
+ssh -tt steamdeck 'sudo tar -C /home/deck/homebrew -xzf /home/deck/decktation-stable-backup.tar.gz && sudo rm -f /home/deck/homebrew/plugins/decktation/bin/haptic_feedback.py'
 ```
+
+When restoring this Deck's v0.3.16 backup, also remove the added
+`audio_runtime.py` before restarting:
+
+```sh
+ssh -tt steamdeck 'sudo rm -f /home/deck/homebrew/plugins/decktation/bin/audio_runtime.py && sudo systemctl restart plugin_loader.service'
+```
+
+For a v0.3.17 backup, keep `audio_runtime.py` and restart Decky directly.
 
 The repository's GitHub Actions build workflow produces and validates the
 final Decky ZIP. This file-level workflow is only for local development.
