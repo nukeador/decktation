@@ -141,7 +141,6 @@
             this.enabled = false;
             this.recording = false;
             this.showNotifications = true;
-            this.prevRecordingStartCount = 0;
             this.prevPendingText = "";
             this.lastPendingToastId = -1;
             this.notify = async (message, duration = 2000, body = "") => {
@@ -212,7 +211,6 @@
             this.testRecording = async (onComplete, onPhase) => {
                 onPhase("recording");
                 try {
-                    this.notify("Decktation", 1000, "Recording for 3 seconds...");
                     const started = await startRecording();
                     if (!started.success)
                         throw new Error(started.error || "Could not start test recording");
@@ -220,7 +218,6 @@
                     // Keep the no-send argument: test text must never reach the active game.
                     onPhase("transcribing");
                     const transcription = stopRecording(false);
-                    this.notify("Decktation", 1500, "Transcribing...");
                     const stopped = await transcription;
                     if (!stopped.success)
                         throw new Error(stopped.error || "Could not transcribe test recording");
@@ -682,7 +679,7 @@
                                 } }))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Feedback" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Toasts", description: "Recording alerts", checked: showNotifications, onChange: async (next) => {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Recording overlay", description: "In-game cue and confirmation alerts", checked: showNotifications, onChange: async (next) => {
                                     setShowNotifications(next);
                                     logic.showNotifications = next;
                                     if (!next && confirmMode) {
@@ -808,14 +805,7 @@
     };
     var index = deckyFrontendLib.definePlugin(() => {
         let logic = new DecktationLogic();
-        // Seed the recording start count so we don't fire a spurious toast on load
-        getStatus().then((result) => {
-            if (result.success) {
-                logic.prevRecordingStartCount = result.recording_start_count || 0;
-            }
-        });
-        // Background notification polling — runs for the full plugin lifetime regardless
-        // of whether the Decky panel is open, so toasts appear while in-game.
+        // Keep the pending-send confirmation alert while recording uses Gamescope.
         let notifyPollInFlight = false;
         const bgNotifyInterval = setInterval(async () => {
             if (!logic.enabled || notifyPollInFlight)
@@ -825,11 +815,6 @@
                 const result = await getStatus();
                 if (result.success) {
                     if (logic.showNotifications) {
-                        const startCount = result.recording_start_count || 0;
-                        if (startCount > logic.prevRecordingStartCount) {
-                            logic.notify("Recording", 1500, "🎤 Recording...");
-                        }
-                        logic.prevRecordingStartCount = startCount;
                         const pendingText = result.pending_text || "";
                         const pendingDelay = result.pending_delay || 0;
                         if (pendingText && !logic.prevPendingText) {

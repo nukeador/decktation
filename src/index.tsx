@@ -54,7 +54,6 @@ class DecktationLogic {
 	enabled: boolean = false;
 	recording: boolean = false;
 	showNotifications: boolean = true;
-	prevRecordingStartCount: number = 0;
 	prevPendingText: string = "";
 	lastPendingToastId: number = -1;
 
@@ -129,7 +128,6 @@ class DecktationLogic {
 	) => {
 		onPhase("recording");
 		try {
-			this.notify("Decktation", 1000, "Recording for 3 seconds...");
 			const started = await startRecording();
 			if (!started.success) throw new Error(started.error || "Could not start test recording");
 
@@ -137,7 +135,6 @@ class DecktationLogic {
 			// Keep the no-send argument: test text must never reach the active game.
 			onPhase("transcribing");
 			const transcription = stopRecording(false);
-			this.notify("Decktation", 1500, "Transcribing...");
 			const stopped = await transcription;
 			if (!stopped.success) throw new Error(stopped.error || "Could not transcribe test recording");
 
@@ -601,7 +598,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 							}} /></PanelSectionRow>
 					</PanelSection>
 					<PanelSection title="Feedback">
-						<PanelSectionRow><ToggleField label="Toasts" description="Recording alerts" checked={showNotifications}
+						<PanelSectionRow><ToggleField label="Recording overlay" description="In-game cue and confirmation alerts" checked={showNotifications}
 							onChange={async (next) => {
 								setShowNotifications(next);
 								logic.showNotifications = next;
@@ -690,15 +687,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 
 export default definePlugin(() => {
 	let logic = new DecktationLogic();
-	// Seed the recording start count so we don't fire a spurious toast on load
-	getStatus().then((result) => {
-		if (result.success) {
-			logic.prevRecordingStartCount = result.recording_start_count || 0;
-		}
-	});
-
-	// Background notification polling — runs for the full plugin lifetime regardless
-	// of whether the Decky panel is open, so toasts appear while in-game.
+	// Keep the pending-send confirmation alert while recording uses Gamescope.
 	let notifyPollInFlight = false;
 	const bgNotifyInterval = setInterval(async () => {
 		if (!logic.enabled || notifyPollInFlight) return;
@@ -707,12 +696,6 @@ export default definePlugin(() => {
 			const result = await getStatus();
 			if (result.success) {
 				if (logic.showNotifications) {
-					const startCount: number = result.recording_start_count || 0;
-					if (startCount > logic.prevRecordingStartCount) {
-						logic.notify("Recording", 1500, "🎤 Recording...");
-					}
-					logic.prevRecordingStartCount = startCount;
-
 					const pendingText: string = result.pending_text || "";
 					const pendingDelay: number = result.pending_delay || 0;
 					if (pendingText && !logic.prevPendingText) {
