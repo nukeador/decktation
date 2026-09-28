@@ -15,12 +15,26 @@ import threading
 import subprocess
 from pathlib import Path
 from faster_whisper import WhisperModel
-
 import sounddevice as sd
 import numpy as np
 import wave
 from audio_runtime import ensure_audio_environment
 from clipboard_injection import temporary_clipboard
+
+
+def _format_casual_message(text: str) -> str:
+    """Format text for casual gaming chat."""
+    if not text:
+        return text
+
+    if text.endswith("."):
+        text = text.rstrip(".")
+
+    words = text.split(" ")
+    first = words[0]
+    if first != "I" and not (len(first) > 1 and first.isupper()):
+        words[0] = first[:1].lower() + first[1:]
+    return " ".join(words)
 
 
 def _normalize_transcription_text(text):
@@ -82,6 +96,7 @@ class WoWVoiceChat:
         self.channel_commands = self.preset.get("channels") or self.default_channel_commands
         if self.last_channel not in self.channel_commands:
             self.last_channel = None
+        self.casual_case = bool(self.preset.get("casual_case", False))
 
     def _report_diagnostic(self, name, error=None):
         if self.diagnostic_reporter:
@@ -209,6 +224,7 @@ class WoWVoiceChat:
         self.preset = preset
         self.default_channel = preset.get("default_channel", "say")
         self.channel_commands = preset.get("channels") or {"say": "", "type": ""}
+        self.casual_case = bool(preset.get("casual_case", False))
         if self.last_channel not in self.channel_commands:
             self.last_channel = None
 
@@ -231,11 +247,16 @@ class WoWVoiceChat:
             prefixes = [f"{trigger}:", f"{trigger},", f"{trigger}.", f"{trigger} "]
             for prefix in prefixes:
                 if text_lower.startswith(prefix) and channel_name in self.channel_commands:
-                    return channel_name, text[len(prefix):].strip(), True
+                    message = text[len(prefix):].strip()
+                    if self.casual_case:
+                        message = _format_casual_message(message)
+                    return channel_name, message, True
 
         channel = self.last_channel if (
             self.remember_last_channel and self.last_channel in self.channel_commands
         ) else self.default_channel
+        if self.casual_case:
+            text = _format_casual_message(text)
         return channel, text, False
 
     def set_transcription_options(self, language=None):
