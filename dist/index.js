@@ -362,15 +362,11 @@
     const POPULAR_STEAM_LANGUAGE_CODES = new Set(["en", "zh", "ru", "es", "pt", "de", "ja", "fr", "pl", "ko"]);
     const byLanguageName = (left, right) => String(left.label).localeCompare(String(right.label));
     const LANGUAGE_MENU_OPTIONS = [
-        WHISPER_LANGUAGE_OPTIONS[0],
-        {
-            label: "Popular Steam languages",
-            options: WHISPER_LANGUAGE_OPTIONS.filter(option => POPULAR_STEAM_LANGUAGE_CODES.has(String(option.data))).sort(byLanguageName),
-        },
-        {
-            label: "Other languages",
-            options: WHISPER_LANGUAGE_OPTIONS.filter(option => option.data !== "auto" && !POPULAR_STEAM_LANGUAGE_CODES.has(String(option.data))).sort(byLanguageName),
-        },
+        WHISPER_LANGUAGE_OPTIONS.find(option => option.data === "auto"),
+        { data: "__popular_languages_header__", label: "Popular Steam languages", disabled: true },
+        ...WHISPER_LANGUAGE_OPTIONS.filter(option => POPULAR_STEAM_LANGUAGE_CODES.has(String(option.data))).sort(byLanguageName),
+        { data: "__other_languages_header__", label: "Other languages", disabled: true },
+        ...WHISPER_LANGUAGE_OPTIONS.filter(option => option.data !== "auto" && !POPULAR_STEAM_LANGUAGE_CODES.has(String(option.data))).sort(byLanguageName),
     ];
     const PRESET_DISPLAY_NAMES = {
         wow: "World of Warcraft",
@@ -380,6 +376,7 @@
     const DecktationPanel = ({ logic }) => {
         const [page, setPage] = React.useState("main");
         const panelRef = React.useRef(null);
+        const advancedModelRef = React.useRef(null);
         const [bindingButtonIndex, setBindingButtonIndex] = React.useState(0);
         const [enabled, setEnabled] = React.useState(false);
         const [recording, setRecording] = React.useState(false);
@@ -518,7 +515,11 @@
                 }
             };
             resetScroll();
-            const frame = requestAnimationFrame(resetScroll);
+            const frame = requestAnimationFrame(() => {
+                resetScroll();
+                if (page === "advanced")
+                    advancedModelRef.current?.focus();
+            });
             return () => cancelAnimationFrame(frame);
         }, [page]);
         const goBack = () => setPage(page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
@@ -586,6 +587,8 @@
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: "Language", menuLabel: "Language", rgOptions: LANGUAGE_MENU_OPTIONS, selectedOption: transcriptionLanguage, onChange: async (option) => {
                                     const next = option.data;
+                                    if (next.startsWith("__"))
+                                        return;
                                     const result = await setTranscriptionOptionsRpc(next);
                                     if (result.success)
                                         setTranscriptionLanguage(next);
@@ -593,10 +596,11 @@
                                         setRpcError(result.error || "Could not update language setting");
                                 } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") },
-                                "Edit binding buttons \u00B7 ",
-                                buttons.join(' + '),
-                                " \u2192"))),
+                            React__default["default"].createElement("div", null,
+                                "Binding: ",
+                                React__default["default"].createElement("strong", null, buttons.join(' + ')))),
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") }, "Edit Bindings \u2192"))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Try it" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: runTest, disabled: !enabled || !modelReady || modelLoading || recording || testPhase !== "idle" },
@@ -615,10 +619,12 @@
                 page === "advanced" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Transcription model" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("model") },
-                                "Model: ",
-                                MODEL_SIZE_OPTIONS.find(option => option.data === modelSize)?.label || modelSize,
-                                " \u2192")),
+                            React__default["default"].createElement(deckyFrontendLib.Focusable, { ref: advancedModelRef, role: "button", tabIndex: 0, focusClassName: "gpfocus", onActivate: () => setPage("model"), style: { width: '100%', padding: '10px 12px', borderRadius: '4px' } },
+                                React__default["default"].createElement("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                                    React__default["default"].createElement("span", null,
+                                        "Model: ",
+                                        MODEL_SIZE_OPTIONS.find(option => option.data === modelSize)?.label || modelSize),
+                                    React__default["default"].createElement("span", null, "\u2192")))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { style: { fontSize: '12px' } }, "Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use."))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Recording binding" },
@@ -631,12 +637,11 @@
                             React__default["default"].createElement(deckyFrontendLib.Focusable, { "flow-children": "row", style: { display: 'flex', alignItems: 'center', gap: '4px', width: '100%', minWidth: 0, boxSizing: 'border-box' } },
                                 React__default["default"].createElement("div", { style: { flex: '1 1 0', minWidth: 0, overflow: 'hidden' } },
                                     React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => { setBindingButtonIndex(index); setPage("binding-button"); } },
-                                        "Button ",
                                         index + 1,
                                         ": ",
                                         button,
                                         " \u2192")),
-                                buttons.length > 1 && React__default["default"].createElement(deckyFrontendLib.Focusable, { role: "button", tabIndex: 0, "aria-label": `Remove button ${index + 1}`, onActivate: async () => {
+                                buttons.length > 1 && React__default["default"].createElement(deckyFrontendLib.Focusable, { role: "button", tabIndex: 0, focusClassName: "gpfocus", "aria-label": `Remove button ${index + 1}`, onActivate: async () => {
                                         const next = buttons.filter((_, i) => i !== index);
                                         const result = await setButtonConfig(next, showNotifications);
                                         if (result.success)
