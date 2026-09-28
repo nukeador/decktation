@@ -490,7 +490,7 @@
                     clearTimeout(timeout);
             };
         }, [logic.enabled]);
-        const goBack = () => setPage(page === "diagnostics" || page === "help" ? "advanced" : "main");
+        const goBack = () => setPage(page === "diagnostics" || page === "help" || page === "model" ? "advanced" : "main");
         const runTest = async () => {
             if (testPhase !== "idle")
                 return;
@@ -526,7 +526,7 @@
             }, onCancelActionDescription: page === "main" ? undefined : "Back" },
             React__default["default"].createElement("div", null,
                 page !== "main" && (React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                    React__default["default"].createElement(deckyFrontendLib.ButtonItem, { onClick: goBack }, "\u2190 Back"))),
+                    React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: goBack }, "\u2190 Back"))),
                 page === "main" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Decktation" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
@@ -548,11 +548,10 @@
                             React__default["default"].createElement("div", { role: "status", style: { padding: statusProblem ? '10px' : '4px 0', borderRadius: '6px', backgroundColor: statusProblem ? '#713030' : undefined } }, statusMessage))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Quick settings" },
                         presets.length > 0 && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: "Game", menuLabel: "Game", rgOptions: presets, selectedOption: activePreset, onChange: async (option) => {
-                                    const game = option.data;
-                                    setActivePreset(game);
-                                    await setActivePresetRpc(game);
-                                } })),
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("game") },
+                                "Game: ",
+                                presets.find(option => option.data === activePreset)?.label || activePreset,
+                                " \u2192")),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: "Language", menuLabel: "Language", rgOptions: WHISPER_LANGUAGE_OPTIONS, selectedOption: transcriptionLanguage, onChange: async (option) => {
                                     const language = option.data;
@@ -562,7 +561,7 @@
                                         setRpcError(result.error || "Could not update language setting");
                                 } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { onClick: () => setPage("advanced") },
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") },
                                 "Hold ",
                                 buttons.join('+'),
                                 " to record \u00B7 Edit binding"))),
@@ -580,23 +579,14 @@
                                 React__default["default"].createElement("div", null, lastTranscription || "No speech detected"),
                                 React__default["default"].createElement("small", null, lastTranscriptionTime)))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { onClick: () => setPage("advanced") }, "Advanced settings \u2192"))),
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") }, "Advanced settings \u2192"))),
                 page === "advanced" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Transcription" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: "Model", menuLabel: "Model", rgOptions: MODEL_SIZE_OPTIONS, selectedOption: modelSize, onChange: async (option) => {
-                                    const next = option.data;
-                                    const previous = modelSize;
-                                    setModelSize(next);
-                                    if (enabled && modelReady)
-                                        setModelLoading(true);
-                                    const result = await setModelSizeRpc(next);
-                                    if (!result.success) {
-                                        setModelSize(previous);
-                                        setModelLoading(false);
-                                        setRpcError(result.error || "Could not update model size");
-                                    }
-                                } })),
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("model") },
+                                "Model: ",
+                                MODEL_SIZE_OPTIONS.find(option => option.data === modelSize)?.label || modelSize,
+                                " \u2192")),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { style: { fontSize: '12px' } }, "Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use."))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Recording binding" },
@@ -614,7 +604,7 @@
                                         await setButtonConfig(next, showNotifications);
                                     } })),
                             buttons.length > 1 && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                                React__default["default"].createElement(deckyFrontendLib.ButtonItem, { onClick: async () => {
+                                React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
                                         const next = buttons.filter((_, i) => i !== index);
                                         setButtons(next);
                                         await setButtonConfig(next, showNotifications);
@@ -622,7 +612,7 @@
                                     "Remove Button ",
                                     index + 1)))),
                         buttons.length < 5 && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { onClick: async () => {
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
                                     const available = BUTTON_OPTIONS.find(opt => !buttons.includes(opt.data));
                                     if (available) {
                                         const next = [...buttons, available.data];
@@ -664,9 +654,9 @@
                                         setRpcError(result.error || "Could not update haptic feedback");
                                 } }))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { onClick: () => setPage("diagnostics") }, "Diagnostics \u2192")),
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("diagnostics") }, "Diagnostics \u2192")),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { onClick: () => setPage("help") }, "Help & permissions \u2192"))),
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("help") }, "Help & permissions \u2192"))),
                 page === "diagnostics" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Input and service" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
@@ -701,6 +691,44 @@
                                         setRpcError(result.error || "Could not update diagnostics setting");
                                     }
                                 } })))),
+                page === "game" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Game" },
+                    rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement("div", { role: "alert" }, rpcError)),
+                    presets.map(option => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: String(option.data) },
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
+                                const next = option.data;
+                                setRpcError("");
+                                const result = await setActivePresetRpc(next);
+                                if (result.success) {
+                                    setActivePreset(next);
+                                    setPage("main");
+                                }
+                                else
+                                    setRpcError(result.error || "Could not update game");
+                            } },
+                            option.data === activePreset ? "✓ " : "",
+                            option.label)))),
+                page === "model" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Model" },
+                    rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement("div", { role: "alert" }, rpcError)),
+                    MODEL_SIZE_OPTIONS.map(option => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: String(option.data) },
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
+                                const next = option.data;
+                                setRpcError("");
+                                if (enabled && modelReady)
+                                    setModelLoading(true);
+                                const result = await setModelSizeRpc(next);
+                                if (result.success) {
+                                    setModelSize(next);
+                                    setPage("advanced");
+                                }
+                                else {
+                                    setModelLoading(false);
+                                    setRpcError(result.error || "Could not update model size");
+                                }
+                            } },
+                            option.data === modelSize ? "✓ " : "",
+                            option.label)))),
                 page === "help" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "How to use" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,

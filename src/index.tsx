@@ -282,7 +282,7 @@ const PRESET_DISPLAY_NAMES: Record<string, string> = {
 	generic: "Generic",
 };
 
-type PanelPage = "main" | "advanced" | "diagnostics" | "help";
+type PanelPage = "main" | "advanced" | "diagnostics" | "help" | "game" | "model";
 
 const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [page, setPage] = useState<PanelPage>("main");
@@ -411,7 +411,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 		};
 	}, [logic.enabled]);
 
-	const goBack = () => setPage(page === "diagnostics" || page === "help" ? "advanced" : "main");
+	const goBack = () => setPage(page === "diagnostics" || page === "help" || page === "model" ? "advanced" : "main");
 	const runTest = async () => {
 		if (testPhase !== "idle") return;
 		setRpcError("");
@@ -447,7 +447,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 		}} onCancelActionDescription={page === "main" ? undefined : "Back"}>
 			<div>
 				{page !== "main" && (
-					<PanelSectionRow><ButtonItem onClick={goBack}>← Back</ButtonItem></PanelSectionRow>
+					<PanelSectionRow><ButtonItem layout="below" onClick={goBack}>← Back</ButtonItem></PanelSectionRow>
 				)}
 				{page === "main" && <>
 					<PanelSection title="Decktation">
@@ -475,14 +475,9 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						</PanelSectionRow>
 					</PanelSection>
 					<PanelSection title="Quick settings">
-						{presets.length > 0 && <PanelSectionRow>
-							<DropdownItem label="Game" menuLabel="Game" rgOptions={presets} selectedOption={activePreset}
-								onChange={async (option) => {
-									const game = option.data as string;
-									setActivePreset(game);
-									await setActivePresetRpc(game);
-								}} />
-						</PanelSectionRow>}
+						{presets.length > 0 && <PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("game")}>
+							Game: {presets.find(option => option.data === activePreset)?.label || activePreset} →
+						</ButtonItem></PanelSectionRow>}
 						<PanelSectionRow>
 							<DropdownItem label="Language" menuLabel="Language" rgOptions={WHISPER_LANGUAGE_OPTIONS}
 								selectedOption={transcriptionLanguage} onChange={async (option) => {
@@ -492,7 +487,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 									if (!result.success) setRpcError(result.error || "Could not update language setting");
 								}} />
 						</PanelSectionRow>
-						<PanelSectionRow><ButtonItem onClick={() => setPage("advanced")}>
+						<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("advanced")}>
 							Hold {buttons.join('+')} to record · Edit binding
 						</ButtonItem></PanelSectionRow>
 					</PanelSection>
@@ -506,23 +501,13 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 							<strong>Result</strong><div>{lastTranscription || "No speech detected"}</div><small>{lastTranscriptionTime}</small>
 						</div></PanelSectionRow>}
 					</PanelSection>
-					<PanelSectionRow><ButtonItem onClick={() => setPage("advanced")}>Advanced settings →</ButtonItem></PanelSectionRow>
+					<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("advanced")}>Advanced settings →</ButtonItem></PanelSectionRow>
 				</>}
 				{page === "advanced" && <>
 					<PanelSection title="Transcription">
-						<PanelSectionRow><DropdownItem label="Model" menuLabel="Model" rgOptions={MODEL_SIZE_OPTIONS}
-							selectedOption={modelSize} onChange={async (option) => {
-								const next = option.data as string;
-								const previous = modelSize;
-								setModelSize(next);
-								if (enabled && modelReady) setModelLoading(true);
-								const result = await setModelSizeRpc(next);
-								if (!result.success) {
-									setModelSize(previous);
-									setModelLoading(false);
-									setRpcError(result.error || "Could not update model size");
-								}
-							}} /></PanelSectionRow>
+						<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("model")}>
+							Model: {MODEL_SIZE_OPTIONS.find(option => option.data === modelSize)?.label || modelSize} →
+						</ButtonItem></PanelSectionRow>
 						<PanelSectionRow><div style={{ fontSize: '12px' }}>Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use.</div></PanelSectionRow>
 					</PanelSection>
 					<PanelSection title="Recording binding">
@@ -535,13 +520,13 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 									setButtons(next);
 									await setButtonConfig(next, showNotifications);
 								}} /></PanelSectionRow>
-							{buttons.length > 1 && <PanelSectionRow><ButtonItem onClick={async () => {
+							{buttons.length > 1 && <PanelSectionRow><ButtonItem layout="below" onClick={async () => {
 								const next = buttons.filter((_, i) => i !== index);
 								setButtons(next);
 								await setButtonConfig(next, showNotifications);
 							}}>Remove Button {index + 1}</ButtonItem></PanelSectionRow>}
 						</div>)}
-						{buttons.length < 5 && <PanelSectionRow><ButtonItem onClick={async () => {
+						{buttons.length < 5 && <PanelSectionRow><ButtonItem layout="below" onClick={async () => {
 							const available = BUTTON_OPTIONS.find(opt => !buttons.includes(opt.data as string));
 							if (available) {
 								const next = [...buttons, available.data as string];
@@ -577,8 +562,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 								else setRpcError(result.error || "Could not update haptic feedback");
 							}} /></PanelSectionRow>
 					</PanelSection>
-					<PanelSectionRow><ButtonItem onClick={() => setPage("diagnostics")}>Diagnostics →</ButtonItem></PanelSectionRow>
-					<PanelSectionRow><ButtonItem onClick={() => setPage("help")}>Help & permissions →</ButtonItem></PanelSectionRow>
+					<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("diagnostics")}>Diagnostics →</ButtonItem></PanelSectionRow>
+					<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("help")}>Help & permissions →</ButtonItem></PanelSectionRow>
 				</>}
 				{page === "diagnostics" && <>
 					<PanelSection title="Input and service">
@@ -598,6 +583,27 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 							}} /></PanelSectionRow>
 					</PanelSection>
 				</>}
+				{page === "game" && <PanelSection title="Game">
+					{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
+					{presets.map(option => <PanelSectionRow key={String(option.data)}><ButtonItem layout="below" onClick={async () => {
+						const next = option.data as string;
+						setRpcError("");
+						const result = await setActivePresetRpc(next);
+						if (result.success) { setActivePreset(next); setPage("main"); }
+						else setRpcError(result.error || "Could not update game");
+					}}>{option.data === activePreset ? "✓ " : ""}{option.label}</ButtonItem></PanelSectionRow>)}
+				</PanelSection>}
+				{page === "model" && <PanelSection title="Model">
+					{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
+					{MODEL_SIZE_OPTIONS.map(option => <PanelSectionRow key={String(option.data)}><ButtonItem layout="below" onClick={async () => {
+						const next = option.data as string;
+						setRpcError("");
+						if (enabled && modelReady) setModelLoading(true);
+						const result = await setModelSizeRpc(next);
+						if (result.success) { setModelSize(next); setPage("advanced"); }
+						else { setModelLoading(false); setRpcError(result.error || "Could not update model size"); }
+					}}>{option.data === modelSize ? "✓ " : ""}{option.label}</ButtonItem></PanelSectionRow>)}
+				</PanelSection>}
 				{page === "help" && <>
 					<PanelSection title="How to use">
 						<PanelSectionRow><div style={{ fontSize: '13px', lineHeight: '1.6' }}>
