@@ -2,7 +2,7 @@
   "plugin": "Decktation",
   "channel": "branch",
   "ref": "feat/unicode-text-injection",
-  "commit": "a1fba2fa2bf42734af010ea706b3924f82c19573",
-  "zip_url": "https://nukeador.github.io/decktation/branches/feat%2Funicode-text-injection/decktation.zip",
-  "generated_at": "2026-09-28T20:46:10Z"
+  "commit": "278b325b7905a7f1fb25a3e3e49060180277ce5a",
+  "zip_url": "https://nukeador.github.io/decktation/branches/feat%252Funicode-text-injection/decktation.zip",
+  "generated_at": "2026-09-28T21:00:23Z"
 }
