@@ -33,6 +33,12 @@ for dependency_path in dependency_paths:
         sys.path.insert(0, dependency_path)
         logger.info(f"Added dependency path: {dependency_path}")
 
+from audio_runtime import ensure_audio_environment, setup_audio_environment
+
+# Decky plugins run outside the desktop user's login environment.  Configure
+# the PipeWire runtime before sounddevice is imported by wow_voice_chat.
+setup_audio_environment(getattr(decky, "DECKY_USER_HOME", None), logger)
+
 # sounddevice normally searches only system library paths on Linux. Store
 # builds bundle PortAudio in bin/lib so the plugin works on clean SteamOS
 # installations without modifying the read-only operating system.
@@ -880,6 +886,11 @@ class Plugin:
     async def start_recording(self):
         """Start recording audio"""
         try:
+            ensure_audio_environment(
+                __import__("sounddevice"),
+                getattr(decky, "DECKY_USER_HOME", None),
+                logger,
+            )
             if Plugin.voice_service is None:
                 logger.error("Voice service not initialized")
                 return {"success": False, "error": "Service not initialized"}
