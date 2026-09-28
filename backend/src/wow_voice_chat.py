@@ -13,55 +13,10 @@ import subprocess
 from pathlib import Path
 from faster_whisper import WhisperModel
 
-
-def _setup_audio_environment():
-    if os.environ.get("XDG_RUNTIME_DIR") and os.environ.get("XDG_RUNTIME_DIR") != "/run/user/0":
-        return os.environ.get("XDG_RUNTIME_DIR")
-    candidate_uids = []
-    if os.environ.get("SUDO_UID"):
-        candidate_uids.append(os.environ["SUDO_UID"])
-    if os.path.exists("/run/user"):
-        try:
-            for entry in sorted(os.listdir("/run/user")):
-                if entry != "0" and entry.isdigit():
-                    candidate_uids.append(entry)
-        except Exception:
-            pass
-    candidate_uids.extend(["1000", "1001", "1002"])
-
-    seen = set()
-    for uid in candidate_uids:
-        if uid in seen:
-            continue
-        seen.add(uid)
-        run_dir = f"/run/user/{uid}"
-        if os.path.exists(os.path.join(run_dir, "pipewire-0")):
-            os.environ["XDG_RUNTIME_DIR"] = run_dir
-            os.environ["PIPEWIRE_RUNTIME_DIR"] = run_dir
-            os.environ["PULSE_SERVER"] = f"unix:{run_dir}/pulse/native"
-            return run_dir
-
-
-def ensure_audio_environment():
-    """Ensure XDG_RUNTIME_DIR points to a valid PipeWire session and sounddevice is connected."""
-    current_run_dir = os.environ.get("XDG_RUNTIME_DIR")
-    pipewire_available = current_run_dir and os.path.exists(os.path.join(current_run_dir, "pipewire-0"))
-    if not pipewire_available:
-        new_dir = _setup_audio_environment()
-        if new_dir:
-            try:
-                import sounddevice as sd
-                sd._terminate()
-                sd._initialize()
-            except Exception:
-                pass
-
-
-_setup_audio_environment()
-
 import sounddevice as sd
 import numpy as np
 import wave
+from audio_runtime import ensure_audio_environment
 
 
 class WoWVoiceChat:
@@ -103,6 +58,7 @@ class WoWVoiceChat:
         self.audio_queue = queue.Queue()
         self.is_recording = False
         self.recording_stream = None
+        self.input_channels = 1
         self.recording_lock = threading.Lock()
 
         # Context cache
@@ -373,13 +329,56 @@ class WoWVoiceChat:
             print(f"Audio status: {status}")
         self.audio_queue.put(indata.copy())
 
+    def _input_stream_settings(self):
+        """Choose a supported input format, preferring mono when available."""
+        device = sd.default.device[0]
+        device_info = sd.query_devices(device, "input")
+        self.sample_rate = int(device_info["default_samplerate"])
+        maximum = int(device_info["max_input_channels"])
+        candidates = [1]
+        if maximum >= 2:
+            candidates.append(2)
+        if maximum > 2:
+            candidates.append(maximum)
+
+        last_error = None
+        for channels in candidates:
+            try:
+                sd.check_input_settings(
+                    device=device,
+                    channels=channels,
+                    samplerate=self.sample_rate,
+                    dtype="int16",
+                )
+                self.input_channels = channels
+                print(
+                    f"Using input device {device}: {self.sample_rate} Hz, "
+                    f"{channels} channel(s)"
+                )
+                return {
+                    "device": device,
+                    "samplerate": self.sample_rate,
+                    "channels": channels,
+                    "callback": self.audio_callback,
+                    "dtype": "int16",
+                }
+            except Exception as error:
+                last_error = error
+
+        raise RuntimeError(
+            f"No supported capture format for input device {device} "
+            f"at {self.sample_rate} Hz (up to {maximum} channels): {last_error}"
+        )
+
+    def _open_input_stream(self):
+        return sd.InputStream(**self._input_stream_settings())
+
     def record_audio(self, duration=5):
         """Record audio for specified duration"""
         print(f"Recording for {duration} seconds...")
         self.audio_queue = queue.Queue()
 
-        with sd.InputStream(samplerate=self.sample_rate, channels=1,
-                           callback=self.audio_callback, dtype='int16'):
+        with self._open_input_stream():
             time.sleep(duration)
 
         # Collect all audio
@@ -405,7 +404,19 @@ class WoWVoiceChat:
 
     def _prepare_audio(self, audio_data, source_rate):
         """Return mono 16 kHz float32 samples for faster-whisper."""
-        audio_data = np.asarray(audio_data).flatten()
+        audio_data = np.asarray(audio_data)
+
+        if audio_data.ndim > 1:
+            # Device callbacks are frames x channels.  Mix channels before
+            # resampling; flattening would interleave them and distort timing.
+            if np.issubdtype(audio_data.dtype, np.integer):
+                max_value = float(max(abs(np.iinfo(audio_data.dtype).min), np.iinfo(audio_data.dtype).max))
+                audio_data = audio_data.astype(np.float32) / max_value
+            else:
+                audio_data = audio_data.astype(np.float32)
+            audio_data = audio_data.mean(axis=1)
+        else:
+            audio_data = audio_data.reshape(-1)
 
         # sounddevice records int16 PCM, while faster-whisper expects float32
         # PCM in [-1, 1]. Normalize before interpolation: np.interp promotes
@@ -666,34 +677,28 @@ class WoWVoiceChat:
 
     def start_recording(self):
         """Start recording audio (for push-to-talk)"""
-        ensure_audio_environment()
+        ensure_audio_environment(sd, os.environ.get("DECKY_USER_HOME"))
         with self.recording_lock:
             if self.is_recording:
                 return
 
-            self.is_recording = True
-
             # TEST MODE: Skip actual recording
             if self.test_mode:
+                self.is_recording = True
                 print(f"[TEST MODE] Recording started (will use {self.test_audio_file})")
                 return
 
             print("Recording started...")
             self.audio_queue = queue.Queue()
 
-            # Get default sample rate from device
-            device_info = sd.query_devices(sd.default.device[0], 'input')
-            self.sample_rate = int(device_info['default_samplerate'])
-            print(f"Using sample rate: {self.sample_rate}")
-
-            # Start audio stream
-            self.recording_stream = sd.InputStream(
-                samplerate=self.sample_rate,
-                channels=1,
-                callback=self.audio_callback,
-                dtype='int16'
-            )
-            self.recording_stream.start()
+            stream = self._open_input_stream()
+            try:
+                stream.start()
+            except Exception:
+                stream.close()
+                raise
+            self.recording_stream = stream
+            self.is_recording = True
 
     def stop_recording(self, send=True):
         """Stop recording and process audio (for push-to-talk)"""
