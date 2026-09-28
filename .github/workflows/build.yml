@@ -172,8 +172,10 @@ jobs:
       contents: read
       pages: write
       id-token: write
+    # GitHub's default Pages environment may be limited to protected branches.
+    # This dedicated environment lets every branch in this fork publish previews.
     environment:
-      name: github-pages
+      name: decktation-previews
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout generated download site

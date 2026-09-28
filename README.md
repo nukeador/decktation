@@ -52,8 +52,9 @@ artifact requires signing in to GitHub and follows the repository's artifact
 retention period.
 
 To publish branch ZIPs as a public website from a fork, enable **Settings →
-Pages → Build and deployment → Source → GitHub Actions** in that fork. Pushes
-to branches then update its Pages site automatically.
+Pages → Build and deployment → Source → GitHub Actions** in that fork. The
+workflow deploys through its dedicated `decktation-previews` environment so
+pushes to any branch can update that fork's Pages site automatically.
 
 All dependencies and the private keyboard helper are pre-bundled in the
 release. No system packages or one-time `sudo` setup are required.
