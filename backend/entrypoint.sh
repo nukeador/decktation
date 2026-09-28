@@ -9,7 +9,8 @@ cp -R /runtime/python/. out/python/
 # substantive Python backend source in backend/src; root main.py is only the
 # Decky Loader entry point.
 cp src/audio_runtime.py src/decktation_backend.py src/wow_voice_chat.py src/clipboard_injection.py src/controller_listener.py \
-    src/deck_hid.py src/gamepad_evdev.py src/telemetry.py src/convert_wow_context.py out/
+    src/deck_hid.py src/gamepad_evdev.py src/telemetry.py src/convert_wow_context.py \
+    src/recording_overlay.py src/recording_overlay_manager.py out/
 
 # Keep inference code and package license metadata, but omit installation-time
 # tools, test suites, caches, and SymPy (used by ONNX conversion tooling, not
