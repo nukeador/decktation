@@ -5,6 +5,7 @@ import {
 	quickAccessMenuClasses,
 	ToggleField,
 	ButtonItem,
+	DropdownItem,
 	DropdownOption,
 	Focusable,
 } from "decky-frontend-lib";
@@ -276,9 +277,19 @@ const MODEL_SIZE_OPTIONS: DropdownOption[] = [
 	{ data: "medium", label: "Medium · More accurate" },
 ];
 
-const LANGUAGE_LETTERS = Array.from(new Set(
-	WHISPER_LANGUAGE_OPTIONS.filter(option => option.data !== "auto").map(option => String(option.label)[0].toUpperCase()),
-)).sort();
+const POPULAR_STEAM_LANGUAGE_CODES = new Set(["en", "zh", "ru", "es", "pt", "de", "ja", "fr", "pl", "ko"]);
+const byLanguageName = (left: DropdownOption, right: DropdownOption) => String(left.label).localeCompare(String(right.label));
+const LANGUAGE_MENU_OPTIONS: DropdownOption[] = [
+	WHISPER_LANGUAGE_OPTIONS[0], // Auto Detect remains first.
+	{
+		label: "Popular Steam languages",
+		options: WHISPER_LANGUAGE_OPTIONS.filter(option => POPULAR_STEAM_LANGUAGE_CODES.has(String(option.data))).sort(byLanguageName),
+	},
+	{
+		label: "Other languages",
+		options: WHISPER_LANGUAGE_OPTIONS.filter(option => option.data !== "auto" && !POPULAR_STEAM_LANGUAGE_CODES.has(String(option.data))).sort(byLanguageName),
+	},
+];
 
 const PRESET_DISPLAY_NAMES: Record<string, string> = {
 	wow: "World of Warcraft",
@@ -286,12 +297,11 @@ const PRESET_DISPLAY_NAMES: Record<string, string> = {
 	generic: "Generic",
 };
 
-type PanelPage = "main" | "advanced" | "diagnostics" | "help" | "game" | "model" | "language" | "language-options" | "binding-button";
+type PanelPage = "main" | "advanced" | "diagnostics" | "help" | "game" | "model" | "binding-button";
 
 const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [page, setPage] = useState<PanelPage>("main");
 	const panelRef = useRef<HTMLDivElement>(null);
-	const [languageLetter, setLanguageLetter] = useState<string>("A");
 	const [bindingButtonIndex, setBindingButtonIndex] = useState<number>(0);
 	const [enabled, setEnabled] = useState<boolean>(false);
 	const [recording, setRecording] = useState<boolean>(false);
@@ -432,8 +442,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 		return () => cancelAnimationFrame(frame);
 	}, [page]);
 
-	const goBack = () => setPage(page === "language-options" ? "language"
-		: page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
+	const goBack = () => setPage(page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
 	const runTest = async () => {
 		if (testPhase !== "idle") return;
 		setRpcError("");
@@ -461,7 +470,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const statusProblem = !!(statusError || rpcError || (serviceReady && !inputReady) || (enabled && serviceReady && !controllerReady));
 
 	return (
-		<Focusable onCancel={(event) => {
+		<Focusable flow-children="column" onCancel={(event) => {
 			if (page !== "main") {
 				event.stopPropagation();
 				goBack();
@@ -500,9 +509,13 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						{presets.length > 0 && <PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("game")}>
 							Game: {presets.find(option => option.data === activePreset)?.label || activePreset} →
 						</ButtonItem></PanelSectionRow>}
-						<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("language")}>
-							Language: {WHISPER_LANGUAGE_OPTIONS.find(option => option.data === transcriptionLanguage)?.label || transcriptionLanguage} →
-						</ButtonItem></PanelSectionRow>
+						<PanelSectionRow><DropdownItem label="Language" menuLabel="Language" rgOptions={LANGUAGE_MENU_OPTIONS}
+							selectedOption={transcriptionLanguage} onChange={async (option) => {
+								const next = option.data as string;
+								const result = await setTranscriptionOptionsRpc(next);
+								if (result.success) setTranscriptionLanguage(next);
+								else setRpcError(result.error || "Could not update language setting");
+							}} /></PanelSectionRow>
 						<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("advanced")}>
 							Edit binding buttons · {buttons.join(' + ')} →
 						</ButtonItem></PanelSectionRow>
@@ -529,17 +542,22 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					<PanelSection title="Recording binding">
 						<PanelSectionRow><div>Hold <strong>{buttons.join('+')}</strong> to record</div></PanelSectionRow>
 						{buttons.map((button, index) => <PanelSectionRow key={index}>
-							<div style={{ display: 'grid', gridTemplateColumns: buttons.length > 1 ? 'minmax(0, 1fr) 48px' : '1fr', gap: '6px', width: '100%' }}>
-								<ButtonItem layout="below" onClick={() => { setBindingButtonIndex(index); setPage("binding-button"); }}>
-									Button {index + 1}: {button} →
-								</ButtonItem>
-								{buttons.length > 1 && <ButtonItem layout="below" tooltip={`Remove button ${index + 1}`} onClick={async () => {
-									const next = buttons.filter((_, i) => i !== index);
-									const result = await setButtonConfig(next, showNotifications);
-									if (result.success) setButtons(next);
-									else setRpcError(result.error || "Could not remove button");
-								}}><FaTrash size={14} aria-label={`Remove button ${index + 1}`} /></ButtonItem>}
-							</div>
+							<Focusable flow-children="row" style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+								<div style={{ flex: '1 1 0', minWidth: 0, overflow: 'hidden' }}>
+									<ButtonItem layout="below" onClick={() => { setBindingButtonIndex(index); setPage("binding-button"); }}>
+										Button {index + 1}: {button} →
+									</ButtonItem>
+								</div>
+								{buttons.length > 1 && <Focusable role="button" tabIndex={0} aria-label={`Remove button ${index + 1}`}
+									onActivate={async () => {
+										const next = buttons.filter((_, i) => i !== index);
+										const result = await setButtonConfig(next, showNotifications);
+										if (result.success) setButtons(next);
+										else setRpcError(result.error || "Could not remove button");
+									}} style={{ flex: '0 0 36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', backgroundColor: '#3b4252' }}>
+									<FaTrash size={14} aria-hidden="true" />
+								</Focusable>}
+							</Focusable>
 						</PanelSectionRow>)}
 						{buttons.length < 5 && <PanelSectionRow><ButtonItem layout="below" onClick={async () => {
 							const available = BUTTON_OPTIONS.find(opt => !buttons.includes(opt.data as string));
@@ -618,31 +636,6 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						if (result.success) { setModelSize(next); setPage("advanced"); }
 						else { setModelLoading(false); setRpcError(result.error || "Could not update model size"); }
 					}}>{option.data === modelSize ? "✓ " : ""}{option.label}</ButtonItem></PanelSectionRow>)}
-				</PanelSection>}
-				{page === "language" && <PanelSection title="Language">
-					{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
-					<PanelSectionRow><ButtonItem layout="below" onClick={async () => {
-						setRpcError("");
-						const result = await setTranscriptionOptionsRpc("auto");
-						if (result.success) { setTranscriptionLanguage("auto"); setPage("main"); }
-						else setRpcError(result.error || "Could not update language setting");
-					}}>{transcriptionLanguage === "auto" ? "✓ " : ""}Auto Detect</ButtonItem></PanelSectionRow>
-					{LANGUAGE_LETTERS.map(letter => <PanelSectionRow key={letter}><ButtonItem layout="below" onClick={() => {
-						setLanguageLetter(letter);
-						setPage("language-options");
-					}}>{letter} →</ButtonItem></PanelSectionRow>)}
-				</PanelSection>}
-				{page === "language-options" && <PanelSection title={`Languages · ${languageLetter}`}>
-					{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
-					{WHISPER_LANGUAGE_OPTIONS.filter(option => option.data !== "auto" && String(option.label).toUpperCase().startsWith(languageLetter)).map(option =>
-						<PanelSectionRow key={String(option.data)}><ButtonItem layout="below" onClick={async () => {
-							const next = option.data as string;
-							setRpcError("");
-							const result = await setTranscriptionOptionsRpc(next);
-							if (result.success) { setTranscriptionLanguage(next); setPage("main"); }
-							else setRpcError(result.error || "Could not update language setting");
-						}}>{option.data === transcriptionLanguage ? "✓ " : ""}{option.label}</ButtonItem></PanelSectionRow>,
-					)}
 				</PanelSection>}
 				{page === "binding-button" && <PanelSection title={`Button ${bindingButtonIndex + 1}`}>
 					{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
