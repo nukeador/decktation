@@ -17,6 +17,7 @@ import sounddevice as sd
 import numpy as np
 import wave
 from audio_runtime import ensure_audio_environment
+from clipboard_injection import temporary_clipboard
 
 
 class WoWVoiceChat:
@@ -557,6 +558,9 @@ class WoWVoiceChat:
 
         # Build full message
         full_message = f"{channel_cmd}{text}"
+        if any(ord(char) < 32 or ord(char) == 127 for char in full_message):
+            self._report_diagnostic("text_injection.failed")
+            return
 
         import logging
         logger = logging.getLogger()
@@ -623,18 +627,25 @@ class WoWVoiceChat:
                 if chat_open_delay > 0:
                     time.sleep(chat_open_delay)
 
-            # Type the full message with 1ms delay by default to avoid evdev buffer overflow
-            key_delay = str(self.preset.get("key_delay", 1))
-            key_hold = str(self.preset.get("key_hold", 0))
-            result = subprocess.run(
-                [ydotool, "type", "-d", key_delay, "-H", key_hold, "--", full_message],
-                capture_output=True,
-                text=True,
-                env=env,
-            )
-            if result.returncode != 0:
-                logger.error(f"ydotool type failed: {result.stderr}")
-                self._report_diagnostic("text_injection.failed")
+            if any(ord(char) > 127 for char in full_message):
+                with temporary_clipboard(full_message, plugin_dir):
+                    result = subprocess.run(
+                        [ydotool, "key", "29:1", "47:1", "47:0", "29:0"],
+                        capture_output=True, text=True, env=env,
+                    )
+                    if result.returncode != 0:
+                        raise RuntimeError(f"ydotool paste failed: {result.stderr}")
+            else:
+                # Keep the existing fast path and per-preset key timing for ASCII.
+                key_delay = str(self.preset.get("key_delay", 1))
+                key_hold = str(self.preset.get("key_hold", 0))
+                result = subprocess.run(
+                    [ydotool, "type", "-d", key_delay, "-H", key_hold, "--", full_message],
+                    capture_output=True, text=True, env=env,
+                )
+                if result.returncode != 0:
+                    logger.error(f"ydotool type failed: {result.stderr}")
+                    self._report_diagnostic("text_injection.failed")
             if chat_send_delay > 0:
                 time.sleep(chat_send_delay)
 
