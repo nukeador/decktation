@@ -1,94 +1,94 @@
-# Haptic feedback development and Deck validation
+# Controller haptic feedback: selection and test plan
 
-This feature is off by default. It uses the Steam Deck's vendor HID rumble
-command, so it does not need the Decktation panel to be mounted. It does not
-control external gamepads.
+The single **Haptic feedback** setting remains off by default. The controller
+listener writes the source that completes the recording button combination
+before it writes the pressed state. The backend captures that source at recording
+start and uses the same source for the stop cue, even if another controller sends
+input. Test Recording uses only a controller active within the last ten seconds.
+When the identity is absent or stale, feedback is silent.
 
-Protocol reference: [Linux `hid-steam.c`](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-steam.c),
-specifically `steam_haptic_rumble()` and `steam_send_report_id()`.
+Exactly one backend is selected for the captured source:
 
-## Hardware proof of concept
+| Input source | Output | Current evidence |
+| --- | --- | --- |
+| Steam Deck vendor HID | Valve `0xEB` rumble, 150 ms start / 2 × 100 ms stop | Physically confirmed on Steam Deck in WoW with QAM closed |
+| Original Steam Controller wired (`28de:1102`) or receiver (`28de:1142`) | Legacy Valve `0x8F` pulse on both sides, one 15 ms start / two 15 ms stop | Mocked tests; physical test pending |
+| 2026 Steam Controller Puck (`28de:1304`) | Native `0x80` HID rumble on the exact controller slot | Raw L1/R1 reports, one 150 ms probe, and integrated start/stop cues physically confirmed in WoW with QAM closed |
+| Linux evdev gamepad with `EV_FF` and `FF_RUMBLE` | One 150 ms start / two 100 ms stop effects | Mocked tests; physical test pending |
+| Steam Input virtual gamepad with `FF_RUMBLE` on the same input event node | Same evdev effect, routed by Steam Input | One 150 ms probe physically confirmed on a 2026 Steam Controller; integrated trigger still depends on Steam Input's button mapping |
+| Virtual without force feedback, unidentifiable, or ambiguous output | No output | Safe no-op tested |
 
-On the tested Steam Deck (Valve HID `28de:1205`, vendor interface `input2`),
-the 0x8f trackpad pulse was felt with the QAM open and with WoW foregrounded,
-but remained too subtle for gameplay even at +6 dB. The Deck's evdev devices
-reported no force-feedback capability. The 0xeb rumble command was clear and
-comfortable in WoW with the QAM closed at speed 45000: one 150 ms burst for
-start and two 100 ms bursts for stop. Controller input continued working. The
-integrated plugin was then tested on a v0.3.16 stable installation with the
-v0.3.17 `audio_runtime.py` added: the QAM test transcribed without sending,
-and physical push-to-talk worked in WoW with the QAM closed. Each transition
-produced its expected cue once.
+The evdev backend first checks force-feedback on the exact input event node.
+This also supports a Steam Input virtual gamepad when that node itself accepts
+`FF_RUMBLE`; Steam handles routing to its corresponding physical controller.
+For physical devices with a separate output node, it matches only within the
+same kernel HID/input parent and with the same bus, vendor and product
+identity. It refuses ambiguous matches. It does not map a Steam controller
+index to a guessed device or send an external controller's cue to the Deck.
+A disconnected device is rediscovered at the next
+cue or next recording session. Local logs name the input family, selected
+backend, or reason for no feedback; they omit controller serial numbers.
 
-To repeat the standalone manual test, copy only the script to `/tmp`:
+The original Steam Controller protocol follows the [Linux `hid-steam.c`
+legacy pulse format](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-steam.c).
+The 2026 Puck uses a distinct state report and [native `0x80` output
+report](https://github.com/benashby/steam-puck-bridge/blob/main/src/steam-puck-bridge.c).
+Its physical slot is preferred when raw buttons are received; a Steam Input
+virtual pad can also use `FF_RUMBLE` when the input and output share its exact
+event node. The legacy command is never sent to the Puck. Linux force feedback uses the [kernel input FF
+ABI](https://docs.kernel.org/input/ff.html). SteamClient exposes haptic APIs,
+but the required evdev-to-Steam-controller index mapping and delivery while WoW
+is foregrounded with QAM closed are unverified, so this version does not call
+those APIs.
 
-```sh
-scp scripts/test_deck_rumble.py steamdeck:/tmp/decktation-rumble-test.py
-ssh steamdeck 'python3 /tmp/decktation-rumble-test.py start'
-ssh steamdeck 'python3 /tmp/decktation-rumble-test.py stop'
-```
+## Standalone hardware probes
 
-Run each command once while holding the Deck. The script sends a stop command
-in `finally`. It does not alter the installed plugin or settings.
-
-## Opt-in development deployment
-
-The installed stable plugin and this checkout share the same Decky identity.
-Do this only after explicitly choosing to replace the installed files for a
-development test. The inspected Deck uses the system `plugin_loader.service`
-and `/home/deck/homebrew/plugins/decktation`.
-
-Back up the complete stable plugin and settings before copying anything:
-
-```sh
-ssh steamdeck 'tar -C /home/deck/homebrew -czf /home/deck/decktation-stable-backup.tar.gz plugins/decktation settings/decktation'
-```
-
-From the repository root, build the frontend and stage only the changed files:
-
-```sh
-npm run build
-ssh steamdeck 'mkdir -p /tmp/decktation-dev'
-scp backend/src/decktation_backend.py backend/src/wow_voice_chat.py backend/src/haptic_feedback.py dist/index.js steamdeck:/tmp/decktation-dev/
-ssh -tt steamdeck 'sudo install -m 0644 /tmp/decktation-dev/decktation_backend.py /home/deck/homebrew/plugins/decktation/bin/decktation_backend.py && sudo install -m 0644 /tmp/decktation-dev/wow_voice_chat.py /home/deck/homebrew/plugins/decktation/bin/wow_voice_chat.py && sudo install -m 0644 /tmp/decktation-dev/haptic_feedback.py /home/deck/homebrew/plugins/decktation/bin/haptic_feedback.py && sudo install -m 0644 /tmp/decktation-dev/index.js /home/deck/homebrew/plugins/decktation/dist/index.js'
-```
-
-Check the installed `plugin.json` version first. The tested Deck had v0.3.16,
-which lacks the v0.3.17 `audio_runtime.py` imported by the current backend.
-For that older base, stage and install it before restarting Decky:
+The probe requires an exact input path. Without `--play` it only checks identity
+and capabilities. With `--play`, it sends one bounded start cue and leaves the
+installed plugin untouched. Run it only after confirming the device path.
 
 ```sh
-scp backend/src/audio_runtime.py steamdeck:/tmp/decktation-dev/audio_runtime.py
-ssh -tt steamdeck 'sudo install -m 0644 /tmp/decktation-dev/audio_runtime.py /home/deck/homebrew/plugins/decktation/bin/audio_runtime.py'
+python3 scripts/test_controller_haptic.py --backend steam-controller --path /dev/hidrawN
+python3 scripts/test_controller_haptic.py --backend steam-controller --path /dev/hidrawN --play
+python3 scripts/test_controller_haptic.py --backend steam-controller-2026 --path /dev/hidrawN
+python3 scripts/test_controller_haptic.py --backend steam-controller-2026 --path /dev/hidrawN --play
+python3 scripts/test_controller_haptic.py --backend evdev --path /dev/input/eventN
+python3 scripts/test_controller_haptic.py --backend evdev --path /dev/input/eventN --play
 ```
 
-Then restart Decky and inspect the newest
-`/home/deck/homebrew/logs/decktation/*.log`:
+## Integrated Steam Deck check
 
-```sh
-ssh -tt steamdeck 'sudo systemctl restart plugin_loader.service'
-```
+After backing up the installed plugin and staging a matching build, explicitly
+install the development files and restart Decky. In Gaming Mode, enable Haptic
+feedback and check:
 
-After Decky returns, enable **Haptic feedback** in Decktation. Test both the
-physical push-to-talk binding in WoW with QAM closed and **Test Recording
-(3s)** in the QAM. Verify start and stop cues, no duplicate cues, normal
-controller input, and no text sent by the test action. Turn the setting off
-and repeat to confirm silence. Keep the setting off on unsupported hardware.
+1. Hold the Deck and run Test Recording. Confirm one start cue, a distinct
+   two-burst stop cue, transcription, and no text sent.
+2. Close the QAM, foreground WoW, and use the physical dictation binding.
+   Confirm one cue at each transition and normal controls.
+3. With an external controller, use its own dictation binding. Confirm cues on
+   that controller only, including stop after unrelated Deck input.
+4. Disconnect during a recording and confirm the stop cue is silent and
+   dictation still completes. Reconnect and confirm the next recording works.
+5. Disable Haptic feedback and confirm transcription still works silently.
 
-Restore stable files and settings from the backup:
+On the tested 2026 Steam Controller, the physical L1+R1 binding triggered
+dictation, the start cue occurred once, and the two-burst stop cue occurred
+once on that controller. Transcription and controls worked in WoW with the QAM
+closed. Tapping a Deck button during the recording did not move the stop cue to
+the Deck. The log selected `steam_controller_2026: triton-hid-rumble` for both
+transitions. A virtual-pad `FF_RUMBLE` probe also reached the Controller, but
+L1+R1 did not activate dictation via that virtual input under the tested WoW
+layout; the raw Puck path is required for this layout. Switching Haptic feedback
+off made the next Controller dictation silent while transcription still worked.
+With the Controller still connected, the physical Deck binding produced its
+start and stop cues only on the Deck; transcription and both sets of controls
+remained normal. The log selected `steam_deck: deck-hid-rumble` for both cues.
+Unplugging and reconnecting the Puck between recordings was also tested: the
+listener rediscovered its slot without a Decktation restart, and the next
+recording again transcribed with both cues on the Controller.
 
-```sh
-ssh -tt steamdeck 'sudo tar -C /home/deck/homebrew -xzf /home/deck/decktation-stable-backup.tar.gz && sudo rm -f /home/deck/homebrew/plugins/decktation/bin/haptic_feedback.py'
-```
-
-When restoring this Deck's v0.3.16 backup, also remove the added
-`audio_runtime.py` before restarting:
-
-```sh
-ssh -tt steamdeck 'sudo rm -f /home/deck/homebrew/plugins/decktation/bin/audio_runtime.py && sudo systemctl restart plugin_loader.service'
-```
-
-For a v0.3.17 backup, keep `audio_runtime.py` and restart Decky directly.
-
-The repository's GitHub Actions build workflow produces and validates the
-final Decky ZIP. This file-level workflow is only for local development.
+The previously tested Deck cue was comfortable at speed 45000. Earlier trackpad
+pulses and low-strength Deck rumble were too subtle during WoW; the existing
+Deck pattern is preserved. External-controller success remains pending physical
+confirmation until the corresponding probe and integrated test are performed.
