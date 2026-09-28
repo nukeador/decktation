@@ -34,6 +34,7 @@ for dependency_path in dependency_paths:
         logger.info(f"Added dependency path: {dependency_path}")
 
 from audio_runtime import ensure_audio_environment, setup_audio_environment
+from haptic_feedback import HapticFeedback
 
 # Decky plugins run outside the desktop user's login environment.  Configure
 # the PipeWire runtime before sounddevice is imported by wow_voice_chat.
@@ -141,6 +142,7 @@ if not os.path.exists(PRESETS_FILE):
 DEFAULT_BUTTON_CONFIG = {
     "buttons": ["L1", "R1"],
     "showNotifications": True,
+    "hapticFeedback": False,
     "enabled": False,
     "game": "wow",
     "confirmMode": False,
@@ -236,6 +238,7 @@ class Plugin:
     recording_start_count = 0  # Increments each time recording starts
     active_preset = "wow"
     dictation_transaction = None
+    haptic_feedback = None
 
     @staticmethod
     def _controller_type():
@@ -552,6 +555,9 @@ class Plugin:
             last_channel = saved_config.get("lastChannel")
             model_size = saved_config.get("modelSize", "base")
             transcription_language = saved_config.get("transcriptionLanguage", "auto")
+            Plugin.haptic_feedback = HapticFeedback(
+                enabled=saved_config.get("hapticFeedback", False), logger=logger
+            )
 
             # Initialize the voice service with lazy model loading
             context_file = f"{plugin_path}/wow_context.json"
@@ -580,6 +586,7 @@ class Plugin:
                     )
                     if telemetry else None
                 ),
+                recording_state_callback=Plugin.haptic_feedback.emit,
             )
             logger.info("Voice service initialized (model will load on first use)")
             if telemetry:
@@ -617,6 +624,8 @@ class Plugin:
     async def _unload(self):
         """Cleanup when plugin unloads"""
         logger.info("Unloading Decktation plugin")
+        if Plugin.haptic_feedback:
+            Plugin.haptic_feedback.set_enabled(False)
         try:
             Plugin.poll_running = False
             Plugin.stop_controller_listener()
@@ -634,6 +643,8 @@ class Plugin:
 
     async def _uninstall(self):
         """Remove runtime processes and transient files on uninstall."""
+        if Plugin.haptic_feedback:
+            Plugin.haptic_feedback.set_enabled(False)
         Plugin.poll_running = False
         Plugin.stop_controller_listener()
         Plugin.stop_ydotoold()
@@ -688,6 +699,19 @@ class Plugin:
         except Exception as e:
             telemetry = False
             logger.error(f"Error saving diagnostics preference: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def set_haptic_feedback(self, enabled: bool):
+        """Persist the optional recording cues without restarting input."""
+        try:
+            config = _read_button_config()
+            config["hapticFeedback"] = bool(enabled)
+            _write_button_config(config)
+            if Plugin.haptic_feedback:
+                Plugin.haptic_feedback.set_enabled(enabled)
+            return {"success": True}
+        except Exception as e:
+            logger.error("Error saving haptic preference: %s", e)
             return {"success": False, "error": str(e)}
 
     async def set_button_config(self, buttons: list, showNotifications: bool = True):
