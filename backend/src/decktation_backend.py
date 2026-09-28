@@ -130,6 +130,8 @@ STATE_FILE = "/tmp/decktation_l5"
 PREVIEW_FILE = "/tmp/decktation_button_preview"
 PID_FILE = "/tmp/decktation_listener.pid"
 CONTROLLER_TYPE_FILE = "/tmp/decktation_controller_type"
+HAPTIC_SOURCE_FILE = "/tmp/decktation_haptic_source.json"
+RECENT_SOURCE_FILE = "/tmp/decktation_recent_controller.json"
 # Decktation owns this socket and never modifies a system ydotool service.
 YDOTOOL_SOCKET = "/tmp/decktation-ydotool.sock"
 
@@ -426,7 +428,8 @@ class Plugin:
                 Plugin.listener_process = None
 
             # Clean up files
-            for f in [STATE_FILE, PREVIEW_FILE, PID_FILE, CONTROLLER_TYPE_FILE]:
+            for f in [STATE_FILE, PREVIEW_FILE, PID_FILE, CONTROLLER_TYPE_FILE,
+                      HAPTIC_SOURCE_FILE, RECENT_SOURCE_FILE]:
                 if os.path.exists(f):
                     os.remove(f)
         except Exception as e:
@@ -459,11 +462,15 @@ class Plugin:
                                 logger.info("Pending send cancelled by button press")
                         elif Plugin.voice_service and not Plugin.voice_service.is_recording:
                             logger.info("Button combo pressed - starting recording")
+                            if Plugin.haptic_feedback:
+                                Plugin.haptic_feedback.begin_session(HAPTIC_SOURCE_FILE)
                             Plugin._start_dictation_trace()
                             try:
                                 Plugin.voice_service.start_recording()
                                 Plugin.recording_start_count += 1
                             except Exception as e:
+                                if Plugin.haptic_feedback:
+                                    Plugin.haptic_feedback.end_session()
                                 Plugin._finish_dictation_trace(False)
                                 if telemetry:
                                     telemetry_capture_error(
@@ -920,10 +927,14 @@ class Plugin:
                 return {"success": False, "error": "Service not initialized"}
 
             logger.info("Starting recording")
+            if Plugin.haptic_feedback and not Plugin.voice_service.is_recording:
+                Plugin.haptic_feedback.begin_session(RECENT_SOURCE_FILE, max_age=10)
             Plugin._start_dictation_trace()
             try:
                 Plugin.voice_service.start_recording()
             except Exception as e:
+                if Plugin.haptic_feedback:
+                    Plugin.haptic_feedback.end_session()
                 Plugin._finish_dictation_trace(False)
                 if telemetry:
                     telemetry_capture_error(

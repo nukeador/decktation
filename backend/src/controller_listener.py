@@ -11,6 +11,7 @@ import time
 import json
 import glob
 import selectors
+import struct
 import tempfile
 from deck_hid import STEAM_DECK_BUTTON_BITS, raw_button_states
 from gamepad_evdev import EvdevGamepad
@@ -19,6 +20,8 @@ STATE_FILE = "/tmp/decktation_l5"
 PREVIEW_FILE = "/tmp/decktation_button_preview"
 PID_FILE = "/tmp/decktation_listener.pid"
 CONTROLLER_TYPE_FILE = "/tmp/decktation_controller_type"
+HAPTIC_SOURCE_FILE = "/tmp/decktation_haptic_source.json"
+RECENT_SOURCE_FILE = "/tmp/decktation_recent_controller.json"
 # The Decky backend passes its user-owned settings directory. The fallback is
 # retained for standalone development runs.
 CONFIG_DIR = os.environ.get(
@@ -38,11 +41,21 @@ STEAM_HID_INTERFACES = {
     # appeared as input1 and input2 across hid-steam/kernel versions.
     "0003:000028DE:00001102": ("/input2",),
     "0003:000028DE:00001142": ("/input1", "/input2"),
+    # 2026 Steam Controller Puck: four independent wireless controller slots.
+    "0003:000028DE:00001304": ("/input2", "/input3", "/input4", "/input5"),
 }
 STEAM_CONTROLLER_TYPES = {
     "0003:000028DE:00001205": "steam_deck",
     "0003:000028DE:00001102": "steam_controller_wired",
     "0003:000028DE:00001142": "steam_controller_wireless",
+    "0003:000028DE:00001304": "steam_controller_2026",
+}
+
+TRITON_BUTTON_BITS = {
+    'A': 0x00000001, 'B': 0x00000002, 'X': 0x00000004,
+    'Y': 0x00000008, 'R1': 0x00000200, 'L1': 0x00080000,
+    'R4': 0x00000080, 'R5': 0x00000100,
+    'L4': 0x00020000, 'L5': 0x00040000,
 }
 
 DIAGNOSTIC_PREFIX = 'DECKTATION_CONTROLLER '
@@ -50,11 +63,12 @@ DIAGNOSTIC_PREFIX = 'DECKTATION_CONTROLLER '
 
 def controller_details(device, controller_type):
     if controller_type != 'evdev_gamepad':
-        buttons = set(RAW_BUTTON_BITS)
-        if controller_type != 'steam_deck':
+        buttons = set(TRITON_BUTTON_BITS) | {'L2', 'R2'} if controller_type == 'steam_controller_2026' else set(RAW_BUTTON_BITS)
+        if controller_type not in ('steam_deck', 'steam_controller_2026'):
             buttons -= {'L4', 'R4'}
         product = {'steam_deck': 0x1205, 'steam_controller_wired': 0x1102,
-                   'steam_controller_wireless': 0x1142}.get(controller_type, 0)
+                   'steam_controller_wireless': 0x1142,
+                   'steam_controller_2026': 0x1304}.get(controller_type, 0)
         return {'controller_type': controller_type, 'input_backend': 'hidraw',
                 'vendor_id': 0x28de, 'product_id': product, 'connection': 'usb', 'bus': 3,
                 'supported_buttons': sorted(buttons)}
@@ -74,6 +88,19 @@ def write_button_preview(states):
         f.write(value)
     try:
         os.replace(temporary, PREVIEW_FILE)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def write_source(path, value):
+    """Publish a source before the recording state becomes visible."""
+    with tempfile.NamedTemporaryFile(mode='w', dir=os.path.dirname(path),
+                                     prefix='.decktation-source-', delete=False) as f:
+        temporary = f.name
+        json.dump(value, f)
+    try:
+        os.replace(temporary, path)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
@@ -131,6 +158,28 @@ class RawGamepad:
             return
         states = raw_button_states(report)
         if states is not None:
+            yield states
+
+
+class TritonGamepad:
+    """Read the 2026 controller's input state from one Puck slot."""
+    def __init__(self, path):
+        self.fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+
+    def close(self):
+        os.close(self.fd)
+
+    def read_states(self):
+        report = os.read(self.fd, 128)
+        if not report:
+            raise OSError('empty Triton HID report')
+        if len(report) >= 2 and report[0] in (0x46, 0x79) and report[1] == 1:
+            yield {name: False for name in (*TRITON_BUTTON_BITS, 'L2', 'R2')}
+        elif len(report) >= 18 and report[0] in (0x42, 0x45, 0x47):
+            mask = struct.unpack_from('<I', report, 2)[0]
+            states = {name: bool(mask & bit) for name, bit in TRITON_BUTTON_BITS.items()}
+            states['L2'] = struct.unpack_from('<h', report, 6)[0] >= 16384
+            states['R2'] = struct.unpack_from('<h', report, 8)[0] >= 16384
             yield states
 
 
@@ -206,9 +255,21 @@ def main():
         nonlocal combo_active
         if tracker.active != combo_active:
             combo_active = tracker.active
+            if combo_active:
+                # The source completing the combo is selected in publish(),
+                # before the backend can observe STATE_FILE=1.
+                write_source(HAPTIC_SOURCE_FILE, source_snapshot(active_source))
             print(f"{combo_str} COMBO: {'pressed' if combo_active else 'released'}", flush=True)
             with open(STATE_FILE, 'w') as f:
                 f.write("1" if combo_active else "0")
+
+    def source_snapshot(path):
+        if path not in details:
+            return None
+        return {'path': path, 'kind': devices[path][1],
+                'identity': {key: details[path].get(key) for key in
+                             ('bus', 'vendor_id', 'product_id')},
+                'time': time.time()}
 
     def publish(path, states, controller_type):
         nonlocal active_source
@@ -233,6 +294,8 @@ def main():
                 f.write(details[path]['controller_type'])
             if changed_source:
                 diagnostic('active_changed')
+        if changed and any(states.values()):
+            write_source(RECENT_SOURCE_FILE, source_snapshot(path))
         tracker.update(path, states)
         if changed:
             write_button_preview(tracker.sources.get(active_source, {}))
@@ -273,6 +336,7 @@ def main():
                     device = None
                     try:
                         device = (EvdevGamepad(path) if controller_type == 'evdev_gamepad'
+                                  else TritonGamepad(path) if controller_type == 'steam_controller_2026'
                                   else RawGamepad(path))
                         selector.register(device.fd, selectors.EVENT_READ, path)
                     except ValueError:
@@ -325,7 +389,8 @@ def main():
         for device, _ in devices.values():
             device.close()
         selector.close()
-        for path in (STATE_FILE, PID_FILE, PREVIEW_FILE, CONTROLLER_TYPE_FILE):
+        for path in (STATE_FILE, PID_FILE, PREVIEW_FILE, CONTROLLER_TYPE_FILE,
+                     HAPTIC_SOURCE_FILE, RECENT_SOURCE_FILE):
             try:
                 os.remove(path)
             except FileNotFoundError:
