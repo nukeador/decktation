@@ -26,8 +26,8 @@ Voice dictation plugin for Steam Deck using faster-whisper with context-aware tr
 > **[`https://silverfoxy.github.io/decktation/latest.zip`](https://silverfoxy.github.io/decktation/latest.zip)**
 > Full stable URL:
 > **[`https://silverfoxy.github.io/decktation/releases/latest/decktation.zip`](https://silverfoxy.github.io/decktation/releases/latest/decktation.zip)**
-> Branch build ZIP URL pattern (for example, on a fork):
-> **`https://<owner>.github.io/decktation/branches/<url-encoded-branch-name>/decktation.zip`**
+> Branch builds are published at `https://<owner>.github.io/decktation/branches/<encoded-branch-name>/decktation.zip`.
+> For example, `codex/all-prs-deck` is `codex%252Fall-prs-deck` in that URL.
 > GitHub release assets also work:
 > **[`https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip`](https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip)**
 >
