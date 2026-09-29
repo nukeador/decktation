@@ -110,7 +110,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish Pages downloads
-        if: github.event_name != 'pull_request'
+        # This branch ZIP site is maintained only on the nukeador fork.
+        if: github.event_name != 'pull_request' && github.repository == 'nukeador/decktation'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -140,7 +141,7 @@ jobs:
           generate_release_notes: true
 
   cleanup-pages:
-    if: github.event_name == 'delete'
+    if: github.event_name == 'delete' && github.repository == 'nukeador/decktation'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -161,6 +162,7 @@ jobs:
     if: >-
       ${{
         !cancelled() &&
+        github.repository == 'nukeador/decktation' &&
         github.event_name != 'pull_request' &&
         (needs.build.result == 'success' || needs.cleanup-pages.result == 'success')
       }}
