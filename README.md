@@ -26,8 +26,8 @@ Voice dictation plugin for Steam Deck using faster-whisper with context-aware tr
 > **[`https://silverfoxy.github.io/decktation/latest.zip`](https://silverfoxy.github.io/decktation/latest.zip)**
 > Full stable URL:
 > **[`https://silverfoxy.github.io/decktation/releases/latest/decktation.zip`](https://silverfoxy.github.io/decktation/releases/latest/decktation.zip)**
-> Branch build ZIPs are available as GitHub Actions artifacts on the branch's
-> workflow run.
+> Branch build ZIP URL pattern (for example, on a fork):
+> **`https://<owner>.github.io/decktation/branches/<url-encoded-branch-name>/decktation.zip`**
 > GitHub release assets also work:
 > **[`https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip`](https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip)**
 >
@@ -41,11 +41,9 @@ Voice dictation plugin for Steam Deck using faster-whisper with context-aware tr
    choose the file locally. Decky imports the archive and reloads the plugin
    automatically.
 
-Every GitHub Actions build uploads the complete `decktation.zip`. Open the
-workflow run for the branch or pull request and use the download link in its
-summary (or download the artifact at the bottom of the run page). Downloading
-the Actions artifact requires signing in to GitHub and follows the repository's
-artifact retention period.
+Every GitHub Actions build uploads the complete `decktation.zip` as an artifact.
+Push builds also publish the ZIP to the branch URL above; pull request builds
+can be downloaded from the workflow run and require signing in to GitHub.
 
 All dependencies and the private keyboard helper are pre-bundled in the
 release. No system packages or one-time `sudo` setup are required.

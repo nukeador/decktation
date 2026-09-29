@@ -110,12 +110,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish Pages downloads
-        if: github.event_name != 'pull_request' && github.repository == 'silverfoxy/decktation'
+        if: github.event_name != 'pull_request'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
-          PAGES_BASE_URL: https://silverfoxy.github.io/decktation
+          PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
           REF_NAME: ${{ github.ref_name }}
           REF_TYPE: ${{ github.ref_type }}
           RELEASE_TAG: ${{ github.ref_name }}
@@ -151,6 +151,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          PAGES_BASE_URL: https://silverfoxy.github.io/decktation
+          PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
           CLEANUP_ONLY: "true"
         run: bash scripts/publish-pages.sh
