@@ -48,9 +48,13 @@ class Indicator(Gtk.Window):
         self.surface_width = screen.get_width()
         self.surface_height = screen.get_height()
         self.set_default_size(self.surface_width, self.surface_height)
-        self.mode = "hidden"
+        # This process is only launched when feedback should be visible. Map
+        # the external-overlay surface visible from the start; Gamescope may
+        # not promote a surface that is mapped fully transparent and shown
+        # later, even though its state and opacity properties then change.
+        self.mode = "compact"
         self.phase = time.monotonic()
-        self.last_state = "hidden"
+        self.last_state = ""
         self.connect("draw", self.draw_indicator)
         self.connect("destroy", Gtk.main_quit)
 
@@ -59,7 +63,6 @@ class Indicator(Gtk.Window):
             raise RuntimeError("Xwayland has no RGBA visual")
         self.set_visual(visual)
         self.move(0, 0)
-        self.set_opacity(0)
         self.show_all()
         window = self.get_window()
         window.set_pass_through(True)
