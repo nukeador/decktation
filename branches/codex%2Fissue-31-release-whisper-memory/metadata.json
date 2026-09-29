@@ -1,0 +1,8 @@
+{
+  "plugin": "Decktation",
+  "channel": "branch",
+  "ref": "codex/issue-31-release-whisper-memory",
+  "commit": "2b2ad559039dbf6bc79746e333613da7956f63e5",
+  "zip_url": "https://silverfoxy.github.io/decktation/branches/codex%2Fissue-31-release-whisper-memory/decktation.zip",
+  "generated_at": "2026-09-29T09:23:34Z"
+}
