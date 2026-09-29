@@ -1,0 +1,8 @@
+{
+  "plugin": "Decktation",
+  "channel": "branch",
+  "ref": "codex/all-prs-deck",
+  "commit": "5dc365773408aa5be9f1d014987130e05b1e6279",
+  "zip_url": "https://nukeador.github.io/decktation/branches/codex%2Fall-prs-deck/decktation.zip",
+  "generated_at": "2026-09-29T11:57:27Z"
+}
