@@ -494,12 +494,11 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 									setEnabled(next);
 									logic.enabled = next;
 									await setEnabledRpc(next);
-									if (next && !modelReady) {
+									if (next && logic.enabled) {
 										setModelLoading(true);
 										await loadModel();
-									}
-									if (!next && logic.recording) {
-										void stopRecording();
+									} else if (!next) {
+										setModelReady(false);
 										logic.recording = false;
 										setRecording(false);
 									}
