@@ -4,6 +4,8 @@ WoW Voice-to-Chat Service for Steam Deck
 Captures voice input, transcribes with faster-whisper, and sends to WoW chat
 """
 
+import ctypes
+import gc
 import os
 import json
 import time
@@ -44,6 +46,8 @@ class WoWVoiceChat:
         self.test_audio_file = test_audio_file
 
         # Lazy model loading - only load when needed
+        # Guards native model use/teardown; reentrant because nested paths call _load_model.
+        self.model_lock = threading.RLock()
         self.model = None
         self.model_loading = False
         self.model_load_error = None
@@ -144,25 +148,43 @@ class WoWVoiceChat:
 
     def _load_model(self):
         """Load the Whisper model (can be called lazily)"""
-        if self.model is not None:
-            return True
-        if self.model_loading:
-            return False
+        with self.model_lock:
+            if self.model is not None:
+                return True
+            if self.model_loading:
+                return False
 
-        self.model_loading = True
-        try:
-            print("Loading Whisper model...")
-            self.model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
-            print("Model loaded!")
+            self.model_loading = True
+            try:
+                print("Loading Whisper model...")
+                self.model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
+                print("Model loaded!")
+                self.model_load_error = None
+                return True
+            except Exception as e:
+                print(f"Failed to load model: {e}")
+                self.model_load_error = str(e)
+                self._report_diagnostic("model.load_failed", e)
+                return False
+            finally:
+                self.model_loading = False
+
+    def unload_model(self):
+        """Release Whisper and return free heap pages where the OS supports it."""
+        with self.model_lock:
+            self.model = None
             self.model_load_error = None
-            return True
-        except Exception as e:
-            print(f"Failed to load model: {e}")
-            self.model_load_error = str(e)
-            self._report_diagnostic("model.load_failed", e)
-            return False
-        finally:
-            self.model_loading = False
+            # Native allocators may keep freed pages; both steps are best-effort.
+            gc.collect()
+            try:
+                # malloc_trim is glibc-only; unsupported systems still release the model above.
+                malloc_trim = ctypes.CDLL("libc.so.6").malloc_trim
+            except (AttributeError, OSError):
+                return
+            malloc_trim.argtypes = [ctypes.c_size_t]
+            malloc_trim.restype = ctypes.c_int
+            if malloc_trim(0):
+                print("Released unused heap pages")
 
     def is_model_ready(self):
         """Check if model is loaded and ready"""
@@ -215,17 +237,18 @@ class WoWVoiceChat:
 
     def set_model_size(self, model_size):
         """Update the selected model size and reload if a model is already active."""
-        if model_size == self.model_size:
-            return True
+        with self.model_lock:
+            if model_size == self.model_size:
+                return True
 
-        self.model_size = model_size
-        self.model_load_error = None
+            self.model_size = model_size
+            self.model_load_error = None
 
-        if self.model is None:
-            return True
+            if self.model is None:
+                return True
 
-        self.model = None
-        return self._load_model()
+            self.model = None
+            return self._load_model()
 
     def _confirm_delay_for(self, text: str) -> float:
         """Calculate how long to wait based on text length: 3s base + 0.4s per word, max 6s."""
@@ -451,6 +474,10 @@ class WoWVoiceChat:
         return self._prepare_audio(audio_data, source_rate)
 
     def transcribe_audio(self, audio_input):
+        with self.model_lock:
+            return self._transcribe_audio(audio_input)
+
+    def _transcribe_audio(self, audio_input):
         """Transcribe PCM samples or a 16-bit PCM WAV file."""
         # Ensure model is loaded
         if not self._load_model():
@@ -769,6 +796,29 @@ class WoWVoiceChat:
                         self._pending_timer.start()
                 else:
                     self.send_to_wow_chat(text)
+
+    def abort_recording(self):
+        """Stop recording and discard audio instead of transcribing or sending it."""
+        with self.recording_lock:
+            was_recording = self.is_recording
+            self.is_recording = False
+
+            stream = self.recording_stream
+            self.recording_stream = None
+            if stream:
+                try:
+                    stream.stop()
+                finally:
+                    stream.close()
+
+            # Drop captured audio promptly so disabling does not start a
+            # transcription after the model has been released.
+            self.audio_queue = queue.Queue()
+
+        self.cancel_pending()
+        if was_recording:
+            print("Recording aborted")
+        return was_recording
 
     def run_push_to_talk_keyboard(self, ptt_key='`'):
         """Run in push-to-talk mode with keyboard key"""

@@ -62,3 +62,23 @@ def test_recording_is_not_marked_active_when_stream_start_fails(monkeypatch):
 
     assert voice.is_recording is False
     assert voice.recording_stream is None
+
+
+def test_abort_recording_discards_audio_and_cancels_pending_send():
+    voice = service()
+    stream = MagicMock()
+    timer = MagicMock()
+    voice.is_recording = True
+    voice.recording_stream = stream
+    voice.pending_text = "do not send"
+    voice._pending_timer = timer
+
+    assert voice.abort_recording() is True
+
+    assert voice.is_recording is False
+    assert voice.recording_stream is None
+    stream.stop.assert_called_once()
+    stream.close.assert_called_once()
+    assert voice.audio_queue.empty()
+    assert voice.pending_text is None
+    timer.cancel.assert_called_once()
