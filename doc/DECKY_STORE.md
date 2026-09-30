@@ -5,7 +5,12 @@ the same build path used by the Decky Plugin Database. The store runs
 `decky plugin build -b` against the submitted repository commit. It does not
 run this repository's `.github/workflows/build.yml` first.
 
-## Decktation custom store
+Decktation has been submitted to the official Decky Plugin Store and is
+awaiting review. Acceptance is not guaranteed and there is no ETA. Until it is
+available in the official Default catalog, the README's Default-channel
+packaged-ZIP install is the recommended choice for most users.
+
+## Optional: Decktation Custom Store
 
 Tagged releases also publish a single-plugin Decky catalog through GitHub
 Pages:
@@ -14,13 +19,25 @@ Pages:
 https://homebrew.imsilverfoxy.com/plugins.json
 ```
 
-Users can select Decky's Custom store channel and enter that URL to see,
-install, and update Decktation from the plugin browser. The catalog points to
-SHA-256-verified release ZIPs and retains older installable releases in the
-version selector. The latest `master` build is published as the next patch's
-SemVer prerelease (for example, `0.3.16-dev.abcdef0`) so Decky can distinguish
-it from the stable release. Other branch builds remain available as direct
-downloads but are not advertised as stable updates.
+Users who specifically want to manage Decktation through Decky's plugin
+browser can select the Custom channel and enter that URL. Decky uses the
+selected channel's catalog in place of Default or Testing; the Custom Store is
+not an additional catalog. While it is selected, Decky may not find updates
+for plugins that are listed only in the official catalog. Users can switch
+back to Default at any time. This trade-off makes the Custom Store an optional
+method rather than the recommended permanent setting for most users.
+
+To opt in, open **Decky Settings → General → Store Channel**, select
+**Custom**, and enter the catalog URL above.
+
+The catalog points to SHA-256-verified Decktation release ZIPs and retains
+older installable releases in the version selector. The latest `master` build
+is published as the next patch's SemVer prerelease (for example,
+`0.3.16-dev.abcdef0`) so Decky can distinguish it from the stable release.
+Other branch builds remain available as direct downloads but are not
+advertised as stable updates. Installing the stable `latest.zip` directly
+does not register it as an update feed; automatic catalog updates require
+using a catalog that contains Decktation.
 
 ## Completed in the repository
 
@@ -38,7 +55,7 @@ downloads but are not advertised as stable updates.
 - Decky CLI 0.0.7 produces a valid 82.7 MB zip (274 MB installed).
 - Frontend source and the generated `dist/index.js` are present.
 
-## Blocking work before submission
+## Open validation items
 
 ### 1. Validate native dependencies on every target channel
 
@@ -78,9 +95,10 @@ and Beta, third-party testing, and feedback on two other open plugin PRs. Check
 the live pull-request template immediately before submitting because these
 requirements can change.
 
-## Submission
+## Submission workflow reference
 
-Once the blockers above are complete:
+The current store submission is awaiting review. For a future submission or
+resubmission, complete the required validation first, then follow these steps:
 
 1. Run `make version-set VERSION=X.Y.Z`, then commit the synchronized
    `package.json` and `plugin.json` changes.
