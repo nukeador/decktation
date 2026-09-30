@@ -15,7 +15,7 @@ Voice dictation plugin for Steam Deck using faster-whisper with context-aware tr
 - **Test Recording**: Built-in 3-second test with automatic transcription display
 - **Context-aware**: Optional WoW addon integration for better accuracy with zone, boss, and party context
 - **Fast transcription**: Uses faster-whisper for efficient CPU-based speech recognition
-- **Auto-type**: Automatically types transcribed text into active window via ydotool
+- **Auto-paste**: Pastes transcribed text into the active window via the clipboard
 - **Toast notifications**: Optional notifications when recording starts/stops
 
 ## Installation
@@ -26,8 +26,8 @@ Voice dictation plugin for Steam Deck using faster-whisper with context-aware tr
 > **[`https://silverfoxy.github.io/decktation/latest.zip`](https://silverfoxy.github.io/decktation/latest.zip)**
 > Full stable URL:
 > **[`https://silverfoxy.github.io/decktation/releases/latest/decktation.zip`](https://silverfoxy.github.io/decktation/releases/latest/decktation.zip)**
-> Branch build URL pattern:
-> **`https://silverfoxy.github.io/decktation/branches/<url-encoded-branch-name>/decktation.zip`**
+> Public branch build URL pattern (when GitHub Pages is enabled):
+> **`https://<owner>.github.io/decktation/branches/<url-encoded-branch-name>/decktation.zip`**
 > GitHub release assets also work:
 > **[`https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip`](https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip)**
 >
@@ -41,8 +41,22 @@ Voice dictation plugin for Steam Deck using faster-whisper with context-aware tr
    choose the file locally. Decky imports the archive and reloads the plugin
    automatically.
 
-For example, branch `feature/chat polish` becomes
-`feature%2Fchat%20polish` in the URL path.
+For example, branch `feature/chat polish` uses the URL path segment
+`feature%252Fchat%2520polish`: the branch name is first encoded for its storage
+folder, then the percent signs are encoded for the URL. The Actions summary and
+branch page show the exact link to use.
+
+Every GitHub Actions build also uploads the complete `decktation.zip`. Open the
+build run for the branch or pull request and use the download link in its
+summary (or the artifact at the bottom of the run page). This works for pull
+request builds and does not require GitHub Pages; downloading the Actions
+artifact requires signing in to GitHub and follows the repository's artifact
+retention period.
+
+To publish branch ZIPs as a public website from a fork, enable **Settings →
+Pages → Build and deployment → Source → GitHub Actions** in that fork. The
+workflow deploys through its dedicated `decktation-previews` environment so
+pushes to any branch can update that fork's Pages site automatically.
 
 All dependencies and the private keyboard helper are pre-bundled in the
 release. No system packages or one-time `sudo` setup are required.
@@ -68,7 +82,7 @@ users can switch channels again at any time.
 3. Select your game from the **Game** dropdown
 4. Enable the plugin (waits for Whisper model to load)
 5. (Optional) Change the button combination in the plugin UI
-6. In any app/game: hold **[button1]+[button2]** together to record, release to transcribe and type
+6. In any app/game: hold **[button1]+[button2]** together to record, release to transcribe and paste
 
 ## Game Presets
 
@@ -76,9 +90,9 @@ Decktation ships with three presets configured in `defaults/game_presets.json`:
 
 | Preset | Behavior |
 |--------|----------|
-| **World of Warcraft** | Presses Enter to open chat, types channel prefix + message, presses Enter to send |
-| **Guild Wars 2** | Presses Enter to focus chat, types the Guild Wars 2 channel command + message, presses Enter to send |
-| **Generic** | Types text directly into whatever window is focused — no Enter presses |
+| **World of Warcraft** | Presses Enter to open chat, pastes the channel prefix + message, presses Enter to send |
+| **Guild Wars 2** | Presses Enter to focus chat, pastes the Guild Wars 2 channel command + message, presses Enter to send |
+| **Generic** | Pastes text directly into whatever window is focused — no Enter presses |
 
 ### WoW Channel Prefixes
 
@@ -89,7 +103,7 @@ In WoW mode, start your message with a channel name to route it to the right cha
 "raid: focus adds first"  →  /raid focus adds first
 "say, hello everyone"     →  /s hello everyone
 "guild heads up"          →  /g heads up
-"type search term"        →  types directly without opening chat
+"type search term"        →  pastes directly without opening chat
 ```
 
 Separators supported: space, colon, comma, or period after the channel name. Case-insensitive.
@@ -149,13 +163,11 @@ Edit `defaults/game_presets.json` to add new games — no code changes needed. E
 - `default_channel` — channel to use when no prefix is spoken
 - `channels` — map of spoken words to slash-command prefixes
 - `whisper_prompt` — vocabulary hint for the Whisper model
-- `key_delay` — milliseconds between typed keys (default: `1`)
-- `key_hold` — milliseconds each typed key is held down (default: `0`)
-- `chat_open_delay` — seconds to wait after opening chat, before typing (default: `0`)
-- `chat_send_delay` — seconds to wait after typing, before sending chat (default: `0`)
+- `chat_open_delay` — seconds to wait after opening chat before pasting (default: `0`)
+- `chat_send_delay` — seconds to wait after pasting before sending (default: `0`)
 
-Timing values are optional. `key_delay` and `key_hold` are whole milliseconds
-passed to ydotool, while the chat delays are in seconds.
+Chat timing values are optional and measured in seconds. Text is pasted as one
+operation.
 
 ## Button Configuration
 

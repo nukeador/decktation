@@ -60,6 +60,8 @@ jobs:
         run: |
           unzip -t build-output/decktation.zip
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/ydotoold'
+          unzip -l build-output/decktation.zip | grep -q 'decktation/bin/xclip'
+          unzip -l build-output/decktation.zip | grep -q 'decktation/bin/clipboard_injection.py'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/faster_whisper'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/sentry_sdk'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/lib/libportaudio.so.2'
@@ -86,10 +88,30 @@ jobs:
           python -m json.tool /tmp/decktation-store.json >/dev/null
 
       - name: Upload CI build as a direct file
+        id: plugin-artifact
         uses: actions/upload-artifact@v7
         with:
           path: build-output/decktation.zip
           archive: false
+
+      - name: Add test download links to the workflow summary
+        env:
+          ARTIFACT_URL: ${{ steps.plugin-artifact.outputs.artifact-url }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          EVENT_NAME: ${{ github.event_name }}
+          PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: |
+          {
+            echo "## Decktation test build"
+            echo "- Ref: \`$REF_NAME\`"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- [Download the ready-to-install plugin ZIP]($ARTIFACT_URL) from this Actions run. GitHub sign-in is required."
+            if [ "$EVENT_NAME" != "pull_request" ] && [ "$REF_TYPE" = "branch" ]; then
+              BRANCH_PATH="$(python3 -c 'import sys, urllib.parse; key = urllib.parse.quote(sys.argv[1], safe=""); print(urllib.parse.quote(key, safe=""))' "$REF_NAME")"
+              echo "- Public branch URL (when GitHub Pages is enabled): [$PAGES_BASE_URL/branches/$BRANCH_PATH/decktation.zip]($PAGES_BASE_URL/branches/$BRANCH_PATH/decktation.zip)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish Pages downloads
         if: github.event_name != 'pull_request'
@@ -97,7 +119,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
-          PAGES_BASE_URL: https://silverfoxy.github.io/decktation
+          PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
           REF_NAME: ${{ github.ref_name }}
           REF_TYPE: ${{ github.ref_type }}
           RELEASE_TAG: ${{ github.ref_name }}
@@ -133,6 +155,43 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          PAGES_BASE_URL: https://silverfoxy.github.io/decktation
+          PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
           CLEANUP_ONLY: "true"
         run: bash scripts/publish-pages.sh
+
+  deploy-pages:
+    # Publishing gh-pages with GITHUB_TOKEN does not itself trigger a Pages deployment.
+    needs: [build, cleanup-pages]
+    if: >-
+      ${{
+        !cancelled() &&
+        github.event_name != 'pull_request' &&
+        (needs.build.result == 'success' || needs.cleanup-pages.result == 'success')
+      }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    # GitHub's default Pages environment may be limited to protected branches.
+    # This dedicated environment lets every branch in this fork publish previews.
+    environment:
+      name: decktation-previews
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout generated download site
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages-site
+          persist-credentials: false
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: pages-site
+          include-hidden-files: true
+
+      - name: Deploy site
+        id: deployment
+        uses: actions/deploy-pages@v4
