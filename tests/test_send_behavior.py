@@ -161,10 +161,10 @@ class TestRawTextChannel:
         assert commands(mock_run) == [PASTE]
 
     @patch("subprocess.run")
-    def test_type_channel_strips_trailing_punctuation(self, mock_run):
+    def test_type_channel_preserves_trailing_punctuation(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0)
         make_service(WOW_PRESET).send_to_wow_chat("hello world.", channel="type")
-        assert PASTED_TEXT == ["hello world"]
+        assert PASTED_TEXT == ["hello world."]
 
 
 class TestGenericPreset:

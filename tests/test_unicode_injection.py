@@ -123,7 +123,7 @@ def test_generic_ascii_text_pastes_without_pressing_enter(mock_run, _exists):
 
 @patch("os.path.exists", return_value=True)
 @patch("subprocess.run")
-def test_generic_type_channel_preserves_existing_trailing_punctuation_cleanup(mock_run, _exists):
+def test_generic_type_channel_preserves_trailing_punctuation(mock_run, _exists):
     mock_run.return_value = MagicMock(returncode=0)
     seen = []
     svc = WoWVoiceChat(preset=GENERIC_PRESET, lazy_load=True)
@@ -133,7 +133,7 @@ def test_generic_type_channel_preserves_existing_trailing_punctuation_cleanup(mo
     ):
         svc.send_to_wow_chat("French.", channel="type")
 
-    assert seen == ["French"]
+    assert seen == ["French."]
 
 
 @patch("os.path.exists", return_value=True)

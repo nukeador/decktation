@@ -544,11 +544,6 @@ class WoWVoiceChat:
 
         channel_cmd = self.channel_commands.get(channel, "/s ")
 
-        # Preserve existing raw-typing preset behavior for its text cleanup;
-        # the resulting message itself is always pasted.
-        if channel == "type":
-            text = text.rstrip(".!?,;:")
-
         full_message = f"{channel_cmd}{text}"
         if any(ord(char) < 32 or ord(char) == 127 for char in full_message):
             self._report_diagnostic("text_injection.failed")

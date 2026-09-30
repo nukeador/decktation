@@ -69,7 +69,7 @@ Audio Capture → Whisper Transcription
     ↓
 Parse Channel (party, raid, say, etc.)
     ↓
-ydotool Types Text → Game Chat
+Clipboard paste → Game Chat
 ```
 
 ### Chat Channel Detection

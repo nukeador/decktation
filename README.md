@@ -15,7 +15,7 @@ Voice dictation plugin for Steam Deck using faster-whisper with context-aware tr
 - **Test Recording**: Built-in 3-second test with automatic transcription display
 - **Context-aware**: Optional WoW addon integration for better accuracy with zone, boss, and party context
 - **Fast transcription**: Uses faster-whisper for efficient CPU-based speech recognition
-- **Auto-type**: Automatically types transcribed text into active window via ydotool
+- **Auto-paste**: Pastes transcribed text into the active window via the clipboard
 - **Toast notifications**: Optional notifications when recording starts/stops
 
 ## Installation
@@ -82,7 +82,7 @@ users can switch channels again at any time.
 3. Select your game from the **Game** dropdown
 4. Enable the plugin (waits for Whisper model to load)
 5. (Optional) Change the button combination in the plugin UI
-6. In any app/game: hold **[button1]+[button2]** together to record, release to transcribe and type
+6. In any app/game: hold **[button1]+[button2]** together to record, release to transcribe and paste
 
 ## Game Presets
 
@@ -90,9 +90,9 @@ Decktation ships with three presets configured in `defaults/game_presets.json`:
 
 | Preset | Behavior |
 |--------|----------|
-| **World of Warcraft** | Presses Enter to open chat, types channel prefix + message, presses Enter to send |
-| **Guild Wars 2** | Presses Enter to focus chat, types the Guild Wars 2 channel command + message, presses Enter to send |
-| **Generic** | Types text directly into whatever window is focused — no Enter presses |
+| **World of Warcraft** | Presses Enter to open chat, pastes the channel prefix + message, presses Enter to send |
+| **Guild Wars 2** | Presses Enter to focus chat, pastes the Guild Wars 2 channel command + message, presses Enter to send |
+| **Generic** | Pastes text directly into whatever window is focused — no Enter presses |
 
 ### WoW Channel Prefixes
 
@@ -103,7 +103,7 @@ In WoW mode, start your message with a channel name to route it to the right cha
 "raid: focus adds first"  →  /raid focus adds first
 "say, hello everyone"     →  /s hello everyone
 "guild heads up"          →  /g heads up
-"type search term"        →  types directly without opening chat
+"type search term"        →  pastes directly without opening chat
 ```
 
 Separators supported: space, colon, comma, or period after the channel name. Case-insensitive.
@@ -166,9 +166,8 @@ Edit `defaults/game_presets.json` to add new games — no code changes needed. E
 - `chat_open_delay` — seconds to wait after opening chat before pasting (default: `0`)
 - `chat_send_delay` — seconds to wait after pasting before sending (default: `0`)
 
-Chat timing values are optional and measured in seconds. Text is pasted
-as one operation, so the old per-character key_delay and key_hold settings
-no longer affect injection.
+Chat timing values are optional and measured in seconds. Text is pasted as one
+operation.
 
 ## Button Configuration
 
