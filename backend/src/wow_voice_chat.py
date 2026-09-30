@@ -806,6 +806,29 @@ class WoWVoiceChat:
                 else:
                     self.send_to_wow_chat(text)
 
+    def abort_recording(self):
+        """Stop recording and discard audio instead of transcribing or sending it."""
+        with self.recording_lock:
+            was_recording = self.is_recording
+            self.is_recording = False
+
+            stream = self.recording_stream
+            self.recording_stream = None
+            if stream:
+                try:
+                    stream.stop()
+                finally:
+                    stream.close()
+
+            # Drop captured audio promptly so disabling does not start a
+            # transcription after the model has been released.
+            self.audio_queue = queue.Queue()
+
+        self.cancel_pending()
+        if was_recording:
+            print("Recording aborted")
+        return was_recording
+
     def run_push_to_talk_keyboard(self, ptt_key='`'):
         """Run in push-to-talk mode with keyboard key"""
         print(f"Push-to-talk mode: Hold '{ptt_key}' to record, release to transcribe")
