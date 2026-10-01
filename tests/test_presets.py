@@ -79,6 +79,12 @@ class TestPresetsFile:
         assert generic["chat_open_key"] is None
         assert generic["chat_send_key"] is None
 
+    def test_wow_chat_commands(self, presets):
+        channels = presets["wow"]["channels"]
+        assert channels["whisper"] == "/w "
+        assert channels["reply"] == "/r "
+        assert channels["alert"] == "/rw "
+
     def test_wow_has_context_file(self, presets):
         assert "context_file" in presets["wow"]
 

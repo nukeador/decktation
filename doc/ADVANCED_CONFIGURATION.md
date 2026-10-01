@@ -23,7 +23,7 @@ Decktation includes three presets defined in [`defaults/game_presets.json`](../d
 
 In WoW or GW2, start a message with a spoken channel name to route it. For example, “party ready” selects party chat, and “guild: hello” selects guild chat. Prefix matching is case-insensitive; a space, colon, comma, or period can separate the channel from the message. The **type** channel enters the text without opening or sending game chat. Trigger words are configured in [`defaults/channel_languages.json`](../defaults/channel_languages.json).
 
-Built-in WoW channels include `say`, `party`, `raid`, `guild`, `officer`, `yell`, `instance`, `whisper`, `type`, and `alert` (raid warning). GW2 includes `say`, `map`, `party`, `squad` (also `raid`), `team`, `guild`, `guild one` through `guild six`, `whisper`, and `type`.
+Built-in WoW channels include `say`, `party`, `raid`, `guild`, `officer`, `yell`, `instance`, `whisper`, `reply`, `type`, and `alert` (raid warning). GW2 includes `say`, `map`, `party`, `squad` (also `raid`), `team`, `guild`, `guild one` through `guild six`, `whisper`, and `type`.
 
 ### Add a custom channel
 
