@@ -286,6 +286,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [inputReady, setInputReady] = useState<boolean>(true);
 	const [buttonState, setButtonState] = useState<string>("None");
 	const [controllerReady, setControllerReady] = useState<boolean>(false);
+	const [controllerStatus, setControllerStatus] = useState<string>("Waiting for input");
+	const [controllerComboSupported, setControllerComboSupported] = useState<boolean>(true);
 	const [buttons, setButtons] = useState<string[]>(["L1", "R1"]);
 	const [showNotifications, setShowNotifications] = useState<boolean>(true);
 	const [activePreset, setActivePreset] = useState<string>("wow");
@@ -370,6 +372,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 				if (result.success) {
 					setButtonState(result.detected_button || "None");
 					setControllerReady(result.controller_ready === true);
+					setControllerStatus(result.controller_status || "Waiting for input");
+					setControllerComboSupported(result.controller_combo_supported !== false);
 					setRpcError("");
 					setServiceReady(result.service_ready);
 					setModelReady(result.model_ready);
@@ -380,10 +384,12 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					}
 				} else {
 					setControllerReady(false);
+					setControllerStatus("Status unavailable");
 					setRpcError(result.error || "Backend status request failed");
 				}
 			} catch (error) {
 				setControllerReady(false);
+				setControllerStatus("Status unavailable");
 				setRpcError(String(error));
 			} finally {
 				if (!cancelled) timeout = setTimeout(poll, 100);
@@ -788,9 +794,10 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						textAlign: 'center',
 						fontFamily: 'monospace'
 					}}>
-						Input: {controllerReady ? "OK" : "FAILED"}
+						Input: {controllerStatus}
 						<br />
 						Held buttons: <strong>{buttonState}</strong>
+						{controllerReady && !controllerComboSupported && <div>Selected combo unavailable on detected input</div>}
 					</div>
 				</PanelSectionRow>
 
