@@ -39,7 +39,7 @@ WOW_PRESET = {
     "chat_open_key": "enter",
     "chat_send_key": "enter",
     "default_channel": "say",
-    "channels": {"say": "/s ", "party": "/p ", "type": ""},
+    "channels": {"say": "/s ", "party": "/p ", "whisper": "/w ", "reply": "/r ", "type": ""},
     "whisper_prompt": "World of Warcraft gameplay.",
 }
 
@@ -99,6 +99,27 @@ class TestWoWSendBehavior:
         mock_run.return_value = MagicMock(returncode=0)
         make_service(WOW_PRESET).send_to_wow_chat("hello", channel="say")
         assert all(command[0] != "type" for command in commands(mock_run))
+
+
+class TestReplyChannel:
+    @patch("subprocess.run")
+    def test_reply_pastes_reply_command_without_player_name(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0)
+        make_service(WOW_PRESET).send_to_wow_chat("on my way", channel="reply")
+        assert PASTED_TEXT == ["/r on my way"]
+        assert commands(mock_run) == [ENTER, PASTE, ENTER]
+
+    @patch("subprocess.run")
+    def test_spoken_reply_prefix_needs_no_target_name(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0)
+        make_service(WOW_PRESET).send_to_wow_chat("reply, thanks for the invite")
+        assert PASTED_TEXT == ["/r thanks for the invite"]
+
+    @patch("subprocess.run")
+    def test_reply_is_distinct_from_whisper_command(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0)
+        make_service(WOW_PRESET).send_to_wow_chat("whisper Thrall hi there")
+        assert PASTED_TEXT == ["/w Thrall hi there"]
 
 
 class TestChatTiming:

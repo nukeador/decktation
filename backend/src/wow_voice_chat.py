@@ -93,6 +93,7 @@ class WoWVoiceChat:
             "yell": "/y ",
             "instance": "/i ",
             "whisper": "/w ",
+            "reply": "/r ",
             "type": "",
         }
 
@@ -305,7 +306,7 @@ class WoWVoiceChat:
                 "Running mythic dungeons, heroic raids, doing quests in Azeroth, Orgrimmar, Stormwind, Ironforge. "
                 "Fighting bosses like Lich King, Ragnaros, Illidan, pulling trash mobs, need tank healer and DPS. "
                 "Using abilities, cooldowns, buffs, debuffs, interrupts, dispels, cleave and AOE damage. "
-                "Chat channel prefixes: say, party, raid, guild, officer, yell, instance, whisper, type. "
+                "Chat channel prefixes: say, party, raid, guild, officer, yell, instance, whisper, reply, type. "
                 "Common short phrases: hi, gg, brb, afk, lol, omw, ty, np, wp, gz."
             )
 
@@ -889,7 +890,7 @@ if __name__ == "__main__":
     parser.add_argument("--mode", choices=["once", "continuous", "push-to-talk", "daemon"],
                        default="once",
                        help="Recording mode (default: once)")
-    parser.add_argument("--channel", choices=["say", "party", "raid", "guild", "officer", "yell", "instance", "auto"],
+    parser.add_argument("--channel", choices=["say", "party", "raid", "guild", "officer", "yell", "instance", "whisper", "reply", "auto"],
                        default="say",
                        help="Default chat channel (default: say). Use 'auto' to detect from context or voice prefix")
     parser.add_argument("--duration", type=int, default=5,
