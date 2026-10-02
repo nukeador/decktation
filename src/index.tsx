@@ -279,6 +279,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [serviceReady, setServiceReady] = useState<boolean>(false);
 	const [modelReady, setModelReady] = useState<boolean>(false);
 	const [modelLoading, setModelLoading] = useState<boolean>(false);
+	const [isToggling, setIsToggling] = useState<boolean>(false);
 	const [inputReady, setInputReady] = useState<boolean>(true);
 	const [buttonState, setButtonState] = useState<string>("None");
 	const [controllerReady, setControllerReady] = useState<boolean>(false);
@@ -438,19 +439,38 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					<ToggleField
 						label="Enable"
 						checked={enabled}
-						disabled={!serviceReady || modelLoading}
+						disabled={!serviceReady || modelLoading || isToggling}
 						onChange={async (e) => {
+							if (isToggling) return;
+							setIsToggling(true);
 							setEnabled(e);
 							logic.enabled = e;
-							await setEnabledRpc(e);
-							if (e && !modelReady) {
-								setModelLoading(true);
-								await loadModel();
-							}
-							if (!e && logic.recording) {
-								void stopRecording();
+							if (!e) {
+								setModelReady(false);
 								logic.recording = false;
 								setRecording(false);
+							}
+							try {
+								const result = await setEnabledRpc(e);
+								if (!result.success) {
+									setEnabled(!e);
+									logic.enabled = !e;
+									setRpcError(result.error || "Could not update enabled state");
+									return;
+								}
+								if (e && logic.enabled) {
+									setModelLoading(true);
+									const modelResult = await loadModel();
+									if (!modelResult.success) {
+										setRpcError(modelResult.error || "Could not load Whisper model");
+									}
+								}
+							} catch (error) {
+								setEnabled(!e);
+								logic.enabled = !e;
+								setRpcError(String(error));
+							} finally {
+								setIsToggling(false);
 							}
 						}}
 					/>

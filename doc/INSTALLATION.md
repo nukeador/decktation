@@ -1,365 +1,49 @@
-# Decktation Installation Guide
+# Installation guide
 
-Complete installation guide for the Decktation push-to-talk dictation plugin for Steam Deck.
+For the recommended install walkthrough, start with the [README](../README.md#install-decktation). This page covers manual updates, alternative packaged builds, and notes for developers.
 
-## Prerequisites
+## Install a stable release
 
-### 1. Decky Loader
+Use a packaged plugin ZIP, which includes the runtime dependencies required by Decktation:
 
-Decky Loader must be installed on your Steam Deck. If you don't have it:
+- [Recommended short URL](https://silverfoxy.github.io/decktation/latest.zip)
+- [Full stable URL](https://silverfoxy.github.io/decktation/releases/latest/decktation.zip)
+- [GitHub release asset](https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip)
 
-1. Visit https://deckbrew.xyz
-2. Follow the installation instructions
-3. Verify Decky is working by opening Quick Access Menu (... button)
+Keep Decky's **Store Channel** set to **Default** for the recommended install. In Decky Settings, choose **Install Plugin from URL** and paste the short URL above, or download the ZIP and choose **Install Plugin from ZIP**. Enable developer options if those actions are not shown. Decky imports the archive and reloads the plugin.
 
-Decktation bundles and manages its own private keyboard helper. Do not install
-ydotool or create a system service; no one-time `sudo` setup is required.
+Decky uses an **Install Plugin from URL** address to download that ZIP; it does not save the address as an update feed. Until Decktation appears in the currently selected catalog, Decky will not discover new Decktation releases automatically. Keep **Default** selected so other plugins continue to receive their normal official catalog update checks.
 
-## Installation Methods
+Do not use GitHub’s automatically generated **Source code (zip)** or **Source code (tar.gz)** archives. They are not installable Decktation packages and do not contain the bundled dependencies. Do not extract the packaged plugin ZIP or copy its contents into Decky’s plugin directory.
 
-### Method 1: Install from Decky Plugin Store (Future)
+## Updating Decktation before it reaches the official store
 
-Once published to the Decky Plugin Store:
+Until Decktation is available in Decky's official store, update it manually when you want a newer release:
 
-1. Open Quick Access Menu (... button)
-2. Navigate to Decky Plugin Store
-3. Search for "Decktation"
-4. Click Install
-5. Wait for installation to complete
+1. Open Decky and uninstall the current Decktation plugin using Decky's normal uninstall action.
+2. Install the [latest packaged ZIP](https://silverfoxy.github.io/decktation/latest.zip) with **Install Plugin from URL**, or download it and use **Install Plugin from ZIP**.
+3. Reopen Decktation.
 
-### Method 2: Install from the Decktation Store
+For manual updates, uninstall the current plugin before installing the latest ZIP. This gives Decky a clean plugin-code replacement and removes files left behind by an older release. Leave Decktation settings and downloaded Whisper model files alone; deleting them is not part of a normal update.
 
-Until Decktation is available in the official store, it can appear in Decky's
-plugin browser through its own GitHub Pages catalog:
+Once Decktation is available in Decky's official **Default** store, that will be the preferred install and update route. Existing manual installations with the same plugin name and an older valid version should normally become eligible for official store updates without a fresh install. This describes current Decky behavior and is not a permanent API guarantee.
 
-1. Open Decky Settings.
-2. Under **General → Store Channel**, select **Custom**.
-3. Enter this Custom Store URL:
+For details about the optional Decktation Custom Store and its effect on the selected catalog, see [Decky Store notes](DECKY_STORE.md).
 
-   ```text
-   https://homebrew.imsilverfoxy.com/plugins.json
-   ```
+## Branch builds
 
-4. Open the plugin browser and install Decktation.
+When GitHub Pages is enabled for a repository, branch packages use this URL pattern:
 
-New tagged releases update this catalog automatically, allowing Decky to show
-and install Decktation updates. A custom channel replaces the catalog shown by
-Decky's Default or Testing channel until the user switches back.
-
-### Method 3: Import a Release ZIP
-
-1. Use one of these direct ZIP URLs:
-   - Stable latest release:
-     **[`https://silverfoxy.github.io/decktation/latest.zip`](https://silverfoxy.github.io/decktation/latest.zip)**
-
-     The full stable URL is also available:
-     **[`https://silverfoxy.github.io/decktation/releases/latest/decktation.zip`](https://silverfoxy.github.io/decktation/releases/latest/decktation.zip)**
-   - A specific branch build:
-     **`https://silverfoxy.github.io/decktation/branches/<url-encoded-branch-name>/decktation.zip`**
-   - GitHub release asset fallback:
-     **[`https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip`](https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip)**
-2. Open Quick Access Menu (... button) and navigate to Decky settings.
-3. Enable developer options if **Install Plugin from URL** or **Install Plugin from ZIP** is not visible.
-4. Either:
-   - Select **Install Plugin from URL** and paste the direct ZIP URL, or
-   - Download the file first, then use **Install Plugin from ZIP**.
-5. Wait for Decky to import and reload Decktation.
-
-If the branch name contains `/`, spaces, or other special characters, URL-encode
-it first. For example, branch `feature/chat polish` becomes
-`feature%2Fchat%20polish`.
-
-This is the recommended installation method until Decktation is available in
-the Decky Plugin Store. Do not use GitHub's autogenerated source archives,
-extract the plugin ZIP, or copy files into Decky's plugin directory manually.
-
-### Method 4: Install a Local Development Build
-
-#### From Source (Development)
-
-```bash
-# Clone the repository
-cd ~/Documents/personal
-git clone https://github.com/silverfoxy/decktation.git
-cd decktation
-
-# Build the same artifact used by the Decky marketplace
-decky plugin build -b -o build-output -s directory .
-
-# In Decky settings, select Install Plugin from ZIP and choose:
-# build-output/decktation.zip
+```text
+https://<owner>.github.io/decktation/branches/<branch-slug>/decktation.zip
 ```
 
-## First Time Setup
+Branch names use readable ASCII slugs. For example, `codex/recording-overlay` uses `codex-recording-overlay`. Names containing other punctuation or Unicode also receive a stable hash suffix. Prefer the exact URL shown in the workflow run summary or branch page.
 
-### 1. Open the Plugin
+Every GitHub Actions build also uploads a `decktation.zip` artifact. Open the run for the branch or pull request and use the download link in its summary. This works without GitHub Pages, but downloading the artifact requires signing in and is subject to GitHub’s artifact retention period.
 
-1. Switch to Game Mode (or stay in Desktop Mode)
-2. Open Quick Access Menu (... button)
-3. Find "Decktation" in the plugin list
-4. Click to open
+To publish public branch ZIPs from a fork, enable **Settings → Pages → Build and deployment → Source → GitHub Actions** in that fork. The workflow deploys through the `decktation-previews` environment.
 
-### 2. Wait for Dependencies
+## Install a local development build
 
-On first open, the plugin will:
-
-1. Show "Initializing service..." (a few seconds)
-2. Dependencies are already installed in the packaged `bin/python/` folder
-3. Ready to use!
-
-### 3. Load Whisper Model
-
-The Whisper AI model loads on-demand:
-
-1. Toggle "Enable Dictation" to ON
-2. Plugin will show "Loading Whisper model..." (~5-10 seconds)
-3. Model downloads from HuggingFace (one-time, ~150MB)
-4. Once loaded, status shows "Ready"
-
-### 4. Configure Buttons (Optional)
-
-Default button combo is **L1+R1** (both bumpers):
-
-1. In the plugin UI, you'll see two dropdowns:
-   - **Button 1**: L1 (Left Bumper)
-   - **Button 2**: R1 (Right Bumper)
-
-2. To change, select different buttons from the dropdowns
-3. The combo updates immediately
-4. Try different combinations to find what works for you
-
-**Recommended combos:**
-- **L1+R1** (default) - Easy to press, doesn't interfere with most games
-- **L2+R2** - Good if you don't use triggers for other functions
-- **A+B** - Face buttons, easy to reach
-
-**Avoid:**
-- **L5+R5** - Often intercepted by Steam, may not work
-
-## Testing
-
-### Test 1: Manual Test Button
-
-1. Enable dictation in the plugin
-2. Wait for "Ready" status
-3. Click "Test Recording (3s)"
-4. Speak clearly: "This is a test"
-5. Wait for the transcription to appear in the plugin
-
-### Test 2: Controller Button Combo
-
-1. Enable dictation
-2. Make sure a text field is active (e.g., Steam chat, browser search bar)
-3. Press and hold **L1+R1** (or your configured combo)
-4. Plugin should show "Recording..." status
-5. Speak: "Hello world"
-6. Release buttons
-7. Plugin shows "Transcribing..."
-8. Text should appear: "hello world"
-
-### Test 3: WoW Integration (If using WoW addon)
-
-See `WOW_INTEGRATION.md` for full WoW setup.
-
-## Troubleshooting
-
-### Issue: Plugin doesn't show up
-
-**Possible causes:**
-- Decky Loader not installed
-- Plugin files not in correct location
-- Decky needs restart
-
-**Solutions:**
-```bash
-# Check plugin location
-ls -la ~/.local/share/decky/plugins/decktation
-
-# Check Decky logs
-tail -f /tmp/decky*.log
-
-# Restart Decky (from Desktop Mode)
-systemctl --user restart plugin_loader
-```
-
-### Issue: "Service not initialized"
-
-**Possible causes:**
-- Python dependencies missing
-- Import errors in backend
-
-**Solutions:**
-```bash
-# Check Decktation logs
-tail -f /home/deck/homebrew/logs/decktation/*.log
-
-# Verify packaged dependencies exist
-ls -la ~/homebrew/plugins/decktation/bin/python/faster_whisper/
-
-# Reinstall the release zip if packaged files are missing
-```
-
-### Issue: Recording doesn't start
-
-**Possible causes:**
-- Button combo not detected
-- Controller listener not running
-- The bundled keyboard helper failed to start
-
-**Solutions:**
-```bash
-# Check controller listener
-pgrep -f controller_listener
-# Should show a process ID
-
-# Check logs
-tail -f /home/deck/homebrew/logs/decktation/*.log
-# Look for "Controller listener starting"
-
-# Try a different button combo
-# Open plugin UI, change Button 1/Button 2
-```
-
-### Issue: Text doesn't appear after transcription
-
-**Possible causes:**
-- The bundled keyboard helper failed to start
-- Wrong window focused
-- Permission issues
-
-**Solutions:**
-```bash
-# Look for "ydotoold ready on /tmp/decktation-ydotool.sock"
-grep ydotoold /home/deck/homebrew/logs/decktation/*.log
-
-# Reload or reinstall the plugin if the helper failed to start
-```
-
-### Issue: Transcription is inaccurate
-
-**Possible causes:**
-- Noisy environment
-- Speaking too fast
-- Whisper model too small
-- No context for specialized terms
-
-**Solutions:**
-1. Speak clearly and at moderate pace
-2. Use a headset microphone for better quality
-3. Add context for specialized terms (see WoW integration)
-4. Consider upgrading to larger model (edit `wow_voice_chat.py` line 28):
-   ```python
-   # Change from "base" to "small" for better accuracy
-   self.model = WhisperModel("small", device="cpu", compute_type="int8")
-   ```
-
-### Issue: Plugin is slow or laggy
-
-**Possible causes:**
-- Steam Deck under load
-- Large Whisper model
-- Long recordings
-
-**Solutions:**
-1. Use smaller model for speed (edit `wow_voice_chat.py`):
-   ```python
-   # Change to "tiny" for faster processing
-   self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
-   ```
-2. Keep recordings short (< 5 seconds)
-3. Close other demanding apps
-
-## Uninstallation
-
-### Remove Plugin
-
-```bash
-# From Desktop Mode
-rm -rf ~/.local/share/decky/plugins/decktation
-
-# Restart Decky
-systemctl --user restart plugin_loader
-```
-
-The private keyboard helper is stopped automatically when Decky unloads or
-uninstalls Decktation. No system service or package remains behind.
-
-## Advanced Configuration
-
-### Change Whisper Model
-
-Edit `~/homebrew/plugins/decktation/wow_voice_chat.py` line ~28:
-
-```python
-# Options: "tiny", "base", "small", "medium", "large"
-# Larger = more accurate but slower
-self.model = WhisperModel("base", device="cpu", compute_type="int8")
-```
-
-### Add Custom Context
-
-Create `~/homebrew/plugins/decktation/wow_context.json`:
-
-```json
-{
-  "keywords": ["custom", "term", "list"],
-  "vocabulary": ["specialized", "words"]
-}
-```
-
-This helps Whisper recognize domain-specific terms.
-
-### View Logs
-
-```bash
-# Decktation plugin logs
-tail -f /home/deck/homebrew/logs/decktation/*.log
-
-# Decky Loader logs
-tail -f /tmp/decky*.log
-
-# Controller listener logs (via plugin log)
-grep "controller_listener" /home/deck/homebrew/logs/decktation/*.log
-```
-
-## Getting Help
-
-1. Check logs: `/home/deck/homebrew/logs/decktation/*.log`
-2. Run test scripts: `./quick_test.sh`
-3. Report issues: https://github.com/silverfoxy/decktation/issues
-4. Include:
-   - Error messages from logs
-   - Steam Deck model and OS version
-   - Steps to reproduce the issue
-
-## Privacy & Security
-
-- Voice recording, transcription, chat parsing, and simulated keyboard input
-  happen **locally** on your Steam Deck. Audio, transcription text, and WoW
-  context are not uploaded.
-- The first use of each selected Whisper model downloads model files from
-  Hugging Face (the default base model is about 150 MB). Later use is local
-  while that model is cached.
-- **Diagnostics → Share** is disabled by default. If enabled, scrubbed error
-  and performance data is sent to Sentry; it excludes audio, transcription
-  text, WoW context, credentials, device/host identifiers, IP addresses, and
-  local user-name paths.
-- Transcribed text is typed directly into the active window. Recordings are
-  not retained as user files.
-
-## Permissions
-
-Decktation requests Decky’s `_root` permission only to read the Steam Deck’s
-raw controller reports from `/dev/hidraw*` and to use `/dev/uinput` through its
-bundled `ydotoold` helper for virtual keyboard input. The helper uses a private
-`0600` socket in `/tmp`, is stopped on plugin unload, and dictated text is never
-executed as a shell command. It does not install system packages or services.
-
-## What's Next?
-
-- Read `CLAUDE.md` for technical details
-- Check `WOW_INTEGRATION.md` for World of Warcraft setup
-- See `TESTING_GUIDE.md` for comprehensive testing
-- Review `CHAT_CHANNELS.md` for WoW chat channel commands
-
-Enjoy dictation on your Steam Deck!
+See [Development](DEVELOPMENT.md) for the source build and contributor workflow. For a local plugin package, use the Decky plugin builder and install the resulting ZIP through **Install Plugin from ZIP**.

@@ -3,7 +3,7 @@ FROM ghcr.io/steamdeckhomebrew/holo-base:latest
 ARG YDOTOOL_COMMIT=57ba7d0af525e82da2de0e275d169477f293b197
 
 RUN pacman -Sydd --noconfirm --dbpath /var/lib/pacman \
-        git portaudio python-pip
+        git portaudio python-pip xclip
 
 COPY src/requirements.txt /tmp/decktation-requirements.txt
 
@@ -46,5 +46,10 @@ RUN git init /ydotool-src \
         /ydotool-src/Client/tool_mousemove.c \
         /ydotool-src/Client/tool_type.c \
         /ydotool-src/Client/tool_key.c
+
+RUN git init /xclip-src \
+    && git -C /xclip-src remote add origin https://github.com/astrand/xclip.git \
+    && git -C /xclip-src fetch --depth 1 origin 9aa7090c3b8b437c6489edca32ae43d82e0c1281 \
+    && git -C /xclip-src checkout --detach FETCH_HEAD
 
 ENTRYPOINT ["/backend/entrypoint.sh"]

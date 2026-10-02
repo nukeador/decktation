@@ -4,6 +4,8 @@ WoW Voice-to-Chat Service for Steam Deck
 Captures voice input, transcribes with faster-whisper, and sends to WoW chat
 """
 
+import ctypes
+import gc
 import os
 import json
 import time
@@ -17,6 +19,7 @@ import sounddevice as sd
 import numpy as np
 import wave
 from audio_runtime import ensure_audio_environment
+from clipboard_injection import temporary_clipboard
 
 
 class WoWVoiceChat:
@@ -43,6 +46,8 @@ class WoWVoiceChat:
         self.test_audio_file = test_audio_file
 
         # Lazy model loading - only load when needed
+        # Guards native model use/teardown; reentrant because nested paths call _load_model.
+        self.model_lock = threading.RLock()
         self.model = None
         self.model_loading = False
         self.model_load_error = None
@@ -143,25 +148,43 @@ class WoWVoiceChat:
 
     def _load_model(self):
         """Load the Whisper model (can be called lazily)"""
-        if self.model is not None:
-            return True
-        if self.model_loading:
-            return False
+        with self.model_lock:
+            if self.model is not None:
+                return True
+            if self.model_loading:
+                return False
 
-        self.model_loading = True
-        try:
-            print("Loading Whisper model...")
-            self.model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
-            print("Model loaded!")
+            self.model_loading = True
+            try:
+                print("Loading Whisper model...")
+                self.model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
+                print("Model loaded!")
+                self.model_load_error = None
+                return True
+            except Exception as e:
+                print(f"Failed to load model: {e}")
+                self.model_load_error = str(e)
+                self._report_diagnostic("model.load_failed", e)
+                return False
+            finally:
+                self.model_loading = False
+
+    def unload_model(self):
+        """Release Whisper and return free heap pages where the OS supports it."""
+        with self.model_lock:
+            self.model = None
             self.model_load_error = None
-            return True
-        except Exception as e:
-            print(f"Failed to load model: {e}")
-            self.model_load_error = str(e)
-            self._report_diagnostic("model.load_failed", e)
-            return False
-        finally:
-            self.model_loading = False
+            # Native allocators may keep freed pages; both steps are best-effort.
+            gc.collect()
+            try:
+                # malloc_trim is glibc-only; unsupported systems still release the model above.
+                malloc_trim = ctypes.CDLL("libc.so.6").malloc_trim
+            except (AttributeError, OSError):
+                return
+            malloc_trim.argtypes = [ctypes.c_size_t]
+            malloc_trim.restype = ctypes.c_int
+            if malloc_trim(0):
+                print("Released unused heap pages")
 
     def is_model_ready(self):
         """Check if model is loaded and ready"""
@@ -214,17 +237,18 @@ class WoWVoiceChat:
 
     def set_model_size(self, model_size):
         """Update the selected model size and reload if a model is already active."""
-        if model_size == self.model_size:
-            return True
+        with self.model_lock:
+            if model_size == self.model_size:
+                return True
 
-        self.model_size = model_size
-        self.model_load_error = None
+            self.model_size = model_size
+            self.model_load_error = None
 
-        if self.model is None:
-            return True
+            if self.model is None:
+                return True
 
-        self.model = None
-        return self._load_model()
+            self.model = None
+            return self._load_model()
 
     def _confirm_delay_for(self, text: str) -> float:
         """Calculate how long to wait based on text length: 3s base + 0.4s per word, max 6s."""
@@ -450,6 +474,10 @@ class WoWVoiceChat:
         return self._prepare_audio(audio_data, source_rate)
 
     def transcribe_audio(self, audio_input):
+        with self.model_lock:
+            return self._transcribe_audio(audio_input)
+
+    def _transcribe_audio(self, audio_input):
         """Transcribe PCM samples or a 16-bit PCM WAV file."""
         # Ensure model is loaded
         if not self._load_model():
@@ -529,18 +557,11 @@ class WoWVoiceChat:
             return "say"
 
     def send_to_wow_chat(self, text, channel=None):
-        """
-        Send text to WoW chat by simulating keyboard input using xdotool
-
-        Args:
-            text: The text to send
-            channel: Optional channel override (say, party, raid, guild, etc.)
-                    If None, will parse from text or use default
-        """
+        """Paste a transcription into the focused game using the clipboard."""
         if not text:
             return
 
-        # Parse channel from text if not explicitly provided
+        # Parse channel from text if not explicitly provided.
         if channel is None:
             channel, text, explicitly_selected = self._parse_channel_and_text(text)
             if explicitly_selected and self.remember_last_channel:
@@ -548,65 +569,47 @@ class WoWVoiceChat:
                 if self.channel_rememberer:
                     self.channel_rememberer(channel)
 
-        # Get the channel command
         channel_cmd = self.channel_commands.get(channel, "/s ")
 
-        # For raw typing, strip trailing punctuation added by Whisper
-        if channel == "type":
-            text = text.rstrip(".!?,;:")
-
-        # Build full message
         full_message = f"{channel_cmd}{text}"
+        if any(ord(char) < 32 or ord(char) == 127 for char in full_message):
+            self._report_diagnostic("text_injection.failed")
+            return
 
         import logging
-        logger = logging.getLogger()
-        logger.info(f"Sending to {channel}: {text}")
-        logger.info(f"Full message: {full_message}")
 
-        # Find ydotool binary - check bundled first, then fallback to system paths
+        logger = logging.getLogger()
+        logger.info("Injecting transcription into the %s channel", channel)
+
         plugin_dir = os.environ.get(
             "DECKY_PLUGIN_DIR", os.path.dirname(os.path.abspath(__file__))
         )
         bundled_ydotool = os.path.join(plugin_dir, "bin", "ydotool")
-
-        # Try locations in priority order: bundled, system, user install
         ydotool_paths = [
             bundled_ydotool,
             "/usr/bin/ydotool",
             "/usr/local/bin/ydotool",
         ]
 
-        ydotool = None
-        for path in ydotool_paths:
-            if os.path.exists(path):
-                ydotool = path
-                logger.info(f"Using ydotool from: {path}")
-                break
-
+        ydotool = next((path for path in ydotool_paths if os.path.exists(path)), None)
         if not ydotool:
-            # Last resort: try to find it in PATH
             import shutil
-            ydotool = shutil.which("ydotool")
-            if ydotool:
-                logger.info(f"Using ydotool from PATH: {ydotool}")
-            else:
-                logger.error("ydotool not found! Install it or run build_ydotool.sh")
-                self._report_diagnostic("text_injection.failed")
-                return
 
-        # Use the private daemon managed by the Decky backend.
+            ydotool = shutil.which("ydotool")
+        if not ydotool:
+            logger.error("ydotool not found; text injection was not attempted")
+            self._report_diagnostic("text_injection.failed")
+            return
+
         env = os.environ.copy()
         env["YDOTOOL_SOCKET"] = "/tmp/decktation-ydotool.sock"
 
-        # Determine open/send keys from preset.
-        # The "type" channel always skips both (pure typing into focused window).
         if channel == "type":
             open_key = None
             send_key = None
         else:
             open_key = self.preset.get("chat_open_key", "enter")
             send_key = self.preset.get("chat_send_key", "enter")
-            # If manual_send is enabled, skip the final Enter press
             if self.manual_send:
                 send_key = None
 
@@ -614,39 +617,54 @@ class WoWVoiceChat:
         chat_send_delay = float(self.preset.get("chat_send_delay", 0))
 
         try:
-            # Press key to open chat input box (e.g. Enter for most games)
             if open_key == "enter":
-                result = subprocess.run([ydotool, "key", "28:1", "28:0"], capture_output=True, text=True, env=env)
+                result = subprocess.run(
+                    [ydotool, "key", "28:1", "28:0"],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                )
                 if result.returncode != 0:
-                    logger.error(f"ydotool key failed: {result.stderr}")
-                    self._report_diagnostic("text_injection.failed")
+                    raise RuntimeError(
+                        f"ydotool chat-open key failed (exit {result.returncode})"
+                    )
                 if chat_open_delay > 0:
                     time.sleep(chat_open_delay)
 
-            # Type the full message with 1ms delay by default to avoid evdev buffer overflow
-            key_delay = str(self.preset.get("key_delay", 1))
-            key_hold = str(self.preset.get("key_hold", 0))
-            result = subprocess.run(
-                [ydotool, "type", "-d", key_delay, "-H", key_hold, "--", full_message],
-                capture_output=True,
-                text=True,
-                env=env,
-            )
-            if result.returncode != 0:
-                logger.error(f"ydotool type failed: {result.stderr}")
-                self._report_diagnostic("text_injection.failed")
+            # Paste the whole message, including any game channel prefix, so
+            # punctuation is independent of the host keyboard layout.
+            with temporary_clipboard(full_message, plugin_dir):
+                result = subprocess.run(
+                    [ydotool, "key", "29:1", "47:1", "47:0", "29:0"],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"ydotool Ctrl+V failed (exit {result.returncode})"
+                    )
+
             if chat_send_delay > 0:
                 time.sleep(chat_send_delay)
 
-            # Press key to send (e.g. Enter for most games)
+            # Only submit after the clipboard write and Ctrl+V command succeed.
+            # This records command success, not confirmation that the game
+            # actually consumed or displayed the pasted text.
             if send_key == "enter":
-                result = subprocess.run([ydotool, "key", "28:1", "28:0"], capture_output=True, text=True, env=env)
+                result = subprocess.run(
+                    [ydotool, "key", "28:1", "28:0"],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                )
                 if result.returncode != 0:
-                    logger.error(f"ydotool key failed: {result.stderr}")
-                    self._report_diagnostic("text_injection.failed")
-        except Exception as e:
-            logger.error(f"ydotool error: {e}")
-            self._report_diagnostic("text_injection.failed", e)
+                    raise RuntimeError(
+                        f"ydotool chat-send key failed (exit {result.returncode})"
+                    )
+        except Exception as exc:
+            logger.error("Text injection failed (%s)", type(exc).__name__)
+            self._report_diagnostic("text_injection.failed", exc)
 
     def run_once(self, duration=5):
         """Record, transcribe, and send to chat once"""
@@ -778,6 +796,29 @@ class WoWVoiceChat:
                         self._pending_timer.start()
                 else:
                     self.send_to_wow_chat(text)
+
+    def abort_recording(self):
+        """Stop recording and discard audio instead of transcribing or sending it."""
+        with self.recording_lock:
+            was_recording = self.is_recording
+            self.is_recording = False
+
+            stream = self.recording_stream
+            self.recording_stream = None
+            if stream:
+                try:
+                    stream.stop()
+                finally:
+                    stream.close()
+
+            # Drop captured audio promptly so disabling does not start a
+            # transcription after the model has been released.
+            self.audio_queue = queue.Queue()
+
+        self.cancel_pending()
+        if was_recording:
+            print("Recording aborted")
+        return was_recording
 
     def run_push_to_talk_keyboard(self, ptt_key='`'):
         """Run in push-to-talk mode with keyboard key"""
