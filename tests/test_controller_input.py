@@ -38,6 +38,7 @@ def gamepad(axes=None, identity=None):
     device.key_buttons = button_mapping(identity or {})
     device.keys = set()
     device.axes = axes or {}
+    device.hat_axes = set()
     device.values = {code: low for code, (_, low, _) in device.axes.items()}
     device.dropped = False
     device.resync_count = 0
@@ -279,3 +280,15 @@ def test_listener_hotplug_evdev_while_raw_is_idle_and_disconnect(listener, monke
     disconnected = next(event for event in events if event['event'] == 'disconnected')
     assert disconnected['current_controller'] == {}
     assert disconnected['affected_controller']['vendor_id'] == 0x045e
+
+
+def test_dpad_hat_axes_capture_directions_and_release():
+    device = gamepad()
+    device.hat_axes = {0x10, 0x11}
+    device.feed(3, 0x10, -1)
+    device.feed(3, 0x11, 1)
+    state = device.feed(0, 0, 0)
+    assert state['D-pad Left'] and state['D-pad Down']
+    device.feed(3, 0x10, 0)
+    device.feed(3, 0x11, 0)
+    assert not any(device.feed(0, 0, 0).values())

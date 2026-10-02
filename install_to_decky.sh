@@ -37,6 +37,7 @@ mkdir -p "$PLUGIN_DIR/bin"
 # Copy essential files only
 echo "Copying files..."
 cp "$SOURCE_DIR/main.py" "$PLUGIN_DIR/"
+cp "$SOURCE_DIR/backend/src/binding_capture.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/decktation_backend.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/audio_runtime.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/controller_listener.py" "$PLUGIN_DIR/bin/"
