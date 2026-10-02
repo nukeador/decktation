@@ -38,6 +38,7 @@ mkdir -p "$PLUGIN_DIR/bin"
 echo "Copying files..."
 cp "$SOURCE_DIR/main.py" "$PLUGIN_DIR/"
 cp "$SOURCE_DIR/backend/src/binding_capture.py" "$PLUGIN_DIR/bin/"
+cp "$SOURCE_DIR/backend/src/recording_mode.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/decktation_backend.py" "$PLUGIN_DIR/bin/"
 cp -R "$SOURCE_DIR/backend/src/companion" "$PLUGIN_DIR/bin/"
 # Native capture is produced by the normal plugin build, never on SteamOS.
@@ -46,6 +47,7 @@ if [ -x "$SOURCE_DIR/backend/out/companion-capture" ]; then
     mkdir -p "$PLUGIN_DIR/bin/licenses"
     cp "$SOURCE_DIR/backend/out/licenses/companion-"* "$PLUGIN_DIR/bin/licenses/"
 fi
+cp "$SOURCE_DIR/backend/src/clipboard_injection.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/audio_runtime.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/controller_listener.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/gamepad_evdev.py" "$PLUGIN_DIR/bin/"

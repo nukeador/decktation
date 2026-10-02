@@ -57,6 +57,9 @@ if [ -x "$SOURCE_DIR/backend/out/companion-capture" ]; then
     sudo mkdir -p "$PLUGIN_DIR/bin/licenses"
     sudo cp "$SOURCE_DIR/backend/out/licenses/companion-"* "$PLUGIN_DIR/bin/licenses/"
 fi
+sudo cp "$SOURCE_DIR/backend/src/clipboard_injection.py" "$PLUGIN_DIR/bin/"
+sudo cp "$SOURCE_DIR/backend/src/binding_capture.py" "$PLUGIN_DIR/bin/"
+sudo cp "$SOURCE_DIR/backend/src/recording_mode.py" "$PLUGIN_DIR/bin/"
 sudo cp "$SOURCE_DIR/backend/src/audio_runtime.py" "$PLUGIN_DIR/bin/"
 sudo cp "$SOURCE_DIR/backend/src/controller_listener.py" "$PLUGIN_DIR/bin/"
 sudo cp "$SOURCE_DIR/backend/src/gamepad_evdev.py" "$PLUGIN_DIR/bin/"

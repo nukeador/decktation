@@ -13,6 +13,8 @@ import glob
 import selectors
 import tempfile
 from deck_hid import STEAM_DECK_BUTTON_BITS, raw_button_states, triton_button_states
+from deck_hid import STEAM_DECK_BUTTON_BITS, raw_button_states
+from recording_mode import ControllerEvents
 from gamepad_evdev import EvdevGamepad
 from binding_capture import BindingCapture, read_json, write_json
 
@@ -235,6 +237,9 @@ def main():
     active_source = None
     open_errors = set()
     combo_active = False
+    event_source = None
+    event_file = os.path.join(CONFIG_DIR, "controller_events.json")
+    events = ControllerEvents(event_file)
     capture = None
     capture_blocked = False
     request_file = os.path.join(CONFIG_DIR, "binding_capture_request.json")
@@ -274,7 +279,7 @@ def main():
         print(DIAGNOSTIC_PREFIX + json.dumps(snapshot), flush=True)
 
     def update_combo():
-        nonlocal combo_active
+        nonlocal combo_active, event_source
         active = tracker.active and not capture_blocked
         if active != combo_active:
             combo_active = active
@@ -282,6 +287,9 @@ def main():
                 # The source completing the combo is selected in publish(),
                 # before the backend can observe STATE_FILE=1.
                 write_source(HAPTIC_SOURCE_FILE, source_snapshot(active_source))
+            if active:
+                event_source = next((path for path, states in tracker.sources.items() if all(states.get(b, False) for b in button_names)), None)
+            events.append("press" if active else "release", time.monotonic())
             print(f"{combo_str} COMBO: {'pressed' if combo_active else 'released'}", flush=True)
             with open(STATE_FILE, 'w') as f:
                 f.write("1" if combo_active else "0")
@@ -327,6 +335,8 @@ def main():
 
     def remove(path, error=None):
         nonlocal active_source
+        if path == event_source:
+            events.append("cancel", time.monotonic())
         disconnected = details.pop(path)
         device, _ = devices.pop(path)
         selector.unregister(device.fd)
