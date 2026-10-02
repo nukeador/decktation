@@ -4,7 +4,7 @@
 
 # Decktation — Push-to-Talk Dictation for Steam Deck
 
-This fork's `codex/all-prs-deck` branch combines the settings UX, controller haptics, recording overlay, clipboard text injection, memory/lifecycle fixes, new Steam Controller input, and experimental WoW Context Bridge integration. [Download the combined plugin ZIP](https://nukeador.github.io/decktation/branches/codex%252Fall-prs-deck/decktation.zip).
+This fork's `codex/all-prs-deck` branch combines the settings UX, controller haptics, recording overlay, clipboard text injection, memory/lifecycle fixes, new Steam Controller input, and experimental WoW Context Bridge integration. [Download the combined plugin ZIP](https://nukeador.github.io/decktation/branches/codex-all-prs-deck/decktation.zip).
 
 For live WoW vocabulary, select **WoW → Advanced settings → WoW Companion context** (off by default) and install the separate [WoW Context Bridge addon](doc/WOW_COMPANION.md). The addon is not installed by the plugin ZIP.
 
