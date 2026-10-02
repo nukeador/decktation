@@ -2,373 +2,104 @@
   <img src="logo.png" alt="Decktation Logo" width="400"/>
 </p>
 
-# Decktation - Push-to-Talk Dictation for Steam Deck
+# Decktation — Push-to-Talk Dictation for Steam Deck
 
-Voice dictation plugin for Steam Deck using faster-whisper with context-aware transcription.
+Speak naturally and Decktation transcribes your words locally, then types them into the active game or app. Use it for game chat, messages, searches, and other text fields.
 
-## Features
+- Hold a configurable controller button combination to record; **L1 + R1** is the default.
+- Choose a preset for World of Warcraft, Guild Wars 2, or generic text entry.
+- Speak a channel prefix such as “party” to route game chat.
+- Adjust the Whisper model and transcription language in the plugin.
+- The optional WoW context addon can provide saved game context, but its updates are not reliably live; see [upstream issue #13](https://github.com/silverfoxy/decktation/issues/13).
 
-- **Push-to-Talk**: Hold button combo (default: L1+R1) to record
-- **Configurable buttons**: Choose 1-5 button combinations from any Steam Deck controller buttons
-- **Game presets**: Switch between game profiles with different chat systems (WoW, Guild Wars 2, Generic)
-- **Channel-aware**: Speak channel prefixes like "party pull boss" and it routes to the right chat channel
-- **Test Recording**: Built-in 3-second test with automatic transcription display
-- **Context-aware**: Optional WoW addon integration for better accuracy with zone, boss, and party context
-- **Fast transcription**: Uses faster-whisper for efficient CPU-based speech recognition
-- **Auto-type**: Automatically types transcribed text into active window via ydotool
-- **Toast notifications**: Optional notifications when recording starts/stops
+## Install Decktation
 
-## Installation
+Decktation requires Decky Loader. If you haven’t installed it yet, follow the [official Decky Loader installation instructions](https://github.com/SteamDeckHomebrew/decky-loader#installation) and get the installer from [decky.xyz](https://decky.xyz/), then return here.
 
-> [!IMPORTANT]
-> Use a direct ZIP URL that points to the packaged plugin artifact.
-> Recommended short install URL:
-> **[`https://silverfoxy.github.io/decktation/latest.zip`](https://silverfoxy.github.io/decktation/latest.zip)**
-> Full stable URL:
-> **[`https://silverfoxy.github.io/decktation/releases/latest/decktation.zip`](https://silverfoxy.github.io/decktation/releases/latest/decktation.zip)**
-> Public branch build URL pattern (when GitHub Pages is enabled):
-> **`https://<owner>.github.io/decktation/branches/<url-encoded-branch-name>/decktation.zip`**
-> GitHub release assets also work:
-> **[`https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip`](https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip)**
->
-> Do **not** use GitHub's **Source code (zip)** or **Source code (tar.gz)** archives.
-> Those do not contain Decktation's bundled Python dependencies.
+Until Decktation is available in Decky’s official store, install its packaged release.
 
-1. Open **Decky Settings**, enable developer options if necessary, and select
-   **Install Plugin from URL** or **Install Plugin from ZIP**.
+### Recommended: Install from URL
 
-2. Paste the direct ZIP URL above, or download `decktation.zip` first and then
-   choose the file locally. Decky imports the archive and reloads the plugin
-   automatically.
+1. Open **Decky Settings** and enable developer options if needed.
+2. Choose **Install Plugin from URL**.
+3. Paste this URL and install Decktation:
 
-For example, branch `feature/chat polish` uses the URL path segment
-`feature%252Fchat%2520polish`: the branch name is first encoded for its storage
-folder, then the percent signs are encoded for the URL. The Actions summary and
-branch page show the exact link to use.
+   ```text
+   https://silverfoxy.github.io/decktation/latest.zip
+   ```
 
-Every GitHub Actions build also uploads the complete `decktation.zip`. Open the
-build run for the branch or pull request and use the download link in its
-summary (or the artifact at the bottom of the run page). This works for pull
-request builds and does not require GitHub Pages; downloading the Actions
-artifact requires signing in to GitHub and follows the repository's artifact
-retention period.
+Note: Decktation won't receive automatic updates, see updating section for more information.
 
-To publish branch ZIPs as a public website from a fork, enable **Settings →
-Pages → Build and deployment → Source → GitHub Actions** in that fork. The
-workflow deploys through its dedicated `decktation-previews` environment so
-pushes to any branch can update that fork's Pages site automatically.
+### Alternative: Install from a packaged ZIP
 
-All dependencies and the private keyboard helper are pre-bundled in the
-release. No system packages or one-time `sudo` setup are required.
+Download the [latest packaged Decktation ZIP](https://silverfoxy.github.io/decktation/latest.zip), then choose **Install Plugin from ZIP** in Decky Settings.
 
-### Install from the Decktation store
+> **Do not install GitHub’s automatically generated “Source code (zip)” or “Source code (tar.gz)” archives.** They are not Decktation plugin packages and do not include its bundled dependencies.
 
-To make Decktation appear in Decky's plugin browser and receive update
-notifications, select **Custom** under **Decky Settings → General → Store
-Channel**, then enter:
+### Feature branch test builds
+
+Each Actions build uploads a packaged `decktation.zip`; downloading Actions
+artifacts requires signing in to GitHub. Forks with GitHub Pages enabled also
+publish branch builds at `https://<owner>.github.io/decktation/branches/<branch-slug>/decktation.zip`.
+For example, `feat/settings-ux` uses `feat-settings-ux`. The Actions summary and
+branch page provide the exact download link. Enable **Settings → Pages → Build
+and deployment → Source → GitHub Actions** in the fork to publish previews.
+
+### Optional / Advanced: Decktation Custom Store
+
+The [Decktation Custom Store](doc/DECKY_STORE.md) can list Decktation in Decky’s plugin browser:
 
 ```text
 https://homebrew.imsilverfoxy.com/plugins.json
 ```
 
-The catalog is updated when a new version tag is published. Switching to a
-custom store replaces the catalog shown by Decky's Default or Testing store;
-users can switch channels again at any time.
+To opt in, open **Decky Settings → General → Store Channel**, select **Custom**, and enter the URL above.
 
-## Usage
+> **Important:** Decky’s Custom Store replaces the selected Default or Testing catalog; it is not added alongside the official store. While the Decktation Custom Store is selected, Decky may not detect updates for your other plugins from the official catalog. You can switch back to **Default** at any time.
 
-1. Open Quick Access Menu (... button on Steam Deck)
-2. Navigate to Decktation plugin
-3. Select your game from the **Game** dropdown
-4. Enable the plugin (waits for Whisper model to load)
-5. (Optional) Change the button combination in the plugin UI
-6. In any app/game: hold **[button1]+[button2]** together to record, release to transcribe and type
+Use this option only if you specifically want Decktation listed in Decky and understand the catalog trade-off. It is not the recommended permanent setting for most users.
 
-## Game Presets
+### Updating to a new version
 
-Decktation ships with three presets configured in `defaults/game_presets.json`:
+Installing from `latest.zip` does not enable automatic updates. Until Decktation is in the official store, update it manually:
 
-| Preset | Behavior |
-|--------|----------|
-| **World of Warcraft** | Presses Enter to open chat, types channel prefix + message, presses Enter to send |
-| **Guild Wars 2** | Presses Enter to focus chat, types the Guild Wars 2 channel command + message, presses Enter to send |
-| **Generic** | Types text directly into whatever window is focused — no Enter presses |
+1. Uninstall Decktation through Decky.
+2. Choose **Install Plugin from URL** and paste [`latest.zip`](https://silverfoxy.github.io/decktation/latest.zip), or download it and choose **Install Plugin from ZIP**.
+3. Reopen Decktation.
 
-### WoW Channel Prefixes
+This replaces the plugin code; do not delete Decktation settings or downloaded Whisper models. See the [full update steps](doc/INSTALLATION.md#updating-decktation-before-it-reaches-the-official-store).
 
-In WoW mode, start your message with a channel name to route it to the right channel:
+### Official Decky Store
 
-```
-"party let's go"          →  /p let's go
-"raid: focus adds first"  →  /raid focus adds first
-"say, hello everyone"     →  /s hello everyone
-"guild heads up"          →  /g heads up
-"type search term"        →  types directly without opening chat
-```
+Decktation has been [submitted to the official Decky Plugin Store](https://github.com/SteamDeckHomebrew/decky-plugin-database/pull/1126), and the request is open for review. Once listed, the official Default Store will be the preferred install and update route. Existing installations should normally receive official updates without a fresh install.
 
-Separators supported: space, colon, comma, or period after the channel name. Case-insensitive.
+## Quick start
 
-Available WoW channels: `say`, `party`, `raid`, `guild`, `officer`, `yell`, `instance`, `whisper`, `type`
+1. Open the Steam Deck **Quick Access Menu** (`...`) and open **Decktation**.
+2. Under **Game**, choose **WoW**, **GW2**, or **Generic**.
+3. Turn **Enable** on and wait for the status to show **Ready**. The first use of a model may need an internet connection to download it.
+4. Select **Test Recording (3s)**, speak, and check **Last Transcription** in the panel. A test recording displays the transcript without typing it into the active app.
+5. Focus the game or text field. Hold **L1 + R1**, speak, then release to transcribe and enter the text. You can change this default combination in the Decktation panel’s **Input** settings.
 
-### Guild Wars 2 Channel Prefixes
+WoW and GW2 presets normally open game chat, add the selected channel command, and send the message; the spoken **type** channel enters text without opening chat. **Generic** also enters text directly in the focused field. See [channel and preset configuration](doc/ADVANCED_CONFIGURATION.md) for details.
 
-Guild Wars 2 mode uses the same voice-first flow. For example:
+## Documentation
 
-```
-"map meta starts in five"       →  /m meta starts in five
-"party stack on me"             →  /p stack on me
-"squad: ready check"            →  /d ready check
-"team push mid"                 →  /t push mid
-"guild one hello everyone"      →  /g1 hello everyone
-"whisper Player Name hello"     →  /w Player Name hello
-```
-
-Available Guild Wars 2 channels: `say`, `map`, `party`, `squad`, `raid` (an alias for squad), `team`, `guild`, `guild one` through `guild six`, `whisper`, `type`.
-
-### Adding Custom Channels
-
-You can add channels beyond the built-in ones (e.g. WoW's numbered channels `/1`, `/2`) by editing two config files.
-
-**Step 1 — add the channel command to `defaults/game_presets.json`** under the preset's `channels` map:
-
-```json
-"channels": {
-  "say": "/s ",
-  "party": "/p ",
-  "one": "/1 ",
-  "two": "/2 "
-}
-```
-
-**Step 2 — add the spoken trigger words to `defaults/channel_languages.json`** under each language's `channels` map:
-
-```json
-"en": {
-  "channels": {
-    "one": ["one", "channel one"],
-    "two": ["two", "channel two"]
-  }
-}
-```
-
-After saving both files, saying `"one hello"` or `"channel one hello"` will send `/1 hello`.
-
-You can add as many trigger words per channel as you like (e.g., aliases in multiple languages). The key in `defaults/channel_languages.json` must match the key in `defaults/game_presets.json`.
-
-### Adding More Presets
-
-Edit `defaults/game_presets.json` to add new games — no code changes needed. Each preset specifies:
-- `chat_open_key` — key to open the chat box (`"enter"` or `null`)
-- `chat_send_key` — key to send the message (`"enter"` or `null`)
-- `default_channel` — channel to use when no prefix is spoken
-- `channels` — map of spoken words to slash-command prefixes
-- `whisper_prompt` — vocabulary hint for the Whisper model
-- `key_delay` — milliseconds between typed keys (default: `1`)
-- `key_hold` — milliseconds each typed key is held down (default: `0`)
-- `chat_open_delay` — seconds to wait after opening chat, before typing (default: `0`)
-- `chat_send_delay` — seconds to wait after typing, before sending chat (default: `0`)
-
-Timing values are optional. `key_delay` and `key_hold` are whole milliseconds
-passed to ydotool, while the chat delays are in seconds.
-
-## Button Configuration
-
-The plugin uses a configurable button combo for push-to-talk. You can set 1–5 buttons from the plugin UI.
-
-Available buttons:
-
-- **L1, R1** (bumpers) — _Default combo_
-- **L2, R2** (triggers)
-- **L4, R4, L5, R5** (Steam Deck back grips, detected through raw HID)
-- **A, B, X, Y** (face buttons)
-
-Controller input combines Linux evdev gamepad events with Valve raw HID reports.
-Xbox and other Linux gamepads can use face buttons, bumpers, and triggers without
-a device-ID allowlist. Steam Deck raw input preserves L4/R4/L5/R5 and combos
-mixing grips with other buttons, independently of Steam Input layouts. Original
-Steam Controllers retain raw L5/R5 grip support on wired/USB receiver connections;
-other connections can use evdev when a gamepad is exposed by Linux or Steam Input.
-Generic evdev input follows the exposed gamepad layout; a keyboard/mouse-only
-Steam Input layout may not expose usable gamepad buttons. Third-party paddles
-are not universally exposed as distinct buttons, so use a standard-button combo
-on those controllers. Face-button names follow Xbox positions.
-
-Controllers are detected automatically when connected. Each combo must be held
-on one input device; disconnecting it releases push-to-talk.
-
-## Use Cases
-
-### Gaming
-
-- **WoW chat**: Dictate messages with correct channel routing (party, raid, guild, etc.)
-- **Generic text input**: Type player names, search terms, chat in any game without a keyboard
-
-### General
-
-- **Web browsing**: Fill forms, search, comment
-- **Discord/messaging**: Send messages hands-free
-- **Any text input**: Works in any active window using the Generic preset
-
-## WoW Context Support (Optional)
-
-For improved accuracy with WoW-specific vocabulary, install the included WoW addon and run `convert_wow_context.py --watch`. It reads your current zone, target, party members, and class/spec from the game and feeds them to Whisper as context.
-
-See `doc/TESTING_GUIDE.md` for setup instructions.
-
-## Troubleshooting
-
-### Plugin not showing up
-
-- Check Decky Loader logs: `/tmp/decky-*.log`
-- Ensure all Python dependencies are installed
-- Restart Decky Loader
-
-### Plugin logs
-
-Decktation uses `decky.logger`, including forwarded controller-listener output.
-Decky writes timestamped `.log` files in `DECKY_PLUGIN_LOG_DIR`, normally
-`/home/deck/homebrew/logs/decktation/`. Open the newest file for the current
-session; after a plugin restart, Decky creates a new log file.
-
-```bash
-ls -lt /home/deck/homebrew/logs/decktation/*.log
-```
-
-The plugin no longer creates `/tmp/decktation.log`. This logging change does
-not migrate the controller's separate `/tmp` state files or change plugin
-privileges.
-
-### Recording not working
-
-- Ensure the plugin is enabled
-- Check that Steam Deck mic is working (test in another app)
-- Check `/home/deck/homebrew/logs/decktation/*.log` for `ydotoold ready`
-- Check logs: `/home/deck/homebrew/logs/decktation/*.log`
-
-### Button combo not detected
-
-The button preview shows currently held buttons on the backend's selected
-controller, including triggers, using the same mappings as recording combos.
-It clears on release and refreshes every 100 ms while the panel is mounted.
-
-#### Custom controller mappings
-
-Create `controller_mappings.json` in the plugin settings directory (normally
-`/home/deck/homebrew/settings/decktation/`). Each key is a lowercase hexadecimal
-`bus:vendor:product` ID, with four digits per component. For example, this
-explicitly maps X/Y for the Bluetooth Xbox `045e:02fd`:
-
-```json
-{
-  "0005:045e:02fd": {
-    "0x133": "X",
-    "0x134": "Y"
-  }
-}
-```
-
-Values may be `A`, `B`, `X`, `Y`, `L1`, `R1`, `L2`, or `R2`. Keys are Linux
-evdev button codes written as hex strings (not Steam button IDs). Unspecified
-codes retain their built-in mapping. This config overrides digital buttons;
-analog trigger axes still use automatic detection. Controllers must expose
-the standard A/B capabilities to be discovered.
-
-Use controller diagnostics and `Controller input` log lines to identify the
-device and its raw codes. Restart the plugin or reconnect the controller after
-editing; mappings are read when devices open. Invalid overrides are logged and
-ignored. USB and Bluetooth IDs can differ, and Steam's virtual controller is a
-separate device with its own mapping.
-
-Xbox evdev devices and Steam's virtual Xbox pads use Xbox X/Y button labels;
-other evdev gamepads use the default positional mapping. Steam Deck raw HID
-input is decoded separately. Button-change logs include the device path,
-decoded held buttons, and held evdev key codes to distinguish physical input
-from Steam's virtual output. If a controller still mismatches, capture separate
-X and Y presses from the same device before changing its mapping.
-
-- Try a different button combination in the plugin UI
-- Rear grip buttons are supported on Steam Deck hardware through raw HID
-- Check `/home/deck/homebrew/logs/decktation/*.log` for controller listener errors
-- Verify controller listener is running: `pgrep -f controller_listener`
-
-### Performance on Steam Deck
-
-- Default `base` model is recommended (good balance)
-- For faster: use `tiny` model (edit wow_voice_chat.py line 28)
-- For accuracy: use `small` model (slower, needs more resources)
-
-## Technical Details
-
-- **Speech recognition**: faster-whisper (CTranslate2 backend)
-- **Model**: base (150MB, ~2-4s transcription time)
-- **Input**: Steam Deck microphone or connected headset
-- **Controller input**: Linux evdev gamepads plus Valve raw HID for physical Deck controls and grips
-- **Output**: Keyboard simulation via ydotool (bundled)
-- **Game presets**: `defaults/game_presets.json` — data-driven, no code changes needed to add games
-- **Dependencies**: Pre-bundled Python 3.11 libraries in `lib/` folder
-- **Architecture**: TypeScript frontend + Python backend + separate controller listener process
-
-## Development
-
-```bash
-npm install           # Install Node dependencies (package-lock.json is ignored)
-npm run build         # Compile TypeScript to dist/index.js
-npm run watch         # Watch mode for development
-
-# Unit tests (no hardware required)
-python3 -m venv .venv && .venv/bin/pip install pytest sentry-sdk==2.66.0
-.venv/bin/pytest tests/ -v
-```
-
-CI runs unit tests and the TypeScript build on every push via GitHub Actions.
+- [Advanced configuration](doc/ADVANCED_CONFIGURATION.md): presets, spoken channel prefixes, model and language settings, and controller mappings.
+- [Troubleshooting](doc/TROUBLESHOOTING.md): plugin logs, recording, controller input, and text entry.
+- [WoW context guide](doc/WOW_INTEGRATION.md): setup, the current SavedVariables limitation ([issue #13](https://github.com/silverfoxy/decktation/issues/13)), and the proposed real-time companion ([issue #36](https://github.com/silverfoxy/decktation/issues/36)).
+- [Development](doc/DEVELOPMENT.md): build, test, and architecture notes.
+- [Privacy and permissions](doc/PRIVACY_AND_PERMISSIONS.md): diagnostic data, local processing, and Decky’s `_root` permission.
+- [Installation guide](doc/INSTALLATION.md): stable release links, branch builds, and development artifacts.
 
 ## Privacy
 
-- **Voice data stays local.** Recording, transcription, chat parsing, and
-  simulated keyboard input run on your Steam Deck. Decktation does not upload
-  audio recordings, transcribed text, or WoW context data.
-- **Model downloads.** The first use of each selected Whisper model downloads
-  its model files from Hugging Face. This requires an internet connection;
-  subsequent use is local while the model remains cached on the device.
-- **Optional diagnostics.** The **Diagnostics → Share** setting is off by
-  default. When enabled, Decktation sends scrubbed error and performance data
-  to Sentry to help diagnose failures. It excludes audio, transcription text,
-  WoW context, credentials, device/host identifiers, IP addresses, and paths
-  containing the local user name. Diagnostics include the plugin release,
-  error category/type, selected game preset, and whether dictation succeeded.
-  Controller diagnostics include family, vendor/product IDs (model identifiers,
-  not unique serials), USB/Bluetooth/virtual connection, evdev/raw HID backend,
-  configured combo and supported buttons, connected input-source count, first
-  input received, dropped-event recovery count, connection lifecycle, and
-  numeric input errors or listener exit code. Controller names, serial numbers,
-  Bluetooth addresses, and individual button-press streams are not uploaded.
-- You can disable diagnostics at any time from the plugin’s Diagnostics
-  section; no diagnostics connection is initialized while the setting is off.
+Audio, transcripts, and WoW context are processed locally and are not uploaded. Whisper model files are downloaded from Hugging Face on first use. Optional **Diagnostics → Share** is off by default; when enabled, Decktation sends scrubbed error and performance data to Sentry. See [privacy and permissions](doc/PRIVACY_AND_PERMISSIONS.md) for what diagnostics include.
 
 ## Permissions
 
-Decktation declares Decky’s `_root` permission solely for the Steam Deck
-devices required by push-to-talk and text input:
+Decktation uses Decky’s `_root` permission to read controller inputs and type the transcript through its bundled keyboard helper. Dictated text is passed as data, never run as a command. Read the [permissions details](doc/PRIVACY_AND_PERMISSIONS.md).
 
-- It reads Valve raw controller reports from `/dev/hidraw*` so the configured
-  physical button combination works independently of a game’s Steam Input
-  layout.
-- It also reads gamepad events from `/dev/input/event*` for other controllers,
-  without exclusively grabbing devices or changing their mappings.
-- It runs its bundled `ydotoold` helper against `/dev/uinput` to simulate the
-  keystrokes that enter the transcription in the active window. The helper uses
-  a private, owner-only socket in `/tmp` and is stopped when the plugin unloads.
-- Dictated text is passed as data to `ydotool`; it is never evaluated as a
-  shell command. Decktation does not modify the system filesystem, install
-  system packages, or create system services.
+## Credits and license
 
-## Credits
-
-Built with:
-
-- [faster-whisper](https://github.com/guillaumekln/faster-whisper) - Efficient Whisper implementation
-- [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) - Steam Deck plugin framework
-
-## License
-
-MIT
+Built with [faster-whisper](https://github.com/guillaumekln/faster-whisper) and [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader). Decktation is licensed under the MIT License.

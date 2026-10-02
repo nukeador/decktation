@@ -294,6 +294,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [serviceReady, setServiceReady] = useState<boolean>(false);
 	const [modelReady, setModelReady] = useState<boolean>(false);
 	const [modelLoading, setModelLoading] = useState<boolean>(false);
+	const [isToggling, setIsToggling] = useState<boolean>(false);
 	const [inputReady, setInputReady] = useState<boolean>(true);
 	const [buttonState, setButtonState] = useState<string>("None");
 	const [controllerReady, setControllerReady] = useState<boolean>(false);
@@ -545,19 +546,38 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 				{page === "main" && <>
 					<PanelSection title="Decktation">
 						<PanelSectionRow>
-							<ToggleField label="Enable" checked={enabled} disabled={!serviceReady || modelLoading}
+							<ToggleField label="Enable" checked={enabled} disabled={!serviceReady || modelLoading || isToggling}
 								onChange={async (next) => {
+									if (isToggling) return;
+									setIsToggling(true);
 									setEnabled(next);
 									logic.enabled = next;
-									await setEnabledRpc(next);
-									if (next && !modelReady) {
-										setModelLoading(true);
-										await loadModel();
-									}
-									if (!next && logic.recording) {
-										void stopRecording();
+									if (!next) {
+										setModelReady(false);
 										logic.recording = false;
 										setRecording(false);
+									}
+									try {
+										const result = await setEnabledRpc(next);
+										if (!result.success) {
+											setEnabled(!next);
+											logic.enabled = !next;
+											setRpcError(result.error || "Could not update enabled state");
+											return;
+										}
+										if (next && logic.enabled) {
+											setModelLoading(true);
+											const modelResult = await loadModel();
+											if (!modelResult.success) {
+												setRpcError(modelResult.error || "Could not load Whisper model");
+											}
+										}
+									} catch (error) {
+										setEnabled(!next);
+										logic.enabled = !next;
+										setRpcError(String(error));
+									} finally {
+										setIsToggling(false);
 									}
 								}} />
 						</PanelSectionRow>

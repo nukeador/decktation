@@ -368,6 +368,7 @@
         const [serviceReady, setServiceReady] = React.useState(false);
         const [modelReady, setModelReady] = React.useState(false);
         const [modelLoading, setModelLoading] = React.useState(false);
+        const [isToggling, setIsToggling] = React.useState(false);
         const [inputReady, setInputReady] = React.useState(true);
         const [buttonState, setButtonState] = React.useState("None");
         const [controllerReady, setControllerReady] = React.useState(false);
@@ -638,18 +639,40 @@
                 page === "main" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Decktation" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Enable", checked: enabled, disabled: !serviceReady || modelLoading, onChange: async (next) => {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Enable", checked: enabled, disabled: !serviceReady || modelLoading || isToggling, onChange: async (next) => {
+                                    if (isToggling)
+                                        return;
+                                    setIsToggling(true);
                                     setEnabled(next);
                                     logic.enabled = next;
-                                    await setEnabledRpc(next);
-                                    if (next && !modelReady) {
-                                        setModelLoading(true);
-                                        await loadModel();
-                                    }
-                                    if (!next && logic.recording) {
-                                        void stopRecording();
+                                    if (!next) {
+                                        setModelReady(false);
                                         logic.recording = false;
                                         setRecording(false);
+                                    }
+                                    try {
+                                        const result = await setEnabledRpc(next);
+                                        if (!result.success) {
+                                            setEnabled(!next);
+                                            logic.enabled = !next;
+                                            setRpcError(result.error || "Could not update enabled state");
+                                            return;
+                                        }
+                                        if (next && logic.enabled) {
+                                            setModelLoading(true);
+                                            const modelResult = await loadModel();
+                                            if (!modelResult.success) {
+                                                setRpcError(modelResult.error || "Could not load Whisper model");
+                                            }
+                                        }
+                                    }
+                                    catch (error) {
+                                        setEnabled(!next);
+                                        logic.enabled = !next;
+                                        setRpcError(String(error));
+                                    }
+                                    finally {
+                                        setIsToggling(false);
                                     }
                                 } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
