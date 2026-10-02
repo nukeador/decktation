@@ -308,6 +308,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [inputReady, setInputReady] = useState<boolean>(true);
 	const [buttonState, setButtonState] = useState<string>("None");
 	const [controllerReady, setControllerReady] = useState<boolean>(false);
+	const [controllerStatus, setControllerStatus] = useState<string>("Waiting for input");
+	const [controllerComboSupported, setControllerComboSupported] = useState<boolean>(true);
 	const [buttons, setButtons] = useState<string[]>(["L1", "R1"]);
 	const [showNotifications, setShowNotifications] = useState<boolean>(true);
 	const [hapticFeedback, setHapticFeedback] = useState<boolean>(false);
@@ -400,6 +402,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					setStatusError("");
 					setButtonState(result.detected_button || "None");
 					setControllerReady(result.controller_ready === true);
+					setControllerStatus(result.controller_status || "Waiting for input");
+					setControllerComboSupported(result.controller_combo_supported !== false);
 					setServiceReady(result.service_ready);
 					setModelReady(result.model_ready);
 					setModelLoading(result.model_loading);
@@ -409,10 +413,12 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					}
 				} else {
 					setControllerReady(false);
+					setControllerStatus("Status unavailable");
 					setStatusError(result.error || "Backend status request failed");
 				}
 			} catch (error) {
 				setControllerReady(false);
+					setControllerStatus("Status unavailable");
 				setStatusError(String(error));
 			} finally {
 				if (!cancelled) timeout = setTimeout(poll, 100);
@@ -644,7 +650,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 				</>}
 				{page === "diagnostics" && <>
 					<PanelSection title="Input and service">
-						<PanelSectionRow><div>Controller: {controllerReady ? "Ready" : "Unavailable"}</div></PanelSectionRow>
+						<PanelSectionRow><div>Controller: {controllerStatus}</div></PanelSectionRow>
+						{controllerReady && !controllerComboSupported && <PanelSectionRow><div role="alert">Selected combo unavailable on detected input</div></PanelSectionRow>}
 						<PanelSectionRow><div>Held buttons: <strong>{buttonState}</strong></div></PanelSectionRow>
 						<PanelSectionRow><div>Keyboard helper: {inputReady ? "Ready" : "Unavailable"}</div></PanelSectionRow>
 						<PanelSectionRow><div>Backend: {serviceReady ? "Ready" : "Unavailable"}</div></PanelSectionRow>
