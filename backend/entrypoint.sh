@@ -8,7 +8,7 @@ cp -R /runtime/python/. out/python/
 # Decky places backend/out under the installed plugin's bin/ directory. Keep
 # substantive Python backend source in backend/src; root main.py is only the
 # Decky Loader entry point.
-cp src/audio_runtime.py src/decktation_backend.py src/wow_voice_chat.py src/controller_listener.py \
+cp src/audio_runtime.py src/decktation_backend.py src/wow_voice_chat.py src/clipboard_injection.py src/controller_listener.py \
     src/haptic_feedback.py \
     src/deck_hid.py src/gamepad_evdev.py src/telemetry.py src/convert_wow_context.py out/
 
@@ -46,6 +46,8 @@ if ! find out/python -type f -name '*cpython-311*' | grep -q .; then
 fi
 
 cp /ydotool-build/ydotool /ydotool-build/ydotoold out/
+cp /usr/bin/xclip out/
 cp -L /usr/lib/libportaudio.so.2 out/lib/libportaudio.so.2
 cp /ydotool-src/LICENSE out/licenses/ydotool-AGPL-3.0.txt
+cp /xclip-src/COPYING out/licenses/xclip-GPL-2.0.txt
 cp /usr/share/licenses/portaudio/LICENSE.txt out/licenses/portaudio-MIT.txt
