@@ -44,3 +44,23 @@ excluded. Expanded raw mappings follow Linux `drivers/hid/hid-steam.c`.
 The test installer backs up replaced source files under
 `/home/deck/decktation-press-bind-test/backup-*` and preserves runtime packages,
 models, native helpers, and saved settings.
+
+## Recording mode (#14)
+
+On Main, open **Mode** under Recording binding. **Hold to record** remains the
+default and sends on release, including short presses. **Tap to start/stop**
+starts on press: a release within 250 ms keeps recording; the next press stops
+and transcribes once. Holding for 250 ms or longer still stops on release.
+Test a quick tap, several seconds of speech, and a second tap; then test a
+held quick message using the same binding. Try a two-button combination and
+release its buttons at slightly different times. Reopen QAM and restart Decky
+to verify the selected mode persists. Verify pending-send cancellation still
+cancels without starting another recording, and Test Dictation still shows
+text without sending it. Mode changes and binding capture are unavailable
+while recording. Disabling the plugin or disconnecting the controller cancels
+hands-free recording without transcribing/sending it. Confirm normal haptic
+start/stop feedback and no double-send after the second tap's release.
+
+The recording-mode test installer stages at
+`/home/deck/decktation-recording-mode-test`, backs up replaced source files,
+and preserves saved settings, model data, and bundled runtime dependencies.
