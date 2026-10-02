@@ -14,7 +14,7 @@ cp /companion-build/glib-copyright out/licenses/companion-glib-copyright.txt
 cp /companion-build/pipewire-copyright out/licenses/companion-pipewire-copyright.txt
 
 cp src/audio_runtime.py src/decktation_backend.py src/wow_voice_chat.py src/clipboard_injection.py src/controller_listener.py \
-    src/deck_hid.py src/gamepad_evdev.py src/haptic_feedback.py src/telemetry.py src/convert_wow_context.py \
+    src/binding_capture.py src/deck_hid.py src/gamepad_evdev.py src/haptic_feedback.py src/telemetry.py src/convert_wow_context.py \
     src/recording_overlay.py src/recording_overlay_manager.py out/
 
 # Keep inference code and package license metadata, but omit installation-time

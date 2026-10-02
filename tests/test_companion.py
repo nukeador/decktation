@@ -178,22 +178,24 @@ def test_persisted_toggle_and_status_rpc(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "decky", decky)
     monkeypatch.setenv("DECKY_PLUGIN_DIR", str(Path(__file__).parents[1]))
     monkeypatch.setattr(runtime, "desktop_account", lambda home: (_ for _ in ()).throw(ValueError()))
-    spec = importlib.util.spec_from_file_location("companion_backend_test", Path(__file__).parents[1] / "backend/src/decktation_backend.py")
-    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
-    assert module._read_button_config()["wowCompanionEnabled"] is False
-    module._write_button_config({"wowCompanionEnabled": "false", "hapticFeedback": True,
-                                "showNotifications": False, "buttons": ["L4", "R4"],
-                                "transcriptionLanguage": "es"})
-    assert module._read_button_config()["wowCompanionEnabled"] is False
-    fake = MagicMock(); module.Plugin.companion = fake
-    plugin = module.Plugin()
-    assert asyncio.run(plugin.set_wow_companion_enabled(True))["success"]
-    assert module._read_button_config()["wowCompanionEnabled"] is True
-    fake.configure.assert_called_with(True, module.Plugin.controller_enabled, "wow")
-    config = module._read_button_config()
-    assert config["hapticFeedback"] is True and config["showNotifications"] is False
-    assert config["buttons"] == ["L4", "R4"] and config["transcriptionLanguage"] == "es"
-    assert not asyncio.run(plugin.set_wow_companion_enabled("yes"))["success"]
+    async def check():
+        spec = importlib.util.spec_from_file_location("companion_backend_test", Path(__file__).parents[1] / "backend/src/decktation_backend.py")
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        assert module._read_button_config()["wowCompanionEnabled"] is False
+        module._write_button_config({"wowCompanionEnabled": "false", "hapticFeedback": True,
+                                    "showNotifications": False, "buttons": ["L4", "R4"],
+                                    "transcriptionLanguage": "es"})
+        assert module._read_button_config()["wowCompanionEnabled"] is False
+        fake = MagicMock(); module.Plugin.companion = fake
+        plugin = module.Plugin()
+        assert (await plugin.set_wow_companion_enabled(True))["success"]
+        assert module._read_button_config()["wowCompanionEnabled"] is True
+        fake.configure.assert_called_with(True, module.Plugin.controller_enabled, "wow")
+        config = module._read_button_config()
+        assert config["hapticFeedback"] is True and config["showNotifications"] is False
+        assert config["buttons"] == ["L4", "R4"] and config["transcriptionLanguage"] == "es"
+        assert not (await plugin.set_wow_companion_enabled("yes"))["success"]
+    asyncio.run(check())
 
 
 def test_synthetic_scaled_screenshot_and_checksum():

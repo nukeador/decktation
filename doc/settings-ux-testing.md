@@ -27,3 +27,20 @@ ssh -t steamdeck 'sudo install -m 0644 /home/deck/decktation-index-before-issue-
 - **Navigation:** B returns from Diagnostics or Help to Advanced, and from Advanced to Main. Repeat entry and exit, then close and reopen QAM. Confirm focus remains usable and recording/status updates do not duplicate.
 
 The test cannot be considered physically validated until the bundle has been installed on the Deck and these checks have been performed.
+
+## Press-to-bind (#19)
+
+Recording binding now lives on Main. Select **Change binding**, release the
+activation button, hold one to five buttons together, then release to save.
+Try **L4 + View**, a single **B**, D-pad, stick clicks, and trackpad clicks.
+Confirm A/B/D-pad stay in capture instead of navigating the settings panel.
+Cancel by touching **Cancel**, closing QAM, or waiting for the 20-second timeout;
+the previous binding must remain unchanged. Test controller disconnection and
+confirm buttons from two controllers are never combined. Dictation must stay
+silent during capture and work immediately with the newly saved combination.
+Reopen QAM and restart Decky to check persistence. Steam and Quick Access are
+excluded. Expanded raw mappings follow Linux `drivers/hid/hid-steam.c`.
+
+The test installer backs up replaced source files under
+`/home/deck/decktation-press-bind-test/backup-*` and preserves runtime packages,
+models, native helpers, and saved settings.

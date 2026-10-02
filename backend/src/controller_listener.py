@@ -14,6 +14,7 @@ import selectors
 import tempfile
 from deck_hid import STEAM_DECK_BUTTON_BITS, raw_button_states, triton_button_states
 from gamepad_evdev import EvdevGamepad
+from binding_capture import BindingCapture, read_json, write_json
 
 STATE_FILE = "/tmp/decktation_l5"
 PREVIEW_FILE = "/tmp/decktation_button_preview"
@@ -65,7 +66,7 @@ def controller_details(device, controller_type):
     if controller_type != 'evdev_gamepad':
         buttons = set(RAW_BUTTON_BITS)
         if controller_type not in ('steam_deck',) and not controller_type.startswith('steam_controller_2026'):
-            buttons -= {'L4', 'R4'}
+            buttons -= {'L4', 'R4', 'R3'}
         product = {'steam_deck': 0x1205, 'steam_controller_wired': 0x1102,
                    'steam_controller_wireless': 0x1142,
                    'steam_controller_2026_puck': 0x1304,
@@ -234,6 +235,27 @@ def main():
     active_source = None
     open_errors = set()
     combo_active = False
+    capture = None
+    capture_blocked = False
+    request_file = os.path.join(CONFIG_DIR, "binding_capture_request.json")
+    result_file = os.path.join(CONFIG_DIR, "binding_capture_result.json")
+
+    def update_capture():
+        nonlocal capture, capture_blocked
+        request = read_json(request_file)
+        if request.get("session") and not request.get("cancelled") and request.get("deadline", 0) > time.time() and (capture is None or capture.session != request["session"]):
+            capture = BindingCapture(request["session"], request["deadline"])
+            capture_blocked = True
+        if capture and capture.active:
+            if request.get("cancelled"):
+                capture.phase = "cancelled"
+            else:
+                capture.update(tracker.sources, time.time())
+            write_json(result_file, capture.status())
+        if capture_blocked and capture and not capture.active:
+            if not any(any(states.values()) for states in tracker.sources.values()):
+                capture_blocked = False
+
 
     def diagnostic(event, **extra):
         snapshot = {
@@ -253,8 +275,9 @@ def main():
 
     def update_combo():
         nonlocal combo_active
-        if tracker.active != combo_active:
-            combo_active = tracker.active
+        active = tracker.active and not capture_blocked
+        if active != combo_active:
+            combo_active = active
             if combo_active:
                 # The source completing the combo is selected in publish(),
                 # before the backend can observe STATE_FILE=1.
@@ -299,6 +322,7 @@ def main():
         tracker.update(path, states)
         if changed:
             write_button_preview(tracker.sources.get(active_source, {}))
+        update_capture()
         update_combo()
 
     def remove(path, error=None):
@@ -315,6 +339,7 @@ def main():
                 f.write(details.get(active_source, {}).get('controller_type', 'unknown'))
         diagnostic('disconnected', affected_controller=disconnected, errno=getattr(error, 'errno', None))
         write_button_preview(tracker.sources.get(active_source, {}))
+        update_capture()
         update_combo()
 
     try:
@@ -324,6 +349,8 @@ def main():
             f.write('unknown')
         diagnostic('started', process_identity=identity)
         while True:
+            update_capture()
+            update_combo()
             if time.monotonic() >= next_scan:
                 candidates = dict(find_steam_hidraw())
                 candidates.update({path: 'evdev_gamepad' for path in glob.glob('/dev/input/event*')})

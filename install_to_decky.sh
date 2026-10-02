@@ -37,6 +37,7 @@ mkdir -p "$PLUGIN_DIR/bin"
 # Copy essential files only
 echo "Copying files..."
 cp "$SOURCE_DIR/main.py" "$PLUGIN_DIR/"
+cp "$SOURCE_DIR/backend/src/binding_capture.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/decktation_backend.py" "$PLUGIN_DIR/bin/"
 cp -R "$SOURCE_DIR/backend/src/companion" "$PLUGIN_DIR/bin/"
 # Native capture is produced by the normal plugin build, never on SteamOS.

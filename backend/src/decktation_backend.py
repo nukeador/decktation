@@ -37,6 +37,9 @@ for dependency_path in dependency_paths:
 from audio_runtime import ensure_audio_environment, setup_audio_environment
 from haptic_feedback import HapticFeedback
 from recording_overlay_manager import RecordingOverlay
+from binding_capture import read_json, write_json
+from deck_hid import STEAM_DECK_BUTTON_BITS
+import uuid
 
 # Decky plugins run outside the desktop user's login environment.  Configure
 # the PipeWire runtime before sounddevice is imported by wow_voice_chat.
@@ -248,6 +251,8 @@ class Plugin:
     # Serializes complete enable/disable transitions so an older disable cannot
     # finish its teardown after a newer enable has returned.
     enable_transition_lock = asyncio.Lock()
+    binding_session = None
+    binding_deadline = 0
     recording_start_count = 0  # Increments each time recording starts
     active_preset = "wow"
     companion = None
@@ -463,6 +468,10 @@ class Plugin:
 
         while Plugin.poll_running:
             try:
+                if Plugin.binding_session and time.time() < Plugin.binding_deadline:
+                    last_state = False
+                    time.sleep(0.05)
+                    continue
                 if not Plugin.controller_enabled:
                     time.sleep(0.1)
                     continue
@@ -796,12 +805,53 @@ class Plugin:
             logger.error("Error saving haptic preference: %s", e)
             return {"success": False, "error": str(e)}
 
+    async def start_binding_capture(self):
+        if Plugin.voice_service and Plugin.voice_service.is_recording:
+            return {"success": False, "error": "Finish recording before changing the binding."}
+        if not Plugin.listener_process or Plugin.listener_process.poll() is not None:
+            Plugin.start_controller_listener()
+        if not Plugin.listener_process or Plugin.listener_process.poll() is not None:
+            return {"success": False, "error": "Controller listener unavailable."}
+        Plugin.binding_session = uuid.uuid4().hex
+        Plugin.binding_deadline = time.time() + 20
+        write_json(os.path.join(CONFIG_DIR, "binding_capture_request.json"), {
+            "session": Plugin.binding_session, "deadline": Plugin.binding_deadline})
+        return {"success": True, "session": Plugin.binding_session}
+
+    async def cancel_binding_capture(self, session: str):
+        if session == Plugin.binding_session:
+            write_json(os.path.join(CONFIG_DIR, "binding_capture_request.json"), {
+                "session": session, "deadline": Plugin.binding_deadline, "cancelled": True})
+            Plugin.binding_session = None
+        return {"success": True}
+
+    async def get_binding_capture(self, session: str):
+        if session != Plugin.binding_session:
+            return {"success": False, "error": "Binding session ended."}
+        result = read_json(os.path.join(CONFIG_DIR, "binding_capture_result.json"))
+        if result.get("session") != session:
+            result = {"phase": "release", "buttons": []}
+        if time.time() >= Plugin.binding_deadline and result.get("phase") != "captured":
+            result = {"phase": "cancelled", "error": "Binding timed out. Your previous binding is unchanged."}
+        if result.get("phase") == "captured":
+            write_json(os.path.join(CONFIG_DIR, "binding_capture_request.json"), {
+                "session": session, "deadline": Plugin.binding_deadline, "cancelled": True})
+            saved = await Plugin.set_button_config(None, result["buttons"], _read_button_config().get("showNotifications", True))
+            Plugin.binding_session = None
+            return {**result, **saved, "phase": "saved" if saved["success"] else "cancelled"}
+        if result.get("phase") == "cancelled":
+            await Plugin.cancel_binding_capture(None, session)
+        return {"success": True, **result}
+
     async def set_button_config(self, buttons: list, showNotifications: bool = True):
         """Set button configuration and settings, restart listener"""
         try:
             # Validate buttons list
             if not isinstance(buttons, list) or len(buttons) == 0:
                 return {"success": False, "error": "buttons must be a non-empty list"}
+
+            if len(buttons) > 5 or any(not isinstance(b, str) or b not in STEAM_DECK_BUTTON_BITS for b in buttons):
+                return {"success": False, "error": "Choose one to five supported buttons."}
 
             # Remove duplicates while preserving order
             seen = set()
