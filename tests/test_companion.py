@@ -124,8 +124,9 @@ def test_reject_malformed_frame(magic, width, height):
         os.close(r); os.close(w)
 
 
-def test_process_detection_uses_desktop_uid(tmp_path):
-    p = tmp_path / "123"; p.mkdir(); (p / "comm").write_text("WoW.exe\n")
+@pytest.mark.parametrize("process_name", ["WoW.exe", "WowB.exe", "WOWB.EXE", "WoWClassic.exe", "WoWClassic_T.exe"])
+def test_process_detection_uses_desktop_uid(tmp_path, process_name):
+    p = tmp_path / "123"; p.mkdir(); (p / "comm").write_text(process_name + "\n")
     assert runtime.wow_running(os.getuid(), tmp_path)
     assert not runtime.wow_running(os.getuid() + 100, tmp_path)
     (p / "comm").write_text("Other.exe")

@@ -4,7 +4,7 @@ The **WoW Companion context** option is off by default. With the WoW preset and 
 
 ## Addon and setup
 
-Install [WoW Context Bridge](https://github.com/nukeador/wow-context-bridge/releases), currently Retail-only. Download the named addon ZIP, extract its `WoWContextBridge` folder into `_retail_/Interface/AddOns/`, and enable it in WoW. Remove the earlier `CompanionPoC` addon if present. Restart WoW if the new folder is not discovered by `/reload`. Enable appropriate friendly/enemy nameplates in WoW settings. The addon is maintained separately and is not installed automatically by Decktation. The older SavedVariables addon does not supply this pixel stream.
+Install [WoW Context Bridge](https://github.com/nukeador/wow-context-bridge/releases), Retail tested with unverified Forever beta compatibility. Download the named addon ZIP, extract its `WoWContextBridge` folder into the client's `Interface/AddOns/` (`_retail_` for Retail, typically `_classic_beta_` for Forever), and enable it in WoW. Remove the earlier `CompanionPoC` addon if present. Restart WoW if the new folder is not discovered by `/reload`. Enable appropriate friendly/enemy nameplates in WoW settings. The addon is maintained separately and is not installed automatically by Decktation. The older SavedVariables addon does not supply this pixel stream.
 
 The tested addon emits protocol v2 using opaque 3×3 nominal pixel cells at top-left, with player, target, zone, subzone and a bounded nameplate list. V1 packets are also accepted. Nameplate visibility and Retail restrictions limit coverage; an overhead name alone need not provide a readable token. Up to eight names fit the current payload; the total is the count in a bounded readable scan, not a census of nearby units. No distance or player/NPC classification is promised. This implementation does not automate gameplay or bypass restricted API values. Blizzard has not explicitly approved this communication technique.
 
@@ -60,3 +60,9 @@ Run the Python suite with `pytest tests/ -q`. Reproduce native/container checks 
 - Frontend bundle built successfully; the repository's missing React declarations produce TypeScript warnings. Python compilation, shell syntax and whitespace checks passed.
 
 The complete ML/plugin release archive and integrated physical capture/recognition tests have not been run or deployed. Legacy source-copy scripts now include the Companion module and copy a helper when an existing build provides one; they never compile/install capture dependencies on SteamOS. Use the normal plugin build for a fully bundled install.
+
+## Client detection and Forever beta
+
+Every five seconds Decktation checks `/proc` process ownership and the case-insensitive process name in `comm`. `WoW.exe` (Retail) and `WowB.exe` (Forever beta) are recognised, along with existing Classic executable names. Only processes owned by the resolved desktop user count; Battle.net alone does not start capture. No game memory, window title or network query is used. Executable detection does not establish addon compatibility with Classic.
+
+WoW Context Bridge 0.1.1-experimental includes Retail and `_Camelot` Forever manifests loading the same protocol v2 encoder. Forever interface `16001` and `WowB.exe` follow existing Forever projects. Actual beta loading, readable names, rendering and SteamOS capture need volunteer validation. Later beta executable/interface changes may require an update. Check the beta's addon directory and record its build in QA reports.

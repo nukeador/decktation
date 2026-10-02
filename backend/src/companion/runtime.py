@@ -54,7 +54,7 @@ def wow_running(uid, proc=Path("/proc")):
             continue
         try:
             if entry.stat().st_uid == uid and (entry / "comm").read_text().strip().lower() in {
-                "wow.exe", "wowclassic.exe", "wowclassic_t.exe"}:
+                "wow.exe", "wowb.exe", "wowclassic.exe", "wowclassic_t.exe"}:
                 return True
         except OSError:
             pass
