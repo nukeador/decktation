@@ -20,6 +20,13 @@ import React, {
 
 import { FaMicrophone, FaTrash, FaCircle } from "react-icons/fa";
 
+type CompanionStatus = {
+    state: string;
+    age_seconds?: number | null;
+    vocabulary_count: number;
+    detail?: string;
+};
+
 type RpcResponse = { success: boolean; error?: string; [key: string]: any };
 
 const getStatus = callable<[], RpcResponse>("get_status");
@@ -35,6 +42,7 @@ const setManualSendRpc = callable<[enabled: boolean], RpcResponse>("set_manual_s
 const setRememberLastChannelRpc = callable<[enabled: boolean], RpcResponse>("set_remember_last_channel");
 const setShareDiagnosticsRpc = callable<[enabled: boolean], RpcResponse>("set_share_diagnostics");
 const setActivePresetRpc = callable<[game: string], RpcResponse>("set_active_preset");
+const setWowCompanionRpc = callable<[enabled: boolean], RpcResponse>("set_wow_companion_enabled");
 const setModelSizeRpc = callable<[modelSize: string], RpcResponse>("set_model_size");
 const setTranscriptionOptionsRpc = callable<
 	[language: string],
@@ -294,6 +302,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [manualSend, setManualSend] = useState<boolean>(false);
 	const [rememberLastChannel, setRememberLastChannel] = useState<boolean>(false);
 	const [shareDiagnostics, setShareDiagnostics] = useState<boolean>(false);
+	const [wowCompanionEnabled, setWowCompanionEnabled] = useState<boolean>(false);
+	const [companionStatus, setCompanionStatus] = useState<CompanionStatus>({state: "Disabled", vocabulary_count: 0});
 	const [modelSize, setModelSize] = useState<string>("base");
 	const [transcriptionLanguage, setTranscriptionLanguage] = useState<string>("auto");
 	const [lastTranscription, setLastTranscription] = useState<string>("");
@@ -331,6 +341,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					if (config.shareDiagnostics !== undefined) {
 						setShareDiagnostics(config.shareDiagnostics);
 					}
+					setWowCompanionEnabled(config.wowCompanionEnabled === true);
 					if (config.modelSize) {
 						setModelSize(config.modelSize);
 					}
@@ -368,6 +379,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 				const result = await getStatus();
 				if (cancelled) return;
 				if (result.success) {
+					setCompanionStatus(result.companion || {state: "Disabled", vocabulary_count: 0});
 					setButtonState(result.detected_button || "None");
 					setControllerReady(result.controller_ready === true);
 					setRpcError("");
@@ -638,6 +650,25 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					/>
 				</PanelSectionRow>
 			</PanelSection>
+
+            {activePreset === "wow" && <PanelSection title="WoW Companion (experimental)">
+                <PanelSectionRow>
+                    <ToggleField label="WoW Companion context"
+                        description="Use live game names as speech vocabulary. Requires the Companion addon; capture runs while WoW and dictation are enabled."
+                        checked={wowCompanionEnabled}
+                        onChange={async (enabled) => {
+                            const result = await setWowCompanionRpc(enabled);
+                            if (result.success) setWowCompanionEnabled(enabled);
+                            else setRpcError(result.error || "Could not update Companion setting");
+                        }} />
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <div>{companionStatus.state} · {companionStatus.vocabulary_count || 0} vocabulary terms
+                        {companionStatus.age_seconds != null ? ` · ${companionStatus.age_seconds}s old` : ""}
+                        {companionStatus.detail ? <div>{companionStatus.detail}</div> : null}
+                    </div>
+                </PanelSectionRow>
+            </PanelSection>}
 
 			<PanelSection title="Input">
 				<PanelSectionRow>

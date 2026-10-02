@@ -1,4 +1,19 @@
+# Compile capture against a conservative glibc/GLib/PipeWire baseline.
+# Runtime uses SteamOS session libraries; no packages are installed on the Deck.
+FROM debian:bookworm-slim AS companion-builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc pkg-config libpipewire-0.3-dev libglib2.0-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY native/companion /companion-src
+RUN mkdir -p /companion-build && cc -std=c11 -O2 -Wall -Wextra -Werror \
+    -o /companion-build/companion-capture /companion-src/portal_capture.c \
+    $(pkg-config --cflags --libs libpipewire-0.3 gio-unix-2.0) \
+    && cp /usr/share/doc/libglib2.0-0/copyright /companion-build/glib-copyright \
+    && cp /usr/share/doc/libpipewire-0.3-0/copyright /companion-build/pipewire-copyright
+
 FROM ghcr.io/steamdeckhomebrew/holo-base:latest
+
+COPY --from=companion-builder /companion-build /companion-build
 
 ARG YDOTOOL_COMMIT=57ba7d0af525e82da2de0e275d169477f293b197
 

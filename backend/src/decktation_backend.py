@@ -7,6 +7,7 @@ import threading
 import subprocess
 import time
 import shutil
+from companion.runtime import Companion
 from pathlib import Path
 
 # Decky API v1 uses ``decky``. Keep the old module name as a compatibility
@@ -150,6 +151,7 @@ DEFAULT_BUTTON_CONFIG = {
     "shareDiagnostics": False,
     "modelSize": "base",
     "transcriptionLanguage": "auto",
+    "wowCompanionEnabled": False,
 }
 
 SUPPORTED_WHISPER_MODEL_SIZES = {"base", "small", "medium"}
@@ -196,6 +198,7 @@ def _read_button_config():
         config.get("transcriptionLanguage")
     )
     config["modelSize"] = _normalize_model_size(config.get("modelSize"))
+    config["wowCompanionEnabled"] = config.get("wowCompanionEnabled") is True
     config["translateToEnglish"] = False
     return config
 
@@ -209,6 +212,7 @@ def _write_button_config(config):
     normalized_config["modelSize"] = _normalize_model_size(
         normalized_config.get("modelSize")
     )
+    normalized_config["wowCompanionEnabled"] = normalized_config.get("wowCompanionEnabled") is True
     normalized_config["translateToEnglish"] = False
     with open(BUTTON_CONFIG_FILE, "w") as config_file:
         json.dump(normalized_config, config_file)
@@ -240,6 +244,7 @@ class Plugin:
     enable_transition_lock = asyncio.Lock()
     recording_start_count = 0  # Increments each time recording starts
     active_preset = "wow"
+    companion = None
     dictation_transaction = None
 
     @staticmethod
@@ -593,6 +598,9 @@ class Plugin:
                     if telemetry else None
                 ),
             )
+            Plugin.companion = Companion(
+                Path(plugin_path) / "bin" / "companion-capture", decky_user_home)
+            Plugin.voice_service.companion = Plugin.companion
             logger.info("Voice service initialized (model will load on first use)")
             if telemetry:
                 telemetry_breadcrumb("voice_service.initialized")
@@ -605,6 +613,9 @@ class Plugin:
                         logger.info("Restored enabled state from config")
             except Exception as e:
                 logger.error(f"Error restoring enabled state: {e}")
+
+            Plugin.companion.configure(saved_config.get("wowCompanionEnabled", False),
+                                       Plugin.controller_enabled, Plugin.active_preset)
 
             # Start the external controller listener
             if Plugin.start_controller_listener():
@@ -630,6 +641,8 @@ class Plugin:
         """Cleanup when plugin unloads"""
         logger.info("Unloading Decktation plugin")
         try:
+            if Plugin.companion:
+                await asyncio.to_thread(Plugin.companion.close)
             Plugin.poll_running = False
             Plugin.stop_controller_listener()
             Plugin.stop_ydotoold()
@@ -646,6 +659,8 @@ class Plugin:
 
     async def _uninstall(self):
         """Remove runtime processes and transient files on uninstall."""
+        if Plugin.companion:
+            await asyncio.to_thread(Plugin.companion.close)
         Plugin.poll_running = False
         Plugin.stop_controller_listener()
         Plugin.stop_ydotoold()
@@ -666,6 +681,8 @@ class Plugin:
         async with Plugin.enable_transition_lock:
             # A recording start may hold this lock while opening the audio device.
             await asyncio.to_thread(Plugin._set_controller_enabled, enabled)
+            if Plugin.companion:
+                Plugin.companion.configure(Plugin.companion.enabled, enabled, Plugin.active_preset)
 
             # Persist before potentially slow teardown.  The transition lock
             # preserves ordering if another toggle request arrives meanwhile.
@@ -694,6 +711,20 @@ class Plugin:
         except Exception as e:
             logger.error(f"Error getting button config: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
+
+    async def set_wow_companion_enabled(self, enabled: bool):
+        """Opt-in experimental live vocabulary; no addon installation."""
+        try:
+            if type(enabled) is not bool:
+                return {"success": False, "error": "Expected a boolean"}
+            config = _read_button_config()
+            config["wowCompanionEnabled"] = enabled
+            _write_button_config(config)
+            if Plugin.companion:
+                Plugin.companion.configure(enabled, Plugin.controller_enabled, Plugin.active_preset)
+            return {"success": True, "enabled": enabled}
+        except Exception:
+            return {"success": False, "error": "Could not update Companion setting"}
 
     async def set_share_diagnostics(self, enabled: bool):
         """Persist and immediately apply anonymous diagnostics consent."""
@@ -894,6 +925,9 @@ class Plugin:
             config["lastChannel"] = None
             _write_button_config(config)
 
+            # Clear previous vocabulary before changing the voice preset.
+            if Plugin.companion:
+                Plugin.companion.configure(Plugin.companion.enabled, Plugin.controller_enabled, game)
             # Update running voice service
             if Plugin.voice_service:
                 Plugin.voice_service.set_preset(_game_presets[game])
@@ -1016,6 +1050,8 @@ class Plugin:
 
             return {
                 "success": True,
+                "companion": Plugin.companion.status() if Plugin.companion else {
+                    "state": "Disabled", "age_seconds": None, "vocabulary_count": 0, "detail": ""},
                 "service_ready": Plugin.voice_service is not None,
                 "model_ready": model_ready,
                 "model_loading": model_loading,

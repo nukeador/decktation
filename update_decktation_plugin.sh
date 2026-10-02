@@ -50,6 +50,13 @@ echo "  → Core Python files..."
 sudo cp "$SOURCE_DIR/main.py" "$PLUGIN_DIR/"
 sudo mkdir -p "$PLUGIN_DIR/bin"
 sudo cp "$SOURCE_DIR/backend/src/decktation_backend.py" "$PLUGIN_DIR/bin/"
+sudo cp -R "$SOURCE_DIR/backend/src/companion" "$PLUGIN_DIR/bin/"
+# Native capture is produced by the normal plugin build, never on SteamOS.
+if [ -x "$SOURCE_DIR/backend/out/companion-capture" ]; then
+    sudo cp "$SOURCE_DIR/backend/out/companion-capture" "$PLUGIN_DIR/bin/"
+    sudo mkdir -p "$PLUGIN_DIR/bin/licenses"
+    sudo cp "$SOURCE_DIR/backend/out/licenses/companion-"* "$PLUGIN_DIR/bin/licenses/"
+fi
 sudo cp "$SOURCE_DIR/backend/src/audio_runtime.py" "$PLUGIN_DIR/bin/"
 sudo cp "$SOURCE_DIR/backend/src/controller_listener.py" "$PLUGIN_DIR/bin/"
 sudo cp "$SOURCE_DIR/backend/src/deck_hid.py" "$PLUGIN_DIR/bin/"

@@ -134,6 +134,7 @@
     const setRememberLastChannelRpc = callable("set_remember_last_channel");
     const setShareDiagnosticsRpc = callable("set_share_diagnostics");
     const setActivePresetRpc = callable("set_active_preset");
+    const setWowCompanionRpc = callable("set_wow_companion_enabled");
     const setModelSizeRpc = callable("set_model_size");
     const setTranscriptionOptionsRpc = callable("set_transcription_options");
     const setButtonConfig = callable("set_button_config");
@@ -379,6 +380,8 @@
         const [manualSend, setManualSend] = React.useState(false);
         const [rememberLastChannel, setRememberLastChannel] = React.useState(false);
         const [shareDiagnostics, setShareDiagnostics] = React.useState(false);
+        const [wowCompanionEnabled, setWowCompanionEnabled] = React.useState(false);
+        const [companionStatus, setCompanionStatus] = React.useState({ state: "Disabled", vocabulary_count: 0 });
         const [modelSize, setModelSize] = React.useState("base");
         const [transcriptionLanguage, setTranscriptionLanguage] = React.useState("auto");
         const [lastTranscription, setLastTranscription] = React.useState("");
@@ -414,6 +417,7 @@
                         if (config.shareDiagnostics !== undefined) {
                             setShareDiagnostics(config.shareDiagnostics);
                         }
+                        setWowCompanionEnabled(config.wowCompanionEnabled === true);
                         if (config.modelSize) {
                             setModelSize(config.modelSize);
                         }
@@ -450,6 +454,7 @@
                     if (cancelled)
                         return;
                     if (result.success) {
+                        setCompanionStatus(result.companion || { state: "Disabled", vocabulary_count: 0 });
                         setButtonState(result.detected_button || "None");
                         setControllerReady(result.controller_ready === true);
                         setRpcError("");
@@ -638,6 +643,23 @@
                                 setRpcError(result.error || "Could not update language setting");
                             }
                         } }))),
+            activePreset === "wow" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "WoW Companion (experimental)" },
+                React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                    React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "WoW Companion context", description: "Use live game names as speech vocabulary. Requires the Companion addon; capture runs while WoW and dictation are enabled.", checked: wowCompanionEnabled, onChange: async (enabled) => {
+                            const result = await setWowCompanionRpc(enabled);
+                            if (result.success)
+                                setWowCompanionEnabled(enabled);
+                            else
+                                setRpcError(result.error || "Could not update Companion setting");
+                        } })),
+                React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                    React__default["default"].createElement("div", null,
+                        companionStatus.state,
+                        " \u00B7 ",
+                        companionStatus.vocabulary_count || 0,
+                        " vocabulary terms",
+                        companionStatus.age_seconds != null ? ` · ${companionStatus.age_seconds}s old` : "",
+                        companionStatus.detail ? React__default["default"].createElement("div", null, companionStatus.detail) : null))),
             React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Input" },
                 React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                     React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Toasts", description: "Recording alerts", checked: showNotifications, onChange: async (e) => {

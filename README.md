@@ -94,3 +94,12 @@ Decktation uses Decky’s `_root` permission to read controller inputs and type 
 ## Credits and license
 
 Built with [faster-whisper](https://github.com/guillaumekln/faster-whisper) and [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader). Decktation is licensed under the MIT License.
+
+### Experimental WoW Companion
+
+An optional **WoW Companion context** toggle adds fresh player, target, location
+and readable nameplate vocabulary to Whisper, including when dictating in a
+language different from the game. The capture reader ships with the plugin;
+the separate pixel addon requires manual installation. It is disabled by
+default, and integrated hardware validation is pending. See
+[setup, privacy, limitations and validation](doc/WOW_COMPANION.md).
