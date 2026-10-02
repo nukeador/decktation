@@ -19,3 +19,13 @@ shared library used by `sounddevice`:
 - SteamOS package: `portaudio`
 - License: MIT
 - Packaged license: `bin/licenses/portaudio-MIT.txt`
+
+## Companion capture runtime
+
+The optional bundled `companion-capture` helper dynamically links the existing
+SteamOS GLib/GIO (LGPL-2.1-or-later) and PipeWire (MIT) libraries. Their Debian
+copyright/license notices are included under `bin/licenses/companion-*` in the
+plugin package. No runtime library installation is performed by the plugin.
+The Companion decoder and capture implementation are MIT code adapted from our
+standalone POC; the wow-ai and wow-forever-codex projects informed the design,
+but their source is not included in this implementation.

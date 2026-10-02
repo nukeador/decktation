@@ -134,16 +134,18 @@ def test_preference_defaults_off_and_persists(tmp_path, monkeypatch):
         "decktation_backend_haptic_test", repo / "backend/src/decktation_backend.py"
     )
     backend = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(backend)
+    async def exercise():
+        spec.loader.exec_module(backend)
 
-    assert backend._read_button_config()["hapticFeedback"] is False
-    backend.Plugin.haptic_feedback = haptic_feedback.HapticFeedback()
-    assert asyncio.run(backend.Plugin().set_haptic_feedback(True))["success"]
-    assert backend._read_button_config()["hapticFeedback"] is True
-    assert backend.Plugin.haptic_feedback.enabled is True
-    assert json.loads((tmp_path / "button_config.json").read_text())["hapticFeedback"] is True
-    assert asyncio.run(backend.Plugin().set_haptic_feedback(False))["success"]
-    assert backend._read_button_config()["hapticFeedback"] is False
+        assert backend._read_button_config()["hapticFeedback"] is False
+        backend.Plugin.haptic_feedback = haptic_feedback.HapticFeedback()
+        assert (await backend.Plugin().set_haptic_feedback(True))["success"]
+        assert backend._read_button_config()["hapticFeedback"] is True
+        assert backend.Plugin.haptic_feedback.enabled is True
+        assert json.loads((tmp_path / "button_config.json").read_text())["hapticFeedback"] is True
+        assert (await backend.Plugin().set_haptic_feedback(False))["success"]
+        assert backend._read_button_config()["hapticFeedback"] is False
+    asyncio.run(exercise())
 
 
 def _source(kind, path='/dev/input/event7', **identity):
@@ -192,6 +194,7 @@ def test_recent_controller_expires_and_disabled_events_do_not_queue(tmp_path, mo
     ('steam_controller_wired', '_legacy_pattern'),
     ('steam_controller_wireless', '_legacy_pattern'),
     ('steam_controller_2026', '_triton_pattern'),
+    ('steam_controller_2026_puck', '_triton_pattern'),
 ])
 def test_valve_backend_is_bound_to_exact_discovered_path(monkeypatch, kind, backend):
     feedback = haptic_feedback.HapticFeedback(enabled=True)
@@ -361,3 +364,26 @@ def test_evdev_identity_is_rechecked_after_open(monkeypatch):
     feedback._evdev_pattern('/dev/input/event7', 'started', 0, {'vendor_id': 1})
     write.assert_not_called()
     assert closed == [42]
+
+
+def test_abort_releases_recording_feedback_once(monkeypatch):
+    events = []
+    voice = WoWVoiceChat(lazy_load=True, test_mode=True,
+                         recording_state_callback=events.append)
+    monkeypatch.setattr(voice, "transcribe_audio", lambda *_: pytest.fail("abort must not transcribe"))
+    voice.start_recording()
+    assert voice.abort_recording() is True
+    assert voice.abort_recording() is False
+    assert events == ["started", "stopped"]
+
+
+def test_puck_discovery_kind_is_accepted_for_recording_session(tmp_path, monkeypatch):
+    source = _source('steam_controller_2026_puck', '/dev/hidraw3', vendor_id=0x28de, product_id=0x1304)
+    path = tmp_path / 'source.json'
+    path.write_text(json.dumps(source))
+    feedback = haptic_feedback.HapticFeedback(enabled=True)
+    monkeypatch.setattr(feedback, '_run', lambda: None)
+    feedback.begin_session(str(path))
+    feedback.emit('started')
+    feedback.emit('stopped')
+    assert [feedback._events.get_nowait()[1]['kind'] for _ in range(2)] == ['steam_controller_2026_puck'] * 2

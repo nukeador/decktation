@@ -132,6 +132,7 @@
     const setRememberLastChannelRpc = callable("set_remember_last_channel");
     const setShareDiagnosticsRpc = callable("set_share_diagnostics");
     const setHapticFeedbackRpc = callable("set_haptic_feedback");
+    const setWowCompanionRpc = callable("set_wow_companion_enabled");
     const setActivePresetRpc = callable("set_active_preset");
     const setModelSizeRpc = callable("set_model_size");
     const setTranscriptionOptionsRpc = callable("set_transcription_options");
@@ -381,9 +382,12 @@
         const [serviceReady, setServiceReady] = React.useState(false);
         const [modelReady, setModelReady] = React.useState(false);
         const [modelLoading, setModelLoading] = React.useState(false);
+        const [isToggling, setIsToggling] = React.useState(false);
         const [inputReady, setInputReady] = React.useState(true);
         const [buttonState, setButtonState] = React.useState("None");
         const [controllerReady, setControllerReady] = React.useState(false);
+        const [controllerStatus, setControllerStatus] = React.useState("Waiting for input");
+        const [controllerComboSupported, setControllerComboSupported] = React.useState(true);
         const [buttons, setButtons] = React.useState(["L1", "R1"]);
         const [showNotifications, setShowNotifications] = React.useState(true);
         const [hapticFeedback, setHapticFeedback] = React.useState(false);
@@ -393,6 +397,8 @@
         const [manualSend, setManualSend] = React.useState(false);
         const [rememberLastChannel, setRememberLastChannel] = React.useState(false);
         const [shareDiagnostics, setShareDiagnostics] = React.useState(false);
+        const [wowCompanionEnabled, setWowCompanionEnabled] = React.useState(false);
+        const [companionStatus, setCompanionStatus] = React.useState({ state: "Disabled", vocabulary_count: 0 });
         const [modelSize, setModelSize] = React.useState("base");
         const [transcriptionLanguage, setTranscriptionLanguage] = React.useState("auto");
         const [lastTranscription, setLastTranscription] = React.useState("");
@@ -434,6 +440,7 @@
                         if (config.shareDiagnostics !== undefined) {
                             setShareDiagnostics(config.shareDiagnostics);
                         }
+                        setWowCompanionEnabled(config.wowCompanionEnabled === true);
                         if (config.modelSize) {
                             setModelSize(config.modelSize);
                         }
@@ -471,8 +478,11 @@
                         return;
                     if (result.success) {
                         setStatusError("");
+                        setCompanionStatus(result.companion || { state: "Disabled", vocabulary_count: 0 });
                         setButtonState(result.detected_button || "None");
                         setControllerReady(result.controller_ready === true);
+                        setControllerStatus(result.controller_status || "Waiting for input");
+                        setControllerComboSupported(result.controller_combo_supported !== false);
                         setServiceReady(result.service_ready);
                         setModelReady(result.model_ready);
                         setModelLoading(result.model_loading);
@@ -483,11 +493,13 @@
                     }
                     else {
                         setControllerReady(false);
+                        setControllerStatus("Status unavailable");
                         setStatusError(result.error || "Backend status request failed");
                     }
                 }
                 catch (error) {
                     setControllerReady(false);
+                    setControllerStatus("Status unavailable");
                     setStatusError(String(error));
                 }
                 finally {
@@ -570,18 +582,40 @@
                 page === "main" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Decktation" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Enable", checked: enabled, disabled: !serviceReady || modelLoading, onChange: async (next) => {
-                                    setEnabled(next);
-                                    logic.enabled = next;
-                                    await setEnabledRpc(next);
-                                    if (next && logic.enabled) {
-                                        setModelLoading(true);
-                                        await loadModel();
-                                    }
-                                    else if (!next) {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Enable", checked: enabled, disabled: !serviceReady || modelLoading || isToggling, onChange: async (e) => {
+                                    if (isToggling)
+                                        return;
+                                    setIsToggling(true);
+                                    setEnabled(e);
+                                    logic.enabled = e;
+                                    if (!e) {
                                         setModelReady(false);
                                         logic.recording = false;
                                         setRecording(false);
+                                    }
+                                    try {
+                                        const result = await setEnabledRpc(e);
+                                        if (!result.success) {
+                                            setEnabled(!e);
+                                            logic.enabled = !e;
+                                            setRpcError(result.error || "Could not update enabled state");
+                                            return;
+                                        }
+                                        if (e && logic.enabled) {
+                                            setModelLoading(true);
+                                            const modelResult = await loadModel();
+                                            if (!modelResult.success) {
+                                                setRpcError(modelResult.error || "Could not load Whisper model");
+                                            }
+                                        }
+                                    }
+                                    catch (error) {
+                                        setEnabled(!e);
+                                        logic.enabled = !e;
+                                        setRpcError(String(error));
+                                    }
+                                    finally {
+                                        setIsToggling(false);
                                     }
                                 } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
@@ -682,6 +716,32 @@
                                         setRpcError(result.error || "Could not update channel setting");
                                     }
                                 } }))),
+                    activePreset === "wow" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "WoW Companion (experimental)" },
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "WoW Companion context", description: "Use live game names as speech vocabulary. Requires WoW Context Bridge.", checked: wowCompanionEnabled, onChange: async (next) => {
+                                    try {
+                                        const result = await setWowCompanionRpc(next);
+                                        if (result.success) {
+                                            setWowCompanionEnabled(next);
+                                            setRpcError("");
+                                        }
+                                        else
+                                            setRpcError(result.error || "Could not update Companion setting");
+                                    }
+                                    catch (error) {
+                                        setRpcError(String(error));
+                                    }
+                                } })),
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement("div", { role: "status", style: { fontSize: '12px', overflowWrap: 'anywhere' } },
+                                companionStatus.state,
+                                " \u00B7 ",
+                                companionStatus.vocabulary_count || 0,
+                                " vocabulary terms",
+                                companionStatus.age_seconds != null ? ` · ${companionStatus.age_seconds}s old` : "",
+                                companionStatus.detail && React__default["default"].createElement("div", null, companionStatus.detail))),
+                        rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement("div", { role: "alert" }, rpcError))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Feedback" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Recording feedback", description: "In-game overlay and Steam alerts", checked: showNotifications, onChange: async (next) => {
@@ -694,7 +754,7 @@
                                     await setButtonConfig(buttons, next);
                                 } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Haptic feedback", description: "Cues when recording starts and stops on Steam Deck", checked: hapticFeedback, onChange: async (next) => {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Haptic feedback", description: "Cues on the controller used to start recording", checked: hapticFeedback, onChange: async (next) => {
                                     const result = await setHapticFeedbackRpc(next);
                                     if (result.success)
                                         setHapticFeedback(next);
@@ -710,7 +770,9 @@
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
                                 "Controller: ",
-                                controllerReady ? "Ready" : "Unavailable")),
+                                controllerStatus)),
+                        controllerReady && !controllerComboSupported && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement("div", { role: "alert" }, "Selected combo unavailable on detected input")),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
                                 "Held buttons: ",

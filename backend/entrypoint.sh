@@ -8,6 +8,11 @@ cp -R /runtime/python/. out/python/
 # Decky places backend/out under the installed plugin's bin/ directory. Keep
 # substantive Python backend source in backend/src; root main.py is only the
 # Decky Loader entry point.
+cp -R src/companion out/
+cp /companion-build/companion-capture out/
+cp /companion-build/glib-copyright out/licenses/companion-glib-copyright.txt
+cp /companion-build/pipewire-copyright out/licenses/companion-pipewire-copyright.txt
+
 cp src/audio_runtime.py src/decktation_backend.py src/wow_voice_chat.py src/clipboard_injection.py src/controller_listener.py \
     src/deck_hid.py src/gamepad_evdev.py src/haptic_feedback.py src/telemetry.py src/convert_wow_context.py \
     src/recording_overlay.py src/recording_overlay_manager.py out/

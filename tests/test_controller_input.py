@@ -338,14 +338,13 @@ def test_triton_puck_reports_buttons_and_disconnect(listener, monkeypatch):
     packets = []
     state = bytearray(64)
     state[0] = 0x42
-    struct.pack_into('<I', state, 2, listener.TRITON_BUTTON_BITS['L1'] |
-                     listener.TRITON_BUTTON_BITS['R1'])
+    struct.pack_into('<I', state, 2, 0x00080000 | 0x00000200)
     packets.extend((bytes(state), b'\x79\x01'))
     monkeypatch.setattr(listener.os, 'open', lambda *args: 42)
     monkeypatch.setattr(listener.os, 'read', lambda *args: packets.pop(0))
     device = listener.TritonGamepad('/dev/hidraw4')
     assert list(device.read_states())[0]['L1']
     assert list(device.read_states())[0]['R1'] is False
-    details = listener.controller_details(device, 'steam_controller_2026')
+    details = listener.controller_details(device, 'steam_controller_2026_puck')
     assert details['product_id'] == 0x1304
     assert {'L1', 'R1'}.issubset(details['supported_buttons'])

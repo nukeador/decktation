@@ -24,6 +24,13 @@ import React, {
 
 import { FaMicrophone, FaTrash } from "react-icons/fa";
 
+type CompanionStatus = {
+    state: string;
+    age_seconds?: number | null;
+    vocabulary_count: number;
+    detail?: string;
+};
+
 type RpcResponse = { success: boolean; error?: string; [key: string]: any };
 
 const getStatus = callable<[], RpcResponse>("get_status");
@@ -39,6 +46,7 @@ const setManualSendRpc = callable<[enabled: boolean], RpcResponse>("set_manual_s
 const setRememberLastChannelRpc = callable<[enabled: boolean], RpcResponse>("set_remember_last_channel");
 const setShareDiagnosticsRpc = callable<[enabled: boolean], RpcResponse>("set_share_diagnostics");
 const setHapticFeedbackRpc = callable<[enabled: boolean], RpcResponse>("set_haptic_feedback");
+const setWowCompanionRpc = callable<[enabled: boolean], RpcResponse>("set_wow_companion_enabled");
 const setActivePresetRpc = callable<[game: string], RpcResponse>("set_active_preset");
 const setModelSizeRpc = callable<[modelSize: string], RpcResponse>("set_model_size");
 const setTranscriptionOptionsRpc = callable<
@@ -319,6 +327,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [manualSend, setManualSend] = useState<boolean>(false);
 	const [rememberLastChannel, setRememberLastChannel] = useState<boolean>(false);
 	const [shareDiagnostics, setShareDiagnostics] = useState<boolean>(false);
+	const [wowCompanionEnabled, setWowCompanionEnabled] = useState<boolean>(false);
+	const [companionStatus, setCompanionStatus] = useState<CompanionStatus>({ state: "Disabled", vocabulary_count: 0 });
 	const [modelSize, setModelSize] = useState<string>("base");
 	const [transcriptionLanguage, setTranscriptionLanguage] = useState<string>("auto");
 	const [lastTranscription, setLastTranscription] = useState<string>("");
@@ -362,6 +372,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					if (config.shareDiagnostics !== undefined) {
 						setShareDiagnostics(config.shareDiagnostics);
 					}
+					setWowCompanionEnabled(config.wowCompanionEnabled === true);
 					if (config.modelSize) {
 						setModelSize(config.modelSize);
 					}
@@ -400,6 +411,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 				if (cancelled) return;
 				if (result.success) {
 					setStatusError("");
+					setCompanionStatus(result.companion || { state: "Disabled", vocabulary_count: 0 });
 					setButtonState(result.detected_button || "None");
 					setControllerReady(result.controller_ready === true);
 					setControllerStatus(result.controller_status || "Waiting for input");
@@ -630,6 +642,23 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 								if (!result.success) { setRememberLastChannel(!next); setRpcError(result.error || "Could not update channel setting"); }
 							}} /></PanelSectionRow>
 					</PanelSection>
+					{activePreset === "wow" && <PanelSection title="WoW Companion (experimental)">
+						<PanelSectionRow><ToggleField label="WoW Companion context"
+							description="Use live game names as speech vocabulary. Requires WoW Context Bridge."
+							checked={wowCompanionEnabled} onChange={async (next) => {
+								try {
+									const result = await setWowCompanionRpc(next);
+									if (result.success) { setWowCompanionEnabled(next); setRpcError(""); }
+									else setRpcError(result.error || "Could not update Companion setting");
+								} catch (error) { setRpcError(String(error)); }
+							}} /></PanelSectionRow>
+						<PanelSectionRow><div role="status" style={{ fontSize: '12px', overflowWrap: 'anywhere' }}>
+							{companionStatus.state} · {companionStatus.vocabulary_count || 0} vocabulary terms
+							{companionStatus.age_seconds != null ? ` · ${companionStatus.age_seconds}s old` : ""}
+							{companionStatus.detail && <div>{companionStatus.detail}</div>}
+						</div></PanelSectionRow>
+						{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
+					</PanelSection>}
 					<PanelSection title="Feedback">
 						<PanelSectionRow><ToggleField label="Recording feedback" description="In-game overlay and Steam alerts" checked={showNotifications}
 							onChange={async (next) => {
@@ -638,7 +667,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 								if (!next && confirmMode) { setConfirmMode(false); await setConfirmModeRpc(false); }
 								await setButtonConfig(buttons, next);
 							}} /></PanelSectionRow>
-						<PanelSectionRow><ToggleField label="Haptic feedback" description="Cues when recording starts and stops on Steam Deck"
+						<PanelSectionRow><ToggleField label="Haptic feedback" description="Cues on the controller used to start recording"
 							checked={hapticFeedback} onChange={async (next) => {
 								const result = await setHapticFeedbackRpc(next);
 								if (result.success) setHapticFeedback(next);

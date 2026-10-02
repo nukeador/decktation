@@ -69,6 +69,7 @@ class WoWVoiceChat:
 
         # Context cache
         self.context = {}
+        self.companion = None
 
         # Load language config for channel detection
         self._load_language_config()
@@ -299,10 +300,8 @@ class WoWVoiceChat:
         """Build initial_prompt and hotwords from context"""
         # English game prompts bias non-English transcription heavily. When the
         # user explicitly selects a non-English language, let Whisper work from
-        # the audio alone.
-        if self.transcription_language:
-            return None, None
-
+        # the audio without English prose prompts; optional Companion names
+        # can still supply language-independent proper-noun hotwords.
         base_prompt = self.preset.get("whisper_prompt") if self.preset else None
 
         # Fall back to hardcoded WoW prompt when no preset is provided (direct CLI usage)
@@ -317,6 +316,24 @@ class WoWVoiceChat:
                 "Chat channel prefixes: say, party, raid, guild, officer, yell, instance, whisper, type. "
                 "Common short phrases: hi, gg, brb, afk, lol, omw, ty, np, wp, gz."
             )
+
+        # Companion is optional and never persists its vocabulary in legacy context.
+        if self.companion is not None and self.companion.enabled:
+            from companion.runtime import vocabulary
+            fresh = self.companion.snapshot()
+            terms = vocabulary(fresh) if fresh else []
+            hotwords = ", ".join(terms) or None
+            if self.transcription_language:
+                return None, hotwords
+            location = [fresh.get(key, "") for key in ("zone", "subzone")] if fresh else []
+            location = [value for value in location if value]
+            prompt = base_prompt or ""
+            if location:
+                prompt += " Current location: " + ", ".join(location) + "."
+            return prompt or None, hotwords
+
+        if self.transcription_language:
+            return None, None
 
         # Only append dynamic game context if this preset uses a context file (e.g. WoW addon)
         if not self.preset.get("context_file"):
@@ -494,11 +511,11 @@ class WoWVoiceChat:
             return ""
 
         # Load context and build prompts
-        self.load_context()
+        if self.companion is None or not self.companion.enabled:
+            self.load_context()
         initial_prompt, hotwords = self.build_prompt_from_context()
 
-        print(f"Context: {initial_prompt}")
-        print(f"Hotwords: {hotwords}")
+        # Do not log vocabulary or prompts containing in-game identities.
 
         if isinstance(audio_input, (str, os.PathLike, Path)):
             audio_input = self._load_wav(audio_input)
@@ -825,6 +842,9 @@ class WoWVoiceChat:
                     stream.stop()
                 finally:
                     stream.close()
+
+            if was_recording:
+                self._recording_transition("stopped")
 
             # Drop captured audio promptly so disabling does not start a
             # transcription after the model has been released.
