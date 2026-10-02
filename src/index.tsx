@@ -304,6 +304,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [serviceReady, setServiceReady] = useState<boolean>(false);
 	const [modelReady, setModelReady] = useState<boolean>(false);
 	const [modelLoading, setModelLoading] = useState<boolean>(false);
+	const [isToggling, setIsToggling] = useState<boolean>(false);
 	const [inputReady, setInputReady] = useState<boolean>(true);
 	const [buttonState, setButtonState] = useState<string>("None");
 	const [controllerReady, setControllerReady] = useState<boolean>(false);
@@ -492,20 +493,44 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 				{page === "main" && <>
 					<PanelSection title="Decktation">
 						<PanelSectionRow>
-							<ToggleField label="Enable" checked={enabled} disabled={!serviceReady || modelLoading}
-								onChange={async (next) => {
-									setEnabled(next);
-									logic.enabled = next;
-									await setEnabledRpc(next);
-									if (next && logic.enabled) {
-										setModelLoading(true);
-										await loadModel();
-									} else if (!next) {
-										setModelReady(false);
-										logic.recording = false;
-										setRecording(false);
+					<ToggleField
+						label="Enable"
+						checked={enabled}
+						disabled={!serviceReady || modelLoading || isToggling}
+						onChange={async (e) => {
+							if (isToggling) return;
+							setIsToggling(true);
+							setEnabled(e);
+							logic.enabled = e;
+							if (!e) {
+								setModelReady(false);
+								logic.recording = false;
+								setRecording(false);
+							}
+							try {
+								const result = await setEnabledRpc(e);
+								if (!result.success) {
+									setEnabled(!e);
+									logic.enabled = !e;
+									setRpcError(result.error || "Could not update enabled state");
+									return;
+								}
+								if (e && logic.enabled) {
+									setModelLoading(true);
+									const modelResult = await loadModel();
+									if (!modelResult.success) {
+										setRpcError(modelResult.error || "Could not load Whisper model");
 									}
-								}} />
+								}
+							} catch (error) {
+								setEnabled(!e);
+								logic.enabled = !e;
+								setRpcError(String(error));
+							} finally {
+								setIsToggling(false);
+							}
+						}}
+					/>
 						</PanelSectionRow>
 						<PanelSectionRow>
 							<div role="status" style={{ padding: statusProblem ? '10px' : '4px 0', borderRadius: '6px', backgroundColor: statusProblem ? '#713030' : undefined }}>

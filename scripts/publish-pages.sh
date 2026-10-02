@@ -30,10 +30,8 @@ normalize_ref() {
   printf '%s' "$1" | python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=""))'
 }
 
-# Branch directory names are already percent-escaped by normalize_ref. Escape
-# each path segment again for URLs so static hosting resolves the literal name.
 encode_url_path() {
-  printf '%s' "$1" | python3 -c 'import sys, urllib.parse; print("/".join(urllib.parse.quote(part, safe="") for part in sys.stdin.read().split("/")))'
+  python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "$1"
 }
 
 escape_json() {
@@ -174,10 +172,10 @@ render_index_list() {
     rel="${metadata#$PAGES_DIR/}"
     local dir
     dir="$(dirname "$rel")"
-    local url_dir
-    url_dir="$(encode_url_path "$dir")"
     local name
     name="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ref"])' "$metadata")"
+    local url_dir
+    url_dir="$(encode_url_path "$dir")"
     printf '  <li><a href="%s/%s/">%s</a> <span>%s</span></li>\n' \
       "$base_url" "$url_dir" "$name" "$dir"
   done
@@ -206,6 +204,39 @@ cleanup_deleted_branch_dirs() {
   done
 }
 
+refresh_branch_pages() {
+  local branches_dir="$PAGES_DIR/branches"
+  [ -d "$branches_dir" ] || return 0
+
+  find "$branches_dir" -mindepth 2 -maxdepth 2 -type f -name metadata.json -print | while read -r metadata; do
+    local relative_dir
+    relative_dir="$(dirname "${metadata#"$PAGES_DIR"/}")"
+    local url_dir
+    url_dir="$(encode_url_path "$relative_dir")"
+    local zip_url="$PAGES_BASE_URL/$url_dir/decktation.zip"
+    local metadata_url="$PAGES_BASE_URL/$url_dir/metadata.json"
+    local branch_name
+    branch_name="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ref"])' "$metadata")"
+
+    python3 - "$metadata" "$zip_url" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+metadata_path = Path(sys.argv[1])
+data = json.loads(metadata_path.read_text())
+data["zip_url"] = sys.argv[2]
+metadata_path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+
+    write_download_page \
+      "$(dirname "$metadata")/index.html" \
+      "Decktation branch build: $branch_name" \
+      "$zip_url" \
+      "$metadata_url"
+  done
+}
+
 checkout_pages_branch() {
   git clone --depth 1 --branch gh-pages \
     "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
@@ -224,23 +255,26 @@ render_pages_content() {
   if [ "$CLEANUP_ONLY" != "true" ]; then
     local branch_key
     branch_key="$(normalize_ref "$REF_NAME")"
-    local branch_url_key
-    branch_url_key="$(encode_url_path "$branch_key")"
+    local branch_url_path
+    branch_url_path="$(encode_url_path "branches/$branch_key")"
+    local zip_url="$PAGES_BASE_URL/$branch_url_path/decktation.zip"
+    local metadata_url="$PAGES_BASE_URL/$branch_url_path/metadata.json"
     mkdir -p "$PAGES_DIR/branches/$branch_key"
     cp "$ZIP_SOURCE" "$PAGES_DIR/branches/$branch_key/decktation.zip"
     write_metadata \
       "$PAGES_DIR/branches/$branch_key/metadata.json" \
       "branch" \
       "$REF_NAME" \
-      "$PAGES_BASE_URL/branches/$branch_url_key/decktation.zip"
+      "$zip_url"
     write_download_page \
       "$PAGES_DIR/branches/$branch_key/index.html" \
       "Decktation branch build: $REF_NAME" \
-      "$PAGES_BASE_URL/branches/$branch_url_key/decktation.zip" \
-      "$PAGES_BASE_URL/branches/$branch_url_key/metadata.json"
+      "$zip_url" \
+      "$metadata_url"
   fi
 
   cleanup_deleted_branch_dirs
+  refresh_branch_pages
 
   if [ "$CLEANUP_ONLY" != "true" ] && [ "$REF_TYPE" = "tag" ]; then
     mkdir -p "$PAGES_DIR/releases/$RELEASE_TAG" "$PAGES_DIR/releases/latest" \

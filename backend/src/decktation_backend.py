@@ -240,6 +240,9 @@ class Plugin:
     controller_enabled = False
     # Serialize recording starts with disable requests to close the press/disable race.
     controller_lock = threading.Lock()
+    # Serializes complete enable/disable transitions so an older disable cannot
+    # finish its teardown after a newer enable has returned.
+    enable_transition_lock = asyncio.Lock()
     recording_start_count = 0  # Increments each time recording starts
     active_preset = "wow"
     dictation_transaction = None
@@ -694,27 +697,31 @@ class Plugin:
 
     async def set_enabled(self, enabled: bool):
         """Enable or disable controller listening"""
-        # A recording start may hold this lock while opening the audio device.
-        await asyncio.to_thread(Plugin._set_controller_enabled, enabled)
+        async with Plugin.enable_transition_lock:
+            # A recording start may hold this lock while opening the audio device.
+            await asyncio.to_thread(Plugin._set_controller_enabled, enabled)
 
-        if not enabled and Plugin.recording_overlay:
-            Plugin.recording_overlay.hide()
-        if not enabled and Plugin.voice_service:
+            if not enabled and Plugin.recording_overlay:
+                Plugin.recording_overlay.hide()
+            # Persist before potentially slow teardown. The transition lock
+            # preserves ordering if another toggle request arrives meanwhile.
             try:
-                if Plugin.voice_service.is_recording:
-                    await self.stop_recording()
-            finally:
-                await asyncio.to_thread(Plugin.voice_service.unload_model)
+                config = _read_button_config()
+                config["enabled"] = enabled
+                _write_button_config(config)
+            except Exception as e:
+                logger.error(f"Error saving enabled state: {e}")
 
-        logger.info(f"Controller listening {'enabled' if enabled else 'disabled'}")
-        # Persist enabled state to config
-        try:
-            config = _read_button_config()
-            config["enabled"] = enabled
-            _write_button_config(config)
-        except Exception as e:
-            logger.error(f"Error saving enabled state: {e}")
-        return {"success": True}
+            if not enabled and Plugin.voice_service:
+                try:
+                    aborted = await asyncio.to_thread(Plugin.voice_service.abort_recording)
+                    if aborted:
+                        Plugin._finish_dictation_trace(False)
+                finally:
+                    await asyncio.to_thread(Plugin.voice_service.unload_model)
+
+            logger.info(f"Controller listening {'enabled' if enabled else 'disabled'}")
+            return {"success": True}
 
     async def get_button_config(self):
         """Get current button configuration and settings"""
