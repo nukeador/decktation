@@ -8,6 +8,7 @@ import ctypes
 import gc
 import os
 import json
+import re
 import time
 import queue
 import threading
@@ -20,6 +21,11 @@ import numpy as np
 import wave
 from audio_runtime import ensure_audio_environment
 from clipboard_injection import temporary_clipboard
+
+
+def _normalize_transcription_text(text):
+    """Correct Whisper's lowercase standalone English pronoun."""
+    return re.sub(r"\bi\b", "I", text)
 
 
 class WoWVoiceChat:
@@ -533,7 +539,7 @@ class WoWVoiceChat:
             full_text = []
             for segment in segments:
                 full_text.append(segment.text)
-            return "".join(full_text).strip()
+            return _normalize_transcription_text("".join(full_text).strip())
         except Exception as e:
             self._report_diagnostic("transcription.failed", e)
             raise
