@@ -2,7 +2,7 @@
   "plugin": "Decktation",
   "channel": "branch",
   "ref": "codex/recording-overlay",
-  "commit": "b06808e6f52b05685c771df6175e74b5905eb3b8",
+  "commit": "40e0e7033129ea6fe2719c04e1e86694ed854cf6",
   "zip_url": "https://nukeador.github.io/decktation/branches/codex-recording-overlay/decktation.zip",
-  "generated_at": "2026-10-03T16:50:10Z"
+  "generated_at": "2026-10-03T16:58:06Z"
 }
