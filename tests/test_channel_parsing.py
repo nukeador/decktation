@@ -29,6 +29,7 @@ WOW_PRESET = {
     },
     "whisper_prompt": "World of Warcraft gameplay.",
     "context_file": "wow_context.json",
+    "casual_case": True,
 }
 
 GENERIC_PRESET = {
@@ -38,6 +39,7 @@ GENERIC_PRESET = {
     "default_channel": "type",
     "channels": {"type": ""},
     "whisper_prompt": "",
+    "casual_case": False,
 }
 
 
@@ -162,3 +164,39 @@ class TestGenericPreset:
         ch, text = generic_svc.parse_channel_and_text("hello world")
         assert ch == "type"
         assert text == "hello world"
+
+
+class TestCasualCase:
+    def test_trailing_period_stripped_for_casual_chat(self, wow_svc):
+        channel, text = wow_svc.parse_channel_and_text("party haha.")
+        assert channel == "party"
+        assert text == "haha"
+
+    def test_initial_letter_lowercased_for_casual_chat(self, wow_svc):
+        channel, text = wow_svc.parse_channel_and_text("party Thanks")
+        assert channel == "party"
+        assert text == "thanks"
+
+    def test_exclamation_and_question_marks_preserved(self, wow_svc):
+        channel, text = wow_svc.parse_channel_and_text("party ready?")
+        assert channel == "party"
+        assert text == "ready?"
+
+        channel, text = wow_svc.parse_channel_and_text("party let's go!")
+        assert channel == "party"
+        assert text == "let's go!"
+
+    def test_all_caps_acronyms_preserved(self, wow_svc):
+        channel, text = wow_svc.parse_channel_and_text("guild WTB silk cloth")
+        assert channel == "guild"
+        assert text == "WTB silk cloth"
+
+    def test_standalone_i_remains_capitalized(self, wow_svc):
+        channel, text = wow_svc.parse_channel_and_text("reply I agree.")
+        assert channel == "reply"
+        assert text == "I agree"
+
+    def test_generic_preset_does_not_modify_casing(self, generic_svc):
+        channel, text = generic_svc.parse_channel_and_text("Hello World. I am here.")
+        assert channel == "type"
+        assert text == "Hello World. I am here."
