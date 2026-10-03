@@ -2,6 +2,7 @@
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 const VERSION_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
@@ -31,6 +32,16 @@ function versions() {
 function fail(message) {
   console.error(`error: ${message}`);
   process.exitCode = 1;
+}
+
+export function nextDevelopmentVersion(version, commitSha) {
+  const match = VERSION_RE.exec(version);
+  if (!match || !commitSha) {
+    return null;
+  }
+
+  const [, major, minor, patch] = match;
+  return `${major}.${minor}.${Number(patch) + 1}-dev.${commitSha.slice(0, 7)}`;
 }
 
 function exactHeadTags() {
@@ -67,23 +78,36 @@ function check(expectedTag) {
   console.log(`Version ${state.version} is synchronized${tags.length ? ` with ${tags.join(", ")}` : ""}.`);
 }
 
-const [command = "check", argument] = process.argv.slice(2);
+function main() {
+  const [command = "check", argument, extraArgument] = process.argv.slice(2);
 
-if (command === "print") {
-  console.log(versions().version);
-} else if (command === "check") {
-  check(argument);
-} else if (command === "set") {
-  if (!argument || !VERSION_RE.test(argument)) {
-    fail("usage: release-version.mjs set X.Y.Z");
+  if (command === "print") {
+    console.log(versions().version);
+  } else if (command === "check") {
+    check(argument);
+  } else if (command === "set") {
+    if (!argument || !VERSION_RE.test(argument)) {
+      fail("usage: release-version.mjs set X.Y.Z");
+    } else {
+      const state = versions();
+      state.packageJson.version = argument;
+      state.pluginJson.version = argument;
+      writeJson("package.json", state.packageJson);
+      writeJson("plugin.json", state.pluginJson);
+      console.log(`Updated release manifests to ${argument}.`);
+    }
+  } else if (command === "next-dev") {
+    const version = nextDevelopmentVersion(argument, extraArgument);
+    if (!version) {
+      fail("usage: release-version.mjs next-dev X.Y.Z COMMIT_SHA");
+    } else {
+      console.log(version);
+    }
   } else {
-    const state = versions();
-    state.packageJson.version = argument;
-    state.pluginJson.version = argument;
-    writeJson("package.json", state.packageJson);
-    writeJson("plugin.json", state.pluginJson);
-    console.log(`Updated release manifests to ${argument}.`);
+    fail(`unknown command ${JSON.stringify(command)}`);
   }
-} else {
-  fail(`unknown command ${JSON.stringify(command)}`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
 }

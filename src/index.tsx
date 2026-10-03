@@ -35,6 +35,7 @@ const setManualSendRpc = callable<[enabled: boolean], RpcResponse>("set_manual_s
 const setRememberLastChannelRpc = callable<[enabled: boolean], RpcResponse>("set_remember_last_channel");
 const setShareDiagnosticsRpc = callable<[enabled: boolean], RpcResponse>("set_share_diagnostics");
 const setHapticFeedbackRpc = callable<[enabled: boolean], RpcResponse>("set_haptic_feedback");
+const setRecordingIndicatorRpc = callable<[mode: string], RpcResponse>("set_recording_indicator");
 const setActivePresetRpc = callable<[game: string], RpcResponse>("set_active_preset");
 const setModelSizeRpc = callable<[modelSize: string], RpcResponse>("set_model_size");
 const setTranscriptionOptionsRpc = callable<
@@ -42,14 +43,14 @@ const setTranscriptionOptionsRpc = callable<
 	RpcResponse
 >("set_transcription_options");
 const setButtonConfig = callable<
-	[buttons: string[], showNotifications: boolean],
+	[buttons: string[]],
 	RpcResponse
 >("set_button_config");
 
 class DecktationLogic {
 	enabled: boolean = false;
 	recording: boolean = false;
-	showNotifications: boolean = true;
+	recordingIndicator: string = "toast";
 	prevRecordingStartCount: number = 0;
 	prevPendingText: string = "";
 	lastPendingToastId: number = -1;
@@ -120,7 +121,6 @@ class DecktationLogic {
 	}
 
 	testRecording = async (onComplete?: (text: string, time: string) => void) => {
-		this.notify("Decktation", 1000, "Recording for 3 seconds...");
 		await startRecording();
 
 		// Wait 3 seconds
@@ -130,7 +130,6 @@ class DecktationLogic {
 		// into the active application. Change the UI state at exactly 3 seconds,
 		// then wait only for transcription to finish.
 		const transcription = stopRecording(false);
-		this.notify("Decktation", 1500, "Transcribing...");
 		await transcription;
 
 		if (onComplete) {
@@ -159,6 +158,12 @@ const BUTTON_OPTIONS: DropdownOption[] = [
 	{ data: "B", label: "B" },
 	{ data: "X", label: "X" },
 	{ data: "Y", label: "Y" },
+];
+
+const RECORDING_INDICATOR_OPTIONS: DropdownOption[] = [
+	{ data: "toast", label: "Toast" },
+	{ data: "overlay", label: "Overlay" },
+	{ data: "none", label: "None" },
 ];
 
 const WHISPER_LANGUAGE_OPTIONS: DropdownOption[] = [
@@ -288,8 +293,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [buttonState, setButtonState] = useState<string>("None");
 	const [controllerReady, setControllerReady] = useState<boolean>(false);
 	const [buttons, setButtons] = useState<string[]>(["L1", "R1"]);
-	const [showNotifications, setShowNotifications] = useState<boolean>(true);
 	const [hapticFeedback, setHapticFeedback] = useState<boolean>(false);
+	const [recordingIndicator, setRecordingIndicator] = useState<string>("toast");
 	const [activePreset, setActivePreset] = useState<string>("wow");
 	const [presets, setPresets] = useState<DropdownOption[]>([]);
 	const [confirmMode, setConfirmMode] = useState<boolean>(false);
@@ -314,13 +319,11 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					if (config.buttons) {
 						setButtons(config.buttons);
 					}
-					if (config.showNotifications !== undefined) {
-						setShowNotifications(config.showNotifications);
-						logic.showNotifications = config.showNotifications;
-					}
-					if (config.hapticFeedback !== undefined) {
-						setHapticFeedback(config.hapticFeedback);
-					}
+					if (config.hapticFeedback !== undefined) setHapticFeedback(config.hapticFeedback);
+					const indicator = config.recordingIndicator ||
+						(config.showNotifications === false ? "none" : "toast");
+					setRecordingIndicator(indicator);
+					logic.recordingIndicator = indicator;
 					if (config.game) {
 						setActivePreset(config.game);
 					}
@@ -658,18 +661,19 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					/>
 				</PanelSectionRow>
 				<PanelSectionRow>
-					<ToggleField
-						label="Toasts"
-						description="Recording alerts"
-						checked={showNotifications}
-						onChange={async (e) => {
-							setShowNotifications(e);
-							logic.showNotifications = e;
-							if (!e && confirmMode) {
-								setConfirmMode(false);
-								await setConfirmModeRpc(false);
+					<DropdownItem
+						label="Recording cue"
+						menuLabel="Recording cue"
+						rgOptions={RECORDING_INDICATOR_OPTIONS}
+						selectedOption={recordingIndicator}
+						onChange={async (option) => {
+							const mode = option.data as string;
+							setRecordingIndicator(mode);
+							logic.recordingIndicator = mode;
+							const result = await setRecordingIndicatorRpc(mode);
+							if (!result.success) {
+								setRpcError(result.error || "Could not update recording cue");
 							}
-							await setButtonConfig(buttons, e);
 						}}
 					/>
 				</PanelSectionRow>
@@ -740,7 +744,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 									const newButtons = [...buttons];
 									newButtons[index] = option.data as string;
 									setButtons(newButtons);
-									await setButtonConfig(newButtons, showNotifications);
+									await setButtonConfig(newButtons);
 								}}
 							/>
 						</PanelSectionRow>
@@ -750,7 +754,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 									onClick={async () => {
 										const newButtons = buttons.filter((_, i) => i !== index);
 										setButtons(newButtons);
-										await setButtonConfig(newButtons, showNotifications);
+										await setButtonConfig(newButtons);
 									}}
 									style={{
 										color: '#e05f5f',
@@ -786,7 +790,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 									if (availableButton) {
 										const newButtons = [...buttons, availableButton.data as string];
 										setButtons(newButtons);
-										await setButtonConfig(newButtons, showNotifications);
+										await setButtonConfig(newButtons);
 									}
 								}}
 							>
@@ -875,15 +879,13 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 
 export default definePlugin(() => {
 	let logic = new DecktationLogic();
-	// Seed the recording start count so we don't fire a spurious toast on load
+	// Seed the counter so loading the plugin does not replay an old recording cue.
 	getStatus().then((result) => {
 		if (result.success) {
 			logic.prevRecordingStartCount = result.recording_start_count || 0;
 		}
 	});
 
-	// Background notification polling — runs for the full plugin lifetime regardless
-	// of whether the Decky panel is open, so toasts appear while in-game.
 	let notifyPollInFlight = false;
 	const bgNotifyInterval = setInterval(async () => {
 		if (!logic.enabled || notifyPollInFlight) return;
@@ -891,27 +893,25 @@ export default definePlugin(() => {
 		try {
 			const result = await getStatus();
 			if (result.success) {
-				if (logic.showNotifications) {
-					const startCount: number = result.recording_start_count || 0;
-					if (startCount > logic.prevRecordingStartCount) {
-						logic.notify("Recording", 1500, "🎤 Recording...");
-					}
-					logic.prevRecordingStartCount = startCount;
-
-					const pendingText: string = result.pending_text || "";
-					const pendingDelay: number = result.pending_delay || 0;
-					if (pendingText && !logic.prevPendingText) {
-						const secs = Math.round(pendingDelay);
-						logic.notify(`Sending in ${secs}s`, (pendingDelay + 0.5) * 1000, `"${pendingText}" — hold PTT to cancel`)
-							.then(id => { logic.lastPendingToastId = id; });
-					} else if (!pendingText && logic.prevPendingText) {
-						if (logic.lastPendingToastId >= 0) {
-							logic.dismissNotification(logic.lastPendingToastId);
-							logic.lastPendingToastId = -1;
-						}
-					}
-					logic.prevPendingText = pendingText;
+				const startCount = result.recording_start_count || 0;
+				if (logic.recordingIndicator === "toast" && startCount > logic.prevRecordingStartCount) {
+					logic.notify("Recording", 1500, "🎤 Recording...");
 				}
+				logic.prevRecordingStartCount = startCount;
+
+				const pendingText: string = result.pending_text || "";
+				const pendingDelay: number = result.pending_delay || 0;
+				if (pendingText && !logic.prevPendingText) {
+					const secs = Math.round(pendingDelay);
+					logic.notify(`Sending in ${secs}s`, (pendingDelay + 0.5) * 1000, `"${pendingText}" — hold PTT to cancel`)
+						.then(id => { logic.lastPendingToastId = id; });
+				} else if (!pendingText && logic.prevPendingText) {
+					if (logic.lastPendingToastId >= 0) {
+						logic.dismissNotification(logic.lastPendingToastId);
+						logic.lastPendingToastId = -1;
+					}
+				}
+				logic.prevPendingText = pendingText;
 			}
 		} catch (_e) {
 		} finally {
