@@ -36,12 +36,13 @@
 
 #define MAX_PLANES 8
 #define MAX_FRAME_BYTES (512u * 1024u * 1024u)
-#define STREAM_CROP_MAX_WIDTH 1088u
-#define STREAM_CROP_MAX_HEIGHT 128u
+#define STREAM_CROP_MAX_WIDTH 8192u
+#define STREAM_CROP_MAX_HEIGHT 4320u
 #define STREAM_MAX_FPS 2u
 
 static volatile sig_atomic_t stop_requested = 0;
 static const char *portal_serial = NULL;
+static int stream_control_fd = -1;
 
 struct saved_plane {
   uint32_t data_index;
@@ -52,6 +53,9 @@ struct saved_plane {
 };
 
 struct probe {
+  uint8_t control[16];
+  size_t control_size;
+  uint16_t crop_source_w, crop_source_h, crop_x, crop_y, crop_w, crop_h;
   struct pw_main_loop *main_loop;
   struct pw_stream *stream;
   struct spa_hook core_listener;
@@ -277,9 +281,32 @@ static int write_all(int fd, const uint8_t *data, size_t size) {
 }
 
 /* Emit a small RGB crop over a dedicated inherited pipe FD. The crop contains
- * the decoder's top-left search area and enough room for the largest v1 strip;
- * it is never written to disk. Header: DCPF, width:u16, height:u16, monotonic_ns:u64.
+ * the full captured frame for resolution-independent strip discovery;
+ * it is never written to disk. Header: DCP2, dimensions/timestamp and source/crop geometry (24 bytes).
  */
+/* Parent sends DCPR + source width/height and ROI x/y/width/height (u16 BE).
+ * Nonblocking, latest complete request wins. Resolution mismatch resets to full.
+ */
+static void read_crop_request(struct probe *p) {
+  if (stream_control_fd < 0) return;
+  for (int count = 0; count < 8; count++) {
+    ssize_t n = read(stream_control_fd, p->control + p->control_size,
+                     sizeof(p->control) - p->control_size);
+    if (n <= 0) return;
+    p->control_size += (size_t)n;
+    if (p->control_size != sizeof(p->control)) continue;
+    p->control_size = 0;
+    if (memcmp(p->control, "DCPR", 4) != 0) continue;
+    uint16_t v[6];
+    for (int i = 0; i < 6; i++)
+      v[i] = (uint16_t)((p->control[4 + i * 2] << 8) | p->control[5 + i * 2]);
+    if (!v[0] || !v[1] || !v[4] || !v[5] ||
+        (uint32_t)v[2] + v[4] > v[0] || (uint32_t)v[3] + v[5] > v[1]) continue;
+    p->crop_source_w = v[0]; p->crop_source_h = v[1];
+    p->crop_x = v[2]; p->crop_y = v[3]; p->crop_w = v[4]; p->crop_h = v[5];
+  }
+}
+
 static int stream_frame_crop(struct probe *p, struct pw_buffer *pwbuf,
                              uint64_t frame_index, uint64_t timestamp_ns) {
   if (!pwbuf || !pwbuf->buffer || !p->have_format ||
@@ -294,17 +321,26 @@ static int stream_frame_crop(struct probe *p, struct pw_buffer *pwbuf,
       !map_readable_plane(data, &mapped))
     return 0;
 
+  read_crop_request(p);
+  uint32_t crop_x = 0, crop_y = 0;
   uint32_t width = p->video.size.width < STREAM_CROP_MAX_WIDTH
                        ? p->video.size.width : STREAM_CROP_MAX_WIDTH;
   uint32_t height = p->video.size.height < STREAM_CROP_MAX_HEIGHT
                         ? p->video.size.height : STREAM_CROP_MAX_HEIGHT;
-  if (width == 0 || height == 0) {
+  if (width == 0 || height == 0 ||
+      (uint64_t)width * height > 16777216u ||
+      width != p->video.size.width || height != p->video.size.height) {
     release_mapped_planes(&mapped, 1);
     return 0;
   }
-  uint64_t row_bytes = (uint64_t)width * 4;
+  if (p->crop_source_w == p->video.size.width &&
+      p->crop_source_h == p->video.size.height && p->crop_w && p->crop_h) {
+    crop_x = p->crop_x; crop_y = p->crop_y;
+    width = p->crop_w; height = p->crop_h;
+  }
+  uint64_t row_bytes = (uint64_t)(crop_x + width) * 4;
   uint64_t end_offset = (uint64_t)chunk->offset +
-                        (uint64_t)(height - 1) * (uint32_t)chunk->stride +
+                        (uint64_t)(crop_y + height - 1) * (uint32_t)chunk->stride +
                         row_bytes;
   if ((uint64_t)chunk->stride < row_bytes || end_offset > data->maxsize ||
       end_offset - chunk->offset > chunk->size) {
@@ -322,7 +358,8 @@ static int stream_frame_crop(struct probe *p, struct pw_buffer *pwbuf,
     fflush(stdout);
     return 0;
   }
-  const uint8_t *source = mapped.base + chunk->offset;
+  const uint8_t *source = mapped.base + chunk->offset +
+      (size_t)crop_y * (uint32_t)chunk->stride + (size_t)crop_x * 4;
   for (uint32_t y = 0; y < height; y++) {
     const uint8_t *src_row = source + (size_t)y * (uint32_t)chunk->stride;
     uint8_t *dst = rgb + (size_t)y * width * 3;
@@ -334,13 +371,18 @@ static int stream_frame_crop(struct probe *p, struct pw_buffer *pwbuf,
   }
   release_mapped_planes(&mapped, 1);
 
-  uint8_t header[16] = {'D', 'C', 'P', 'F'};
+  uint8_t header[24] = {'D', 'C', 'P', '2'};
   header[4] = (uint8_t)(width >> 8);
   header[5] = (uint8_t)width;
   header[6] = (uint8_t)(height >> 8);
   header[7] = (uint8_t)height;
   for (uint32_t i = 0; i < 8; i++)
     header[8 + i] = (uint8_t)(timestamp_ns >> ((7 - i) * 8));
+  uint32_t geometry[] = {p->video.size.width, p->video.size.height, crop_x, crop_y};
+  for (int i = 0; i < 4; i++) {
+    header[16 + i * 2] = (uint8_t)(geometry[i] >> 8);
+    header[17 + i * 2] = (uint8_t)geometry[i];
+  }
   int result = write_all(p->stream_output_fd, header, sizeof(header));
   if (result == 0) result = write_all(p->stream_output_fd, rgb, rgb_size);
   free(rgb);
@@ -479,7 +521,7 @@ static int build_format_param(struct probe *p, uint8_t *storage,
   struct spa_rectangle sizes[3] = {
     SPA_RECTANGLE(p->requested_width, p->requested_height),
     SPA_RECTANGLE(1, 1),
-    SPA_RECTANGLE(8192, 4096),
+    SPA_RECTANGLE(8192, 4320),
   };
   struct spa_fraction variable_framerate = SPA_FRACTION(0, 1);
   struct spa_fraction max_framerates[3] = {

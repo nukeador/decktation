@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+import time
+
 import json
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -254,6 +257,7 @@ def decode_image(
     *,
     search_px: int = 64,
     hint: tuple[int, int, float] | None = None,
+    full_frame: bool = False,
 ) -> DecodeResult:
     """Find and decode a strip near the image's top-left or bottom-left corner.
 
@@ -264,6 +268,9 @@ def decode_image(
         hinted = _try_candidate(image, hint[0], hint[1], hint[2])
         if hinted is not None and hinted.status == "valid":
             return hinted
+
+    if full_frame:
+        return _discover_frame(image)
 
     # Search 2.5..8 px cells in eighth-pixel steps. Fractional scaling on
     # Gamescope can produce sizes such as 4.375 px; quarter-pixel steps miss it.
@@ -296,3 +303,55 @@ def decode_image(
     if incomplete is not None:
         return incomplete
     return DecodeResult("not_found", reason="no protocol magic found in search area")
+
+
+# Magic D3 71 begins with cyan, red, cyan, white cells (6,4,6,7).
+# Translate RGB scanlines in C instead of trying every scale at every pixel.
+_MAGIC_RUNS = re.compile(b"\x06{1,64}\x04{1,64}\x06{1,64}\x07{1,64}")
+_R = bytes(4 if i >= 128 else 0 for i in range(256))
+_G = bytes(2 if i >= 128 else 0 for i in range(256))
+_B = bytes(1 if i >= 128 else 0 for i in range(256))
+
+def _discover_frame(image):
+    deadline = time.monotonic() + 2.0
+    attempts = 0
+    failure = None
+    data, channels = image.data, image.channels
+    for y in range(0, image.height, 2):
+        if time.monotonic() >= deadline:
+            break
+        offset = y * image.width * channels
+        row = data[offset:offset + image.width * channels]
+        red = row[0::channels].translate(_R)
+        green = row[1::channels].translate(_G)
+        blue = row[2::channels].translate(_B)
+        colors = bytes(a | b | c for a, b, c in zip(red, green, blue))
+        for match in _MAGIC_RUNS.finditer(colors):
+            runs = match.group()
+            red_start = runs.index(4)
+            cyan_start = runs.index(6, red_start)
+            white_start = runs.index(7)
+            widths = (cyan_start - red_start, white_start - cyan_start)
+            if min(widths) < 2 or abs(widths[0] - widths[1]) > 2:
+                continue
+            # Internal transitions are more reliable than the first cyan edge,
+            # which may merge with a cyan background.
+            estimate = sum(widths) / 2
+            sizes = [estimate + delta / 128 for delta in range(-128, 129)]
+            sizes.sort(key=lambda size: abs(size - estimate))
+            for size in sizes:
+                if not 2 <= size <= 32:
+                    continue
+                x = match.start() + red_start - size
+                for ox in {round(x), round(x - .5), round(x + .5)}:
+                    for oy in range(max(0, y - int(size) - 1), y + 1):
+                        attempts += 1
+                        if attempts > 100000 or time.monotonic() >= deadline:
+                            return failure or DecodeResult("not_found", reason="strip discovery budget exhausted")
+                        candidate = _try_candidate(image, ox, oy, size)
+                        if candidate is not None:
+                            if candidate.status == "valid":
+                                return candidate
+                            if failure is None:
+                                failure = candidate
+    return failure or DecodeResult("not_found", reason="no protocol strip found in captured frame")
