@@ -1,8 +1,9 @@
 # Gaming Mode recording indicator
 
-This branch replaces the short Steam recording toast with a Gamescope overlay. The
-existing `showNotifications` preference controls the recording indicator and the
-pending-send confirmation alert. Saved preferences keep their current meaning.
+The **Recording cue** setting selects the short Steam toast, a Gamescope overlay,
+or no recording cue. Pending-send confirmation alerts remain available in all
+three modes. Existing `showNotifications` preferences migrate to **Toast** when
+enabled and **None** when disabled.
 
 The backend starts a separate `/usr/bin/python3` process as the `deck` user on the
 first recording. It finds Gamescope's main Xwayland display through
