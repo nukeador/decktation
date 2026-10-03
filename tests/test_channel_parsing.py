@@ -23,6 +23,7 @@ WOW_PRESET = {
         "yell": "/y ",
         "instance": "/i ",
         "whisper": "/w ",
+        "reply": "/r ",
         "type": "",
         "alert": "/rw ",
     },
@@ -102,12 +103,19 @@ class TestWoWChannels:
         ("yell", "yell"),
         ("instance", "instance"),
         ("whisper", "whisper"),
+        ("reply", "reply"),
         ("type", "type"),
         ("alert", "alert"),
     ])
     def test_channel_prefix_recognized(self, wow_svc, prefix, expected_channel):
         ch, text = wow_svc.parse_channel_and_text(f"{prefix} hello")
         assert ch == expected_channel
+
+    @pytest.mark.parametrize("prefix", ["reply", "Reply:", "REPLY,"])
+    def test_reply_prefix_recognized_case_insensitively(self, wow_svc, prefix):
+        ch, text = wow_svc.parse_channel_and_text(f"{prefix} on my way")
+        assert ch == "reply"
+        assert text == "on my way"
 
     def test_message_preserved(self, wow_svc):
         _, text = wow_svc.parse_channel_and_text("raid: focus adds first please")

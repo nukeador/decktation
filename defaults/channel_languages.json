@@ -20,6 +20,7 @@
         "yell": ["yell"],
         "instance": ["instance"],
         "whisper": ["whisper"],
+        "reply": ["reply"],
         "type": ["type"],
         "alert": ["alert"]
       }
@@ -35,6 +36,7 @@
         "yell": ["crie", "crier", "criez"],
         "instance": ["instance"],
         "whisper": ["chuchote", "chuchoter", "chuchotez"],
+        "reply": ["réponse", "réponds", "répondre"],
         "type": ["tape", "taper", "tapez"],
         "alert": ["alerte", "alert"]
       }
@@ -49,6 +51,7 @@
     "yell": "/y ",
     "instance": "/i ",
     "whisper": "/w ",
+    "reply": "/r ",
     "type": "",
     "alert": "/rw "
   },

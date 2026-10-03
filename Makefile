@@ -1,7 +1,14 @@
 VERSION := $(shell node scripts/release-version.mjs print)
 TAG := v$(VERSION)
 
-.PHONY: version version-check version-set release-check release-tag
+.PHONY: test-setup test version version-check version-set release-check release-tag
+
+test-setup:
+	python3 -m venv .venv
+	.venv/bin/python -m pip install -r requirements-test.txt
+
+test:
+	.venv/bin/python -m pytest tests/ -q
 
 version:
 	@node scripts/release-version.mjs print
