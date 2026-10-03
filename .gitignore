@@ -8,6 +8,8 @@ package-lock.json
 .DS_Store
 
 # Python artifacts
+.venv/
+venv/
 __pycache__/
 *.pyc
 *.pyo
