@@ -5,7 +5,7 @@
 
     var React__default = /*#__PURE__*/_interopDefaultLegacy(React);
 
-    var _manifest = {"name":"Decktation","version":"0.3.17","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.18-dev.overlay.1","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -133,16 +133,17 @@
     const setManualSendRpc = callable("set_manual_send");
     const setRememberLastChannelRpc = callable("set_remember_last_channel");
     const setShareDiagnosticsRpc = callable("set_share_diagnostics");
+    const setRecordingIndicatorRpc = callable("set_recording_indicator");
     const setHapticFeedbackRpc = callable("set_haptic_feedback");
     const setActivePresetRpc = callable("set_active_preset");
     const setModelSizeRpc = callable("set_model_size");
     const setTranscriptionOptionsRpc = callable("set_transcription_options");
-    const setButtonConfig = callable("set_button_config");
+    callable("set_button_config");
     class DecktationLogic {
         constructor() {
             this.enabled = false;
             this.recording = false;
-            this.showNotifications = true;
+            this.recordingIndicator = "toast";
             this.prevRecordingStartCount = 0;
             this.prevPendingText = "";
             this.lastPendingToastId = -1;
@@ -214,7 +215,8 @@
             this.testRecording = async (onComplete, onPhase) => {
                 onPhase("recording");
                 try {
-                    this.notify("Decktation", 1000, "Recording for 3 seconds...");
+                    if (this.recordingIndicator === "toast")
+                        this.notify("Decktation", 1000, "Recording for 3 seconds...");
                     const started = await startRecording();
                     if (!started.success)
                         throw new Error(started.error || "Could not start test recording");
@@ -222,7 +224,8 @@
                     // Keep the no-send argument: test text must never reach the active game.
                     onPhase("transcribing");
                     const transcription = stopRecording(false);
-                    this.notify("Decktation", 1500, "Transcribing...");
+                    if (this.recordingIndicator === "toast")
+                        this.notify("Decktation", 1500, "Transcribing...");
                     const stopped = await transcription;
                     if (!stopped.success)
                         throw new Error(stopped.error || "Could not transcribe test recording");
@@ -375,7 +378,7 @@
         const [controllerReady, setControllerReady] = React.useState(false);
         const [recordingMode, setRecordingMode] = React.useState("hold");
         const [buttons, setButtons] = React.useState(["L1", "R1"]);
-        const [showNotifications, setShowNotifications] = React.useState(true);
+        const [recordingIndicator, setRecordingIndicator] = React.useState("toast");
         const [hapticFeedback, setHapticFeedback] = React.useState(false);
         const [activePreset, setActivePreset] = React.useState("wow");
         const [presets, setPresets] = React.useState([]);
@@ -403,10 +406,9 @@
                         if (config.buttons) {
                             setButtons(config.buttons);
                         }
-                        if (config.showNotifications !== undefined) {
-                            setShowNotifications(config.showNotifications);
-                            logic.showNotifications = config.showNotifications;
-                        }
+                        const indicator = config.recordingIndicator || (config.showNotifications === false ? "none" : "toast");
+                        setRecordingIndicator(indicator);
+                        logic.recordingIndicator = indicator;
                         if (config.hapticFeedback !== undefined) {
                             setHapticFeedback(config.hapticFeedback);
                         }
@@ -756,15 +758,8 @@
                                 } }))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Feedback" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Toasts", description: "Recording alerts", checked: showNotifications, onChange: async (next) => {
-                                    setShowNotifications(next);
-                                    logic.showNotifications = next;
-                                    if (!next && confirmMode) {
-                                        setConfirmMode(false);
-                                        await setConfirmModeRpc(false);
-                                    }
-                                    await setButtonConfig(buttons, next);
-                                } })),
+                            React__default["default"].createElement(DropdownItem, { label: "Recording cue", menuLabel: "Recording cue", rgOptions: [{ data: "toast", label: "Toast" }, { data: "overlay", label: "Overlay" }, { data: "none", label: "None" }], selectedOption: recordingIndicator, onChange: async (option) => { const mode = option.data; setRecordingIndicator(mode); logic.recordingIndicator = mode; const result = await setRecordingIndicatorRpc(mode); if (!result.success)
+                                    setRpcError(result.error || "Could not update recording cue"); } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Haptic feedback", description: "Cues when recording starts and stops on Steam Deck", checked: hapticFeedback, onChange: async (next) => {
                                     const result = await setHapticFeedbackRpc(next);
@@ -904,9 +899,9 @@
             try {
                 const result = await getStatus();
                 if (result.success) {
-                    if (logic.showNotifications) {
+                    if (logic.recordingIndicator !== "none") {
                         const startCount = result.recording_start_count || 0;
-                        if (startCount > logic.prevRecordingStartCount) {
+                        if (logic.recordingIndicator === "toast" && startCount > logic.prevRecordingStartCount) {
                             logic.notify("Recording", 1500, "🎤 Recording...");
                         }
                         logic.prevRecordingStartCount = startCount;

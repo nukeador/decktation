@@ -42,6 +42,7 @@ const setConfirmModeRpc = callable<[enabled: boolean], RpcResponse>("set_confirm
 const setManualSendRpc = callable<[enabled: boolean], RpcResponse>("set_manual_send");
 const setRememberLastChannelRpc = callable<[enabled: boolean], RpcResponse>("set_remember_last_channel");
 const setShareDiagnosticsRpc = callable<[enabled: boolean], RpcResponse>("set_share_diagnostics");
+const setRecordingIndicatorRpc = callable<[mode: string], RpcResponse>("set_recording_indicator");
 const setHapticFeedbackRpc = callable<[enabled: boolean], RpcResponse>("set_haptic_feedback");
 const setActivePresetRpc = callable<[game: string], RpcResponse>("set_active_preset");
 const setModelSizeRpc = callable<[modelSize: string], RpcResponse>("set_model_size");
@@ -50,14 +51,14 @@ const setTranscriptionOptionsRpc = callable<
 	RpcResponse
 >("set_transcription_options");
 const setButtonConfig = callable<
-	[buttons: string[], showNotifications: boolean],
+	[buttons: string[]],
 	RpcResponse
 >("set_button_config");
 
 class DecktationLogic {
 	enabled: boolean = false;
 	recording: boolean = false;
-	showNotifications: boolean = true;
+	recordingIndicator: string = "toast";
 	prevRecordingStartCount: number = 0;
 	prevPendingText: string = "";
 	lastPendingToastId: number = -1;
@@ -133,7 +134,7 @@ class DecktationLogic {
 	) => {
 		onPhase("recording");
 		try {
-			this.notify("Decktation", 1000, "Recording for 3 seconds...");
+			if (this.recordingIndicator === "toast") this.notify("Decktation", 1000, "Recording for 3 seconds...");
 			const started = await startRecording();
 			if (!started.success) throw new Error(started.error || "Could not start test recording");
 
@@ -141,7 +142,7 @@ class DecktationLogic {
 			// Keep the no-send argument: test text must never reach the active game.
 			onPhase("transcribing");
 			const transcription = stopRecording(false);
-			this.notify("Decktation", 1500, "Transcribing...");
+			if (this.recordingIndicator === "toast") this.notify("Decktation", 1500, "Transcribing...");
 			const stopped = await transcription;
 			if (!stopped.success) throw new Error(stopped.error || "Could not transcribe test recording");
 
@@ -301,7 +302,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [controllerReady, setControllerReady] = useState<boolean>(false);
 	const [recordingMode, setRecordingMode] = useState<"hold" | "tap">("hold");
 	const [buttons, setButtons] = useState<string[]>(["L1", "R1"]);
-	const [showNotifications, setShowNotifications] = useState<boolean>(true);
+	const [recordingIndicator, setRecordingIndicator] = useState<string>("toast");
 	const [hapticFeedback, setHapticFeedback] = useState<boolean>(false);
 	const [activePreset, setActivePreset] = useState<string>("wow");
 	const [presets, setPresets] = useState<DropdownOption[]>([]);
@@ -331,10 +332,9 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					if (config.buttons) {
 						setButtons(config.buttons);
 					}
-					if (config.showNotifications !== undefined) {
-						setShowNotifications(config.showNotifications);
-						logic.showNotifications = config.showNotifications;
-					}
+					const indicator = config.recordingIndicator || (config.showNotifications === false ? "none" : "toast");
+					setRecordingIndicator(indicator);
+					logic.recordingIndicator = indicator;
 					if (config.hapticFeedback !== undefined) {
 						setHapticFeedback(config.hapticFeedback);
 					}
@@ -654,13 +654,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 							}} /></PanelSectionRow>
 					</PanelSection>
 					<PanelSection title="Feedback">
-						<PanelSectionRow><ToggleField label="Toasts" description="Recording alerts" checked={showNotifications}
-							onChange={async (next) => {
-								setShowNotifications(next);
-								logic.showNotifications = next;
-								if (!next && confirmMode) { setConfirmMode(false); await setConfirmModeRpc(false); }
-								await setButtonConfig(buttons, next);
-							}} /></PanelSectionRow>
+						<PanelSectionRow><DropdownItem label="Recording cue" menuLabel="Recording cue" rgOptions={[{data:"toast",label:"Toast"},{data:"overlay",label:"Overlay"},{data:"none",label:"None"}]} selectedOption={recordingIndicator} onChange={async (option) => { const mode = option.data as string; setRecordingIndicator(mode); logic.recordingIndicator = mode; const result = await setRecordingIndicatorRpc(mode); if (!result.success) setRpcError(result.error || "Could not update recording cue"); }} /></PanelSectionRow>
 						<PanelSectionRow><ToggleField label="Haptic feedback" description="Cues when recording starts and stops on Steam Deck"
 							checked={hapticFeedback} onChange={async (next) => {
 								const result = await setHapticFeedbackRpc(next);
@@ -764,9 +758,9 @@ export default definePlugin(() => {
 		try {
 			const result = await getStatus();
 			if (result.success) {
-				if (logic.showNotifications) {
+				if (logic.recordingIndicator !== "none") {
 					const startCount: number = result.recording_start_count || 0;
-					if (startCount > logic.prevRecordingStartCount) {
+					if (logic.recordingIndicator === "toast" && startCount > logic.prevRecordingStartCount) {
 						logic.notify("Recording", 1500, "🎤 Recording...");
 					}
 					logic.prevRecordingStartCount = startCount;
