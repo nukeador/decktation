@@ -5,7 +5,7 @@
 
     var React__default = /*#__PURE__*/_interopDefaultLegacy(React);
 
-    var _manifest = {"name":"Decktation","version":"0.3.17","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.18-dev.overlay.1","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -133,6 +133,7 @@
     const setManualSendRpc = callable("set_manual_send");
     const setRememberLastChannelRpc = callable("set_remember_last_channel");
     const setShareDiagnosticsRpc = callable("set_share_diagnostics");
+    const setRecordingIndicatorRpc = callable("set_recording_indicator");
     const setActivePresetRpc = callable("set_active_preset");
     const setModelSizeRpc = callable("set_model_size");
     const setTranscriptionOptionsRpc = callable("set_transcription_options");
@@ -141,7 +142,7 @@
         constructor() {
             this.enabled = false;
             this.recording = false;
-            this.showNotifications = true;
+            this.recordingIndicator = "toast";
             this.prevRecordingStartCount = 0;
             this.prevPendingText = "";
             this.lastPendingToastId = -1;
@@ -211,7 +212,6 @@
                 catch (_e) { }
             };
             this.testRecording = async (onComplete) => {
-                this.notify("Decktation", 1000, "Recording for 3 seconds...");
                 await startRecording();
                 // Wait 3 seconds
                 await new Promise(resolve => setTimeout(resolve, 3000));
@@ -219,7 +219,6 @@
                 // into the active application. Change the UI state at exactly 3 seconds,
                 // then wait only for transcription to finish.
                 const transcription = stopRecording(false);
-                this.notify("Decktation", 1500, "Transcribing...");
                 await transcription;
                 if (onComplete) {
                     const transcriptionResult = await getLastTranscription();
@@ -247,6 +246,11 @@
         { data: "B", label: "B" },
         { data: "X", label: "X" },
         { data: "Y", label: "Y" },
+    ];
+    const RECORDING_INDICATOR_OPTIONS = [
+        { data: "toast", label: "Toast" },
+        { data: "overlay", label: "Overlay" },
+        { data: "none", label: "None" },
     ];
     const WHISPER_LANGUAGE_OPTIONS = [
         { data: "auto", label: "Auto Detect" },
@@ -372,7 +376,7 @@
         const [buttonState, setButtonState] = React.useState("None");
         const [controllerReady, setControllerReady] = React.useState(false);
         const [buttons, setButtons] = React.useState(["L1", "R1"]);
-        const [showNotifications, setShowNotifications] = React.useState(true);
+        const [recordingIndicator, setRecordingIndicator] = React.useState("toast");
         const [activePreset, setActivePreset] = React.useState("wow");
         const [presets, setPresets] = React.useState([]);
         const [confirmMode, setConfirmMode] = React.useState(false);
@@ -395,10 +399,10 @@
                         if (config.buttons) {
                             setButtons(config.buttons);
                         }
-                        if (config.showNotifications !== undefined) {
-                            setShowNotifications(config.showNotifications);
-                            logic.showNotifications = config.showNotifications;
-                        }
+                        const indicator = config.recordingIndicator ||
+                            (config.showNotifications === false ? "none" : "toast");
+                        setRecordingIndicator(indicator);
+                        logic.recordingIndicator = indicator;
                         if (config.game) {
                             setActivePreset(config.game);
                         }
@@ -640,14 +644,14 @@
                         } }))),
             React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Input" },
                 React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                    React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Toasts", description: "Recording alerts", checked: showNotifications, onChange: async (e) => {
-                            setShowNotifications(e);
-                            logic.showNotifications = e;
-                            if (!e && confirmMode) {
-                                setConfirmMode(false);
-                                await setConfirmModeRpc(false);
+                    React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: "Recording cue", menuLabel: "Recording cue", rgOptions: RECORDING_INDICATOR_OPTIONS, selectedOption: recordingIndicator, onChange: async (option) => {
+                            const mode = option.data;
+                            setRecordingIndicator(mode);
+                            logic.recordingIndicator = mode;
+                            const result = await setRecordingIndicatorRpc(mode);
+                            if (!result.success) {
+                                setRpcError(result.error || "Could not update recording cue");
                             }
-                            await setButtonConfig(buttons, e);
                         } })),
                 React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                     React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Confirm", description: "Delay before send", checked: confirmMode, onChange: async (e) => {
@@ -687,13 +691,13 @@
                                 const newButtons = [...buttons];
                                 newButtons[index] = option.data;
                                 setButtons(newButtons);
-                                await setButtonConfig(newButtons, showNotifications);
+                                await setButtonConfig(newButtons);
                             } })),
                     buttons.length > 1 && (React__default["default"].createElement("div", { style: { display: 'flex', justifyContent: 'flex-end', paddingRight: '16px' } },
                         React__default["default"].createElement("div", { onClick: async () => {
                                 const newButtons = buttons.filter((_, i) => i !== index);
                                 setButtons(newButtons);
-                                await setButtonConfig(newButtons, showNotifications);
+                                await setButtonConfig(newButtons);
                             }, style: {
                                 color: '#e05f5f',
                                 cursor: 'pointer',
@@ -716,7 +720,7 @@
                                 if (availableButton) {
                                     const newButtons = [...buttons, availableButton.data];
                                     setButtons(newButtons);
-                                    await setButtonConfig(newButtons, showNotifications);
+                                    await setButtonConfig(newButtons);
                                 }
                             } }, "Add Button")))),
                 React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
@@ -767,14 +771,12 @@
     };
     var index = deckyFrontendLib.definePlugin(() => {
         let logic = new DecktationLogic();
-        // Seed the recording start count so we don't fire a spurious toast on load
+        // Seed the counter so loading the plugin does not replay an old recording cue.
         getStatus().then((result) => {
             if (result.success) {
                 logic.prevRecordingStartCount = result.recording_start_count || 0;
             }
         });
-        // Background notification polling — runs for the full plugin lifetime regardless
-        // of whether the Decky panel is open, so toasts appear while in-game.
         let notifyPollInFlight = false;
         const bgNotifyInterval = setInterval(async () => {
             if (!logic.enabled || notifyPollInFlight)
@@ -783,27 +785,25 @@
             try {
                 const result = await getStatus();
                 if (result.success) {
-                    if (logic.showNotifications) {
-                        const startCount = result.recording_start_count || 0;
-                        if (startCount > logic.prevRecordingStartCount) {
-                            logic.notify("Recording", 1500, "🎤 Recording...");
-                        }
-                        logic.prevRecordingStartCount = startCount;
-                        const pendingText = result.pending_text || "";
-                        const pendingDelay = result.pending_delay || 0;
-                        if (pendingText && !logic.prevPendingText) {
-                            const secs = Math.round(pendingDelay);
-                            logic.notify(`Sending in ${secs}s`, (pendingDelay + 0.5) * 1000, `"${pendingText}" — hold PTT to cancel`)
-                                .then(id => { logic.lastPendingToastId = id; });
-                        }
-                        else if (!pendingText && logic.prevPendingText) {
-                            if (logic.lastPendingToastId >= 0) {
-                                logic.dismissNotification(logic.lastPendingToastId);
-                                logic.lastPendingToastId = -1;
-                            }
-                        }
-                        logic.prevPendingText = pendingText;
+                    const startCount = result.recording_start_count || 0;
+                    if (logic.recordingIndicator === "toast" && startCount > logic.prevRecordingStartCount) {
+                        logic.notify("Recording", 1500, "🎤 Recording...");
                     }
+                    logic.prevRecordingStartCount = startCount;
+                    const pendingText = result.pending_text || "";
+                    const pendingDelay = result.pending_delay || 0;
+                    if (pendingText && !logic.prevPendingText) {
+                        const secs = Math.round(pendingDelay);
+                        logic.notify(`Sending in ${secs}s`, (pendingDelay + 0.5) * 1000, `"${pendingText}" — hold PTT to cancel`)
+                            .then(id => { logic.lastPendingToastId = id; });
+                    }
+                    else if (!pendingText && logic.prevPendingText) {
+                        if (logic.lastPendingToastId >= 0) {
+                            logic.dismissNotification(logic.lastPendingToastId);
+                            logic.lastPendingToastId = -1;
+                        }
+                    }
+                    logic.prevPendingText = pendingText;
                 }
             }
             catch (_e) {
