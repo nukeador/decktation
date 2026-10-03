@@ -143,12 +143,10 @@ class DecktationLogic {
 		try {
 			const started = await startRecording();
 			if (!started.success) throw new Error(started.error || "Could not start test recording");
-			if (this.showNotifications) this.notify("Decktation", 1000, "Recording for 3 seconds...");
 
 			await new Promise(resolve => setTimeout(resolve, 3000));
 			// Keep the no-send argument: test text must never reach the active game.
 			onPhase("transcribing");
-			if (this.showNotifications) this.notify("Decktation", 1500, "Transcribing...");
 			const transcription = stopRecording(false);
 			const stopped = await transcription;
 			if (!stopped.success) throw new Error(stopped.error || "Could not transcribe test recording");
@@ -689,7 +687,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
 					</PanelSection>}
 					<PanelSection title="Feedback">
-						<PanelSectionRow><ToggleField label="Recording feedback" description="In-game overlay and Steam alerts" checked={showNotifications}
+						<PanelSectionRow><ToggleField label="Recording feedback" description="In-game recording indicator and send confirmations" checked={showNotifications}
 							onChange={async (next) => {
 								setShowNotifications(next);
 								logic.showNotifications = next;
@@ -797,10 +795,6 @@ export default definePlugin(() => {
 			const result = await getStatus();
 			if (result.success) {
 				const startCount: number = result.recording_start_count || 0;
-				// Keep Steam's toast as a fallback when Gamescope doesn't show the overlay.
-				if (logic.showNotifications && startCount > logic.prevRecordingStartCount) {
-					logic.notify("Recording", 1500, "🎤 Recording...");
-				}
 				logic.prevRecordingStartCount = startCount;
 				if (logic.showNotifications) {
 					const pendingText: string = result.pending_text || "";

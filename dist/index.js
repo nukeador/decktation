@@ -5,7 +5,7 @@
 
     var React__default = /*#__PURE__*/_interopDefaultLegacy(React);
 
-    var _manifest = {"name":"Decktation","version":"0.3.17","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.18-wow-companion.2","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -218,13 +218,9 @@
                     const started = await startRecording();
                     if (!started.success)
                         throw new Error(started.error || "Could not start test recording");
-                    if (this.showNotifications)
-                        this.notify("Decktation", 1000, "Recording for 3 seconds...");
                     await new Promise(resolve => setTimeout(resolve, 3000));
                     // Keep the no-send argument: test text must never reach the active game.
                     onPhase("transcribing");
-                    if (this.showNotifications)
-                        this.notify("Decktation", 1500, "Transcribing...");
                     const transcription = stopRecording(false);
                     const stopped = await transcription;
                     if (!stopped.success)
@@ -795,7 +791,7 @@
                             React__default["default"].createElement("div", { role: "alert" }, rpcError))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Feedback" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Recording feedback", description: "In-game overlay and Steam alerts", checked: showNotifications, onChange: async (next) => {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Recording feedback", description: "In-game recording indicator and send confirmations", checked: showNotifications, onChange: async (next) => {
                                     setShowNotifications(next);
                                     logic.showNotifications = next;
                                     if (!next && confirmMode) {
@@ -943,10 +939,6 @@
                 const result = await getStatus();
                 if (result.success) {
                     const startCount = result.recording_start_count || 0;
-                    // Keep Steam's toast as a fallback when Gamescope doesn't show the overlay.
-                    if (logic.showNotifications && startCount > logic.prevRecordingStartCount) {
-                        logic.notify("Recording", 1500, "🎤 Recording...");
-                    }
                     logic.prevRecordingStartCount = startCount;
                     if (logic.showNotifications) {
                         const pendingText = result.pending_text || "";

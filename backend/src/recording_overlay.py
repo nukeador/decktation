@@ -19,7 +19,9 @@ from gi.repository import Gdk, GdkX11, GLib, Gtk  # noqa: E402
 STATE = Path(sys.argv[1])
 PARENT_PID = int(sys.argv[2])
 WIDTH = 368
-HEIGHT = 124
+HEIGHT = 80
+REFERENCE_HEIGHT = 800
+BOTTOM_MARGIN = 48
 
 
 def rounded(ctx, x, y, w, h, radius):
@@ -48,10 +50,9 @@ class Indicator(Gtk.Window):
         self.surface_width = screen.get_width()
         self.surface_height = screen.get_height()
         self.set_default_size(self.surface_width, self.surface_height)
-        # This process is only launched when feedback should be visible. Map
-        # the external-overlay surface visible from the start; Gamescope may
-        # not promote a surface that is mapped fully transparent and shown
-        # later, even though its state and opacity properties then change.
+        screen.connect("size-changed", self.sync_geometry)
+        screen.connect("monitors-changed", self.sync_geometry)
+        # Map visible initially so Gamescope promotes the external overlay.
         self.mode = "compact"
         self.phase = time.monotonic()
         self.last_state = ""
@@ -74,6 +75,17 @@ class Indicator(Gtk.Window):
         )
         print(f"window={hex(xid)} display={os.environ['DISPLAY']} rgba=1 pass_through=1", flush=True)
         GLib.timeout_add(50, self.tick)
+        GLib.timeout_add(1000, self.sync_geometry)
+
+    def sync_geometry(self, *_args):
+        screen = self.get_screen()
+        width, height = screen.get_width(), screen.get_height()
+        if (width, height) != (self.surface_width, self.surface_height):
+            self.surface_width, self.surface_height = width, height
+            self.resize(width, height)
+            self.move(0, 0)
+            self.queue_draw()
+        return True
 
     def tick(self):
         if not Path(f"/proc/{PARENT_PID}").exists():
@@ -100,8 +112,14 @@ class Indicator(Gtk.Window):
         ctx.set_source_rgba(0, 0, 0, 0)
         ctx.paint()
         ctx.set_operator(cairo.OPERATOR_OVER)
-        ctx.translate((self.surface_width - WIDTH) / 2, self.surface_height - HEIGHT - 48)
-        ctx.scale(2, 2)
+        allocation = self.get_allocation()
+        width, height = allocation.width, allocation.height
+        # Gamescope can scale this surface independently of the game resolution.
+        # Use current allocation and proportional dimensions, including after docking.
+        scale = min(height / REFERENCE_HEIGHT, width / (WIDTH + 32))
+        ctx.translate((width - WIDTH * scale) / 2,
+                      height - (HEIGHT + BOTTOM_MARGIN) * scale)
+        ctx.scale(2 * scale, 2 * scale)
         rounded(ctx, 0.5, 0.5, 183, 39, 20)
         ctx.set_source_rgba(0.12, 0.13, 0.16, 0.78)
         ctx.fill_preserve()
