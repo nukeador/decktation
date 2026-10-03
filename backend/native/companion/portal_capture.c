@@ -56,6 +56,8 @@ int main(int argc, char **argv) {
   int output_fd = dup(STDOUT_FILENO);
   if (output_fd < 0 || dup2(STDERR_FILENO, STDOUT_FILENO) < 0) return 2;
   if (fcntl(output_fd, F_SETFL, O_NONBLOCK) < 0) { close(output_fd); return 2; }
+  stream_control_fd = STDIN_FILENO;
+  if (fcntl(stream_control_fd, F_SETFL, O_NONBLOCK) < 0) return 2;
   GDBusConnection *bus = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, NULL);
   if (!bus) { close(output_fd); return 3; }
   int result = 3, remote_fd = -1;

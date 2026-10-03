@@ -1,6 +1,7 @@
 """Bundled experimental Companion lifecycle. Context never leaves process memory."""
 from __future__ import annotations
 
+import math
 import copy
 import os
 import pwd
@@ -89,7 +90,9 @@ def launch_helper(binary, account):
         check.kill()
         check.wait(timeout=2)
         raise FileNotFoundError("capture runtime check timed out") from None
-    return subprocess.Popen([str(binary)], stdout=subprocess.PIPE, **common)
+    process = subprocess.Popen([str(binary)], stdout=subprocess.PIPE, stdin=subprocess.PIPE, **common)
+    os.set_blocking(process.stdin.fileno(), False)
+    return process
 
 
 def read_exact(fd, count, stop, timeout=2.0):
@@ -112,12 +115,21 @@ def read_exact(fd, count, stop, timeout=2.0):
 
 def read_frame(fd, stop):
     magic, width, height, timestamp = HEADER.unpack(read_exact(fd, HEADER.size, stop))
-    if magic != b"DCPF" or not 0 < width <= 1088 or not 0 < height <= 128:
+    if magic not in (b"DCPF", b"DCP2") or not 0 < width <= 8192 or not 0 < height <= 4320 or width * height > 16_777_216:
         raise ValueError("invalid capture frame")
     now = time.monotonic_ns()
     if timestamp > now or now - timestamp > 15_000_000_000:
         raise ValueError("expired capture frame")
-    return Image(width, height, bytearray(read_exact(fd, width * height * 3, stop)))
+    source_w, source_h, x, y = width, height, 0, 0
+    if magic == b"DCP2":
+        source_w, source_h, x, y = struct.unpack("!4H", read_exact(fd, 8, stop))
+        if (not 0 < source_w <= 8192 or not 0 < source_h <= 4320 or
+                source_w * source_h > 16_777_216 or x + width > source_w or y + height > source_h):
+            raise ValueError("invalid capture geometry")
+    image = Image(width, height, bytearray(read_exact(fd, width * height * 3, stop)))
+    image.capture_origin = (x, y)
+    image.source_size = (source_w, source_h)
+    return image
 
 
 class Companion:
@@ -137,6 +149,7 @@ class Companion:
         self.thread = None
         self.generation = 0
         self.hint = None
+        self.region = None
 
     def configure(self, enabled, dictation, preset):
         with self.lock:
@@ -159,6 +172,7 @@ class Companion:
     def clear(self):
         self.context = self.sequence = self.advanced = None
         self.hint = None
+        self.region = None
 
     def ingest(self, frame, generation=None):
         with self.lock:
@@ -205,6 +219,8 @@ class Companion:
                 process.wait(timeout=2)
         if process.stdout:
             process.stdout.close()
+        if process.stdin:
+            process.stdin.close()
 
     def _fail(self, state, detail, generation=None):
         with self.lock:
@@ -275,17 +291,39 @@ class Companion:
                 continue
             try:
                 image = read_frame(fd, self.stop_event)
-                result = decode_image(image, hint=self.hint)
+                x, y = image.capture_origin
+                hint = None if self.hint is None else (self.hint[0] - x, self.hint[1] - y, self.hint[2])
+                result = decode_image(image, hint=hint, full_frame=True)
                 if result.status == "valid" and result.frame:
-                    self.hint = (*result.origin, result.cell_size)
+                    self.hint = (result.origin[0] + x, result.origin[1] + y, result.cell_size)
+                    self._request_region(image, result)
                     self.ingest(result.frame, generation)
-                elif self.snapshot() is None:
+                else:
+                    self._request_region(image, None)
                     with self.lock:
-                        self.state = "Stale" if self.advanced is not None else "Connecting"
+                        if self.snapshot() is None:
+                            self.state = "Stale" if self.advanced is not None else "Connecting"
+                        self.detail = "Strip not decoded. Keep it visible; check resolution, scaling and addon output."
             except InterruptedError:
                 break
             except (OSError, ValueError, EOFError):
                 self._fail("Error", "Incomplete or unavailable capture. Toggle off/on to retry.", generation)
+
+    def _request_region(self, image, result):
+        source_w, source_h = image.source_size
+        if result is None:
+            region = (source_w, source_h, 0, 0, source_w, source_h)
+        else:
+            x, y = image.capture_origin
+            left = max(0, int(result.origin[0] + x) - 4)
+            top = max(0, int(result.origin[1] + y) - 4)
+            rows = 6  # Maximum 265-byte packet: reserve room for future longer context.
+            region = (source_w, source_h, left, top,
+                      min(source_w - left, math.ceil(128 * result.cell_size) + 8),
+                      min(source_h - top, math.ceil(rows * result.cell_size) + 8))
+        if region != self.region and self.process.stdin:
+            os.write(self.process.stdin.fileno(), struct.pack("!4s6H", b"DCPR", *region))
+            self.region = region
 
     def close(self):
         self.stop_event.set()

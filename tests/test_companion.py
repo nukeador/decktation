@@ -143,6 +143,7 @@ def test_helper_launch_drops_identity_and_uses_session(monkeypatch, tmp_path):
         child = MagicMock(); child.wait.return_value = 0
         return child
     monkeypatch.setattr(runtime.subprocess, "Popen", spawn)
+    monkeypatch.setattr(runtime.os, "set_blocking", lambda *args: None)
     account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_dir="/home/deck", pw_name="deck")
     runtime.launch_helper(binary, account)
     assert calls[0][0][0][-1] == "--check-runtime"
@@ -227,6 +228,7 @@ def test_automatic_lifecycle_and_failure_does_not_retry(monkeypatch, tmp_path):
     ticks, checks, launches = [0.0], [], []
     present = [False]
     class Child:
+        stdin = None
         stdout = None
         returncode = 127
         def poll(self): return self.returncode
@@ -260,6 +262,7 @@ def test_game_exit_and_return_stop_and_start_new_session(monkeypatch, tmp_path):
     c.enabled = c.dictation = True
     class Child:
         def __init__(self):
+            self.stdin = None
             self.stdout = MagicMock(); self.stdout.fileno.return_value = 100
             self.terminated = False
         def poll(self): return 0 if self.terminated else None

@@ -1,6 +1,6 @@
 {
   "name": "decktation",
-  "version": "0.3.18-wow-companion.1",
+  "version": "0.3.18-wow-companion.2",
   "description": "Push-to-talk dictation for Steam Deck with context-aware transcription",
   "scripts": {
     "build": "shx rm -rf dist && rollup -c",
