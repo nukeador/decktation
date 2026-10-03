@@ -8,6 +8,7 @@ import ctypes
 import gc
 import os
 import json
+import re
 import time
 import queue
 import threading
@@ -20,6 +21,11 @@ import numpy as np
 import wave
 from audio_runtime import ensure_audio_environment
 from clipboard_injection import temporary_clipboard
+
+
+def _normalize_transcription_text(text):
+    """Correct Whisper's lowercase standalone English pronoun."""
+    return re.sub(r"\bi\b", "I", text)
 
 
 class WoWVoiceChat:
@@ -310,9 +316,19 @@ class WoWVoiceChat:
                 "Common short phrases: hi, gg, brb, afk, lol, omw, ty, np, wp, gz."
             )
 
+        # Extract preset hotwords if configured. Keep them as a list until the
+        # context hotwords have also been added.
+        preset_hotwords_raw = self.preset.get("hotwords") if self.preset else None
+        if isinstance(preset_hotwords_raw, list):
+            hotwords = [str(word).strip() for word in preset_hotwords_raw if str(word).strip()]
+        elif isinstance(preset_hotwords_raw, str):
+            hotwords = [preset_hotwords_raw.strip()] if preset_hotwords_raw.strip() else []
+        else:
+            hotwords = []
+
         # Only append dynamic game context if this preset uses a context file (e.g. WoW addon)
         if not self.preset.get("context_file"):
-            return base_prompt or None, None
+            return base_prompt or None, ", ".join(hotwords) or None
 
         zone = self.context.get("zone", "")
         subzone = self.context.get("subzone", "")
@@ -336,17 +352,13 @@ class WoWVoiceChat:
         else:
             initial_prompt = base_prompt
 
-        # Keep hotwords simple - just the most relevant current context
-        hotwords = []
-        if zone:
-            hotwords.append(zone)
-        if boss:
-            hotwords.append(boss)
-        if target:
-            hotwords.append(target)
-        hotwords_str = ", ".join(hotwords) if hotwords else None
+        # Preserve the context-derived hotwords used by existing presets while
+        # allowing user profiles to add their own vocabulary.
+        for contextual_hotword in (zone, boss, target):
+            if contextual_hotword and contextual_hotword not in hotwords:
+                hotwords.append(contextual_hotword)
 
-        return initial_prompt, hotwords_str
+        return initial_prompt, ", ".join(hotwords) or None
 
     def audio_callback(self, indata, frames, time_info, status):
         """Callback for audio recording"""
@@ -527,7 +539,7 @@ class WoWVoiceChat:
             full_text = []
             for segment in segments:
                 full_text.append(segment.text)
-            return "".join(full_text).strip()
+            return _normalize_transcription_text("".join(full_text).strip())
         except Exception as e:
             self._report_diagnostic("transcription.failed", e)
             raise

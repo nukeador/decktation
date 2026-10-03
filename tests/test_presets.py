@@ -21,7 +21,7 @@ PRESETS_FILE = os.path.join(os.path.dirname(__file__), "..", "defaults", "game_p
 class TestPresetsFile:
     """Validate game_presets.json has the expected structure for all presets."""
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def presets(self):
         with open(PRESETS_FILE) as f:
             return json.load(f)
@@ -186,3 +186,96 @@ class TestSetPreset:
         ch, text = svc.parse_channel_and_text("party hello")
         assert ch == "type"
         assert text == "party hello"
+
+
+# ---------------------------------------------------------------------------
+# User profile overrides in CONFIG_DIR
+# ---------------------------------------------------------------------------
+
+class TestUserProfileOverrides:
+    def test_user_profiles_override_existing_preset(self, tmp_path, monkeypatch):
+        import decktation_backend
+        monkeypatch.setattr(decktation_backend, "CONFIG_DIR", str(tmp_path))
+        user_profiles_file = tmp_path / "profiles.json"
+        user_profiles_file.write_text(json.dumps({
+            "wow": {
+                "whisper_prompt": "custom user prompt",
+                "hotwords": ["CustomHotword1", "CustomHotword2"]
+            }
+        }))
+
+        presets = decktation_backend._load_game_presets()
+        assert "wow" in presets
+        assert presets["wow"]["whisper_prompt"] == "custom user prompt"
+        assert presets["wow"]["hotwords"] == ["CustomHotword1", "CustomHotword2"]
+        # Default keys preserved
+        assert presets["wow"]["chat_open_key"] == "enter"
+
+    def test_channel_overrides_preserve_new_builtin_channels(self, tmp_path, monkeypatch):
+        import decktation_backend
+        monkeypatch.setattr(decktation_backend, "CONFIG_DIR", str(tmp_path))
+        (tmp_path / "profiles.json").write_text(json.dumps({
+            "wow": {
+                "channels": {"say": "/custom-say "}
+            }
+        }))
+
+        preset = decktation_backend._load_game_presets()["wow"]
+        assert preset["channels"]["say"] == "/custom-say "
+        assert preset["channels"]["reply"] == "/r "
+
+        service = WoWVoiceChat(preset=preset, lazy_load=True)
+        assert service.parse_channel_and_text("reply I am ready") == (
+            "reply",
+            "I am ready",
+        )
+
+    def test_profile_hotwords_extend_dynamic_context(self):
+        service = WoWVoiceChat(preset={
+            "whisper_prompt": "Game chat.",
+            "hotwords": ["Eorzea"],
+            "context_file": "game_context.json",
+        }, lazy_load=True)
+        service.context = {
+            "zone": "Azeroth",
+            "boss": "Illidan",
+            "target": "Akama",
+        }
+
+        prompt, hotwords = service.build_prompt_from_context()
+
+        assert prompt == "Game chat. Currently in Azeroth fighting Illidan."
+        assert hotwords == "Eorzea, Azeroth, Illidan, Akama"
+
+    def test_user_profiles_add_new_game(self, tmp_path, monkeypatch):
+        import decktation_backend
+        monkeypatch.setattr(decktation_backend, "CONFIG_DIR", str(tmp_path))
+        user_profiles_file = tmp_path / "profiles.json"
+        user_profiles_file.write_text(json.dumps({
+            "ffxiv": {
+                "name": "Final Fantasy XIV",
+                "chat_open_key": "enter",
+                "chat_send_key": "enter",
+                "default_channel": "say",
+                "channels": {"say": "/s ", "party": "/p "},
+                "whisper_prompt": "FFXIV chat."
+            }
+        }))
+
+        presets = decktation_backend._load_game_presets()
+        assert "ffxiv" in presets
+        assert presets["ffxiv"]["name"] == "Final Fantasy XIV"
+        assert "wow" in presets
+
+    def test_fallback_to_custom_presets_json(self, tmp_path, monkeypatch):
+        import decktation_backend
+        monkeypatch.setattr(decktation_backend, "CONFIG_DIR", str(tmp_path))
+        custom_file = tmp_path / "custom_presets.json"
+        custom_file.write_text(json.dumps({
+            "wow": {
+                "whisper_prompt": "legacy custom preset prompt"
+            }
+        }))
+
+        presets = decktation_backend._load_game_presets()
+        assert presets["wow"]["whisper_prompt"] == "legacy custom preset prompt"

@@ -18,10 +18,13 @@ The build writes the compiled panel to `dist/index.js`. Use `npm run watch` whil
 Install the test dependencies in a virtual environment, then run the unit tests:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install pytest sentry-sdk==2.66.0
-.venv/bin/pytest tests/ -v
+make test-setup
+make test
 ```
+
+`requirements-test.txt` includes both pytest and the Sentry SDK used by the
+telemetry tests, so this command runs the complete Python suite without test
+exclusions. Re-run `make test-setup` after the test requirements change.
 
 The CI workflow also runs the Cloudflare worker tests, Python compile checks, and the Decky package build. See [`.github/workflows/build.yml`](../.github/workflows/build.yml) for the current commands and artifact validation.
 
