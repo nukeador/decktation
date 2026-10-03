@@ -27,12 +27,13 @@ class FakeNumpy:
 
 
 class FakeModel:
-    def __init__(self):
+    def __init__(self, text="hello"):
         self.kwargs = None
+        self.text = text
 
     def transcribe(self, audio, **kwargs):
         self.kwargs = kwargs
-        return [SimpleNamespace(text="hello")], SimpleNamespace()
+        return [SimpleNamespace(text=self.text)], SimpleNamespace()
 
 
 class FakeWhisperCtor:
@@ -64,6 +65,26 @@ def test_transcription_defaults_auto_detect_and_transcribe(monkeypatch):
 
     assert service.model.kwargs["language"] is None
     assert service.model.kwargs["task"] == "transcribe"
+
+
+def test_transcription_capitalizes_standalone_i(monkeypatch):
+    monkeypatch.setattr(wow_voice_chat, "np", FakeNumpy)
+    service = WoWVoiceChat(lazy_load=True)
+    service.model = FakeModel("party i think i'm ready, i really do")
+    service._prepare_audio = lambda audio, sample_rate: FakeAudio([0.0, 0.1])
+
+    assert service.transcribe_audio([0.0, 0.1]) == (
+        "party I think I'm ready, I really do"
+    )
+
+
+def test_transcription_does_not_change_i_inside_words(monkeypatch):
+    monkeypatch.setattr(wow_voice_chat, "np", FakeNumpy)
+    service = WoWVoiceChat(lazy_load=True)
+    service.model = FakeModel("i use an iPhone in wiki raids")
+    service._prepare_audio = lambda audio, sample_rate: FakeAudio([0.0, 0.1])
+
+    assert service.transcribe_audio([0.0, 0.1]) == "I use an iPhone in wiki raids"
 
 
 def test_transcription_can_preselect_language(monkeypatch):
