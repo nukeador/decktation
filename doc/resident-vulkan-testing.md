@@ -19,3 +19,21 @@ against resident-vulkan-baseline.md. Check a single worker PID across recordings
 model switch, Auto Detect and explicit Spanish, then check no abandoned worker.
 The reported request time excludes audio preparation and text insertion; use
 controller release/insertion timestamps for comparison with the saved baseline.
+
+## resident.2 comparison
+
+Suppress preset example/prose prompts for all languages, including Auto Detect,
+even when old saved profiles contain them. Preserve explicit vocabulary and
+zone/boss/target names. Saved profiles are not edited. The WoW stock preset has
+no hotwords; without a context file it now sends an empty prompt.
+
+Same 5-second captured Spanish audio, 2026-10-05:
+- resident Auto + stock English examples: 11.854 s, incorrect text;
+- CLI Auto + examples: 10.606 s, incorrect text;
+- resident Auto without prompt: 1.136 s;
+- CLI Auto without prompt: 1.648 s;
+- resident Spanish without prompt: 0.797 s;
+- CLI Spanish without prompt: 1.242 s.
+Both no-prompt paths still rendered mazmorra as “más morra”. These are standalone
+request/subprocess times, not real PTT-to-insertion measurements. Hardware plugin
+validation of resident.2 is pending. Do not infer that prompts never help English.

@@ -244,7 +244,7 @@ class TestUserProfileOverrides:
 
         prompt, hotwords = service.build_prompt_from_context()
 
-        assert prompt == "Game chat. Currently in Azeroth fighting Illidan."
+        assert prompt is None
         assert hotwords == "Eorzea, Azeroth, Illidan, Akama"
 
     def test_user_profiles_add_new_game(self, tmp_path, monkeypatch):

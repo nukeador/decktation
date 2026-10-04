@@ -469,21 +469,6 @@ class WoWVoiceChat:
 
     def build_prompt_from_context(self):
         """Build initial_prompt and hotwords from context"""
-        base_prompt = self.preset.get("whisper_prompt") if self.preset else None
-
-        # Fall back to hardcoded WoW prompt when no preset is provided (direct CLI usage)
-        if base_prompt is None:
-            base_prompt = (
-                "World of Warcraft gameplay discussion. "
-                "Playing as orc warrior, tauren druid, blood elf paladin, undead warlock, troll shaman, or night elf hunter. "
-                "Discussing enhancement shaman, restoration druid, protection warrior, holy paladin, arcane mage, shadow priest, affliction warlock. "
-                "Running mythic dungeons, heroic raids, doing quests in Azeroth, Orgrimmar, Stormwind, Ironforge. "
-                "Fighting bosses like Lich King, Ragnaros, Illidan, pulling trash mobs, need tank healer and DPS. "
-                "Using abilities, cooldowns, buffs, debuffs, interrupts, dispels, cleave and AOE damage. "
-                "Chat channel prefixes: say, party, raid, guild, officer, yell, instance, whisper, reply, type. "
-                "Common short phrases: hi, gg, brb, afk, lol, omw, ty, np, wp, gz."
-            )
-
         # Extract preset hotwords if configured. Keep them as a list until the
         # context hotwords have also been added.
         preset_hotwords_raw = self.preset.get("hotwords") if self.preset else None
@@ -494,38 +479,14 @@ class WoWVoiceChat:
         else:
             hotwords = []
 
-        # English game prompts bias non-English transcription heavily. Keep
-        # language-neutral vocabulary, but omit the prose prompt when the user
-        # explicitly selects a non-English language.
-        use_prompt = not self.transcription_language
-
-        # Only append dynamic game context if this preset uses a context file (e.g. WoW addon)
+        # Experimental comparison: do not send prose/example messages, even
+        # if a saved preset still contains the old English whisper_prompt.
+        # Preserve explicitly configured vocabulary and actual game names.
         if not self.preset.get("context_file"):
-            return (base_prompt or None) if use_prompt else None, ", ".join(hotwords) or None
-
+            return None, ", ".join(hotwords) or None
         zone = self.context.get("zone", "")
-        subzone = self.context.get("subzone", "")
         boss = self.context.get("boss", "")
         target = self.context.get("target", "")
-        party = self.context.get("party", [])
-
-        # Add dynamic context to the prompt
-        dynamic_parts = []
-        if zone:
-            dynamic_parts.append(f"Currently in {zone}")
-        if subzone:
-            dynamic_parts.append(f"at {subzone}")
-        if boss:
-            dynamic_parts.append(f"fighting {boss}")
-        if party:
-            dynamic_parts.append(f"with party members {', '.join(party[:5])}")
-
-        if not use_prompt:
-            initial_prompt = None
-        elif dynamic_parts:
-            initial_prompt = base_prompt + " " + " ".join(dynamic_parts) + "."
-        else:
-            initial_prompt = base_prompt
 
         # Preserve the context-derived hotwords used by existing presets while
         # allowing user profiles to add their own vocabulary.
@@ -533,7 +494,7 @@ class WoWVoiceChat:
             if contextual_hotword and contextual_hotword not in hotwords:
                 hotwords.append(contextual_hotword)
 
-        return initial_prompt, ", ".join(hotwords) or None
+        return None, ", ".join(hotwords) or None
 
     def audio_callback(self, indata, frames, time_info, status):
         """Callback for audio recording"""
