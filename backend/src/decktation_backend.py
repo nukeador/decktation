@@ -123,7 +123,10 @@ logger.info(f"Current working directory: {os.getcwd()}")
 # Import our voice chat service
 WoWVoiceChat = None
 try:
+    import wow_voice_chat
+    wow_voice_chat.logger = logger
     from wow_voice_chat import WoWVoiceChat
+    logger.info("Voice service source: %s", wow_voice_chat.__file__)
     logger.info("Successfully imported WoWVoiceChat")
 except ImportError as e:
     logger.error(f"Failed to import WoWVoiceChat: {e}")
@@ -153,6 +156,7 @@ DEFAULT_BUTTON_CONFIG = {
     "showNotifications": True,
     "hapticFeedback": False,
     "recordingMode": "hold",
+    "recordingIndicator": "toast",
     "enabled": False,
     "game": "wow",
     "confirmMode": False,
@@ -166,6 +170,7 @@ DEFAULT_BUTTON_CONFIG = {
 }
 
 SUPPORTED_WHISPER_MODEL_SIZES = {"base", "small", "medium"}
+SUPPORTED_RECORDING_INDICATORS = {"toast", "overlay", "none"}
 
 SUPPORTED_WHISPER_LANGUAGES = {
     "af", "am", "ar", "as", "az", "ba", "be", "bg", "bn", "bo", "br",
@@ -197,19 +202,37 @@ def _normalize_model_size(model_size):
     return model_size
 
 
+def _normalize_recording_indicator(indicator):
+    indicator = (indicator or "toast").strip().lower()
+    if indicator not in SUPPORTED_RECORDING_INDICATORS:
+        raise ValueError(f"Unsupported recording indicator: {indicator}")
+    return indicator
+
+
 def _read_button_config():
     config = dict(DEFAULT_BUTTON_CONFIG)
+    saved_config = {}
     if os.path.exists(BUTTON_CONFIG_FILE):
         with open(BUTTON_CONFIG_FILE, "r") as config_file:
             saved_config = json.load(config_file)
         if isinstance(saved_config, dict):
             config.update(saved_config)
 
+    # Pre-overlay versions used one boolean for recording and confirmation
+    # toasts. Preserve that preference when the new setting is first read.
+    if "recordingIndicator" not in saved_config:
+        config["recordingIndicator"] = (
+            "toast" if config.get("showNotifications", True) else "none"
+        )
+
     config["transcriptionLanguage"] = _normalize_transcription_language(
         config.get("transcriptionLanguage")
     )
     config["modelSize"] = _normalize_model_size(config.get("modelSize"))
     config["wowCompanionEnabled"] = config.get("wowCompanionEnabled") is True
+    config["recordingIndicator"] = _normalize_recording_indicator(
+        config.get("recordingIndicator")
+    )
     config["translateToEnglish"] = False
     return config
 
@@ -224,19 +247,80 @@ def _write_button_config(config):
         normalized_config.get("modelSize")
     )
     normalized_config["wowCompanionEnabled"] = normalized_config.get("wowCompanionEnabled") is True
+    if "recordingIndicator" not in config:
+        normalized_config["recordingIndicator"] = "toast" if config.get("showNotifications", True) else "none"
+    normalized_config["recordingIndicator"] = _normalize_recording_indicator(
+        normalized_config.get("recordingIndicator")
+    )
+    # Keep old frontends/config readers compatible with the new modes.
+    normalized_config["showNotifications"] = (
+        normalized_config["recordingIndicator"] != "none"
+    )
     normalized_config["translateToEnglish"] = False
     with open(BUTTON_CONFIG_FILE, "w") as config_file:
         json.dump(normalized_config, config_file)
     return normalized_config
 
+USER_PROFILES_FILE = os.path.join(CONFIG_DIR, "profiles.json")
+
+
+def _merge_game_profile(default_profile, user_profile):
+    """Merge a user profile without discarding built-in channel additions."""
+    merged = dict(default_profile)
+    merged.update(user_profile)
+
+    default_channels = default_profile.get("channels")
+    user_channels = user_profile.get("channels")
+    if isinstance(default_channels, dict) and isinstance(user_channels, dict):
+        merged["channels"] = {**default_channels, **user_channels}
+
+    return merged
+
+
+def _load_game_presets():
+    """Load default game presets and merge user profile overrides from CONFIG_DIR."""
+    presets = {}
+    if os.path.exists(PRESETS_FILE):
+        try:
+            with open(PRESETS_FILE, "r") as f:
+                presets = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load default game presets from {PRESETS_FILE}: {e}")
+
+    # Check for user profile overrides in CONFIG_DIR
+    user_file = None
+    for candidate in [
+        os.path.join(CONFIG_DIR, "profiles.json"),
+        os.path.join(CONFIG_DIR, "custom_presets.json"),
+        os.path.join(CONFIG_DIR, "game_presets.json"),
+    ]:
+        if os.path.exists(candidate):
+            user_file = candidate
+            break
+
+    if user_file:
+        try:
+            with open(user_file, "r") as f:
+                user_profiles = json.load(f)
+            if isinstance(user_profiles, dict):
+                for game_key, profile_data in user_profiles.items():
+                    if isinstance(profile_data, dict):
+                        if game_key in presets and isinstance(presets[game_key], dict):
+                            presets[game_key] = _merge_game_profile(
+                                presets[game_key], profile_data
+                            )
+                        else:
+                            presets[game_key] = profile_data
+                logger.info(f"Loaded user profile overrides from {user_file}")
+        except Exception as e:
+            logger.error(f"Failed to load user profiles from {user_file}: {e}")
+
+    logger.info(f"Loaded {len(presets)} game presets: {list(presets.keys())}")
+    return presets
+
+
 # Load game presets
-_game_presets = {}
-try:
-    with open(PRESETS_FILE, 'r') as f:
-        _game_presets = json.load(f)
-    logger.info(f"Loaded {len(_game_presets)} game presets: {list(_game_presets.keys())}")
-except Exception as e:
-    logger.error(f"Failed to load game presets: {e}")
+_game_presets = _load_game_presets()
 
 
 class Plugin:
@@ -596,8 +680,13 @@ class Plugin:
             except Exception as e:
                 logger.error(f"Error reading settings from config: {e}")
 
+            global _game_presets
+            _game_presets = _load_game_presets()
             Plugin.recording_overlay = RecordingOverlay(
-                plugin_path, logger, enabled=saved_config.get("showNotifications", True)
+                plugin_path,
+                logger,
+                decky_user_home=getattr(decky, "DECKY_USER_HOME", None),
+                enabled=saved_config.get("recordingIndicator") == "overlay",
             )
             Plugin.recording_gesture = RecordingGesture(saved_config.get("recordingMode", "hold") if saved_config.get("recordingMode", "hold") in MODES else "hold")
             Plugin.recording_input_since = time.monotonic()
@@ -751,6 +840,9 @@ class Plugin:
             except Exception as e:
                 logger.error(f"Error saving enabled state: {e}")
 
+            if not enabled and Plugin.recording_overlay:
+                Plugin.recording_overlay.hide()
+
             if not enabled and Plugin.voice_service:
                 try:
                     aborted = await asyncio.to_thread(Plugin.voice_service.abort_recording)
@@ -866,14 +958,14 @@ class Plugin:
         if result.get("phase") == "captured":
             write_json(os.path.join(CONFIG_DIR, "binding_capture_request.json"), {
                 "session": session, "deadline": Plugin.binding_deadline, "cancelled": True})
-            saved = await Plugin.set_button_config(None, result["buttons"], _read_button_config().get("showNotifications", True))
+            saved = await Plugin.set_button_config(None, result["buttons"])
             Plugin.binding_session = None
             return {**result, **saved, "phase": "saved" if saved["success"] else "cancelled"}
         if result.get("phase") == "cancelled":
             await Plugin.cancel_binding_capture(None, session)
         return {"success": True, **result}
 
-    async def set_button_config(self, buttons: list, showNotifications: bool = True):
+    async def set_button_config(self, buttons: list, showNotifications: bool = None):
         """Set button configuration and settings, restart listener"""
         try:
             # Validate buttons list
@@ -894,14 +986,13 @@ class Plugin:
             config = _read_button_config()
 
             config["buttons"] = unique_buttons
-            config["showNotifications"] = showNotifications
 
             _write_button_config(config)
-            if Plugin.recording_overlay:
-                Plugin.recording_overlay.set_enabled(showNotifications)
+            if showNotifications is not None:
+                await Plugin.set_recording_indicator(self, "overlay" if showNotifications else "none")
 
             combo_str = "+".join(unique_buttons)
-            logger.info(f"Button config updated: {combo_str}, notifications: {showNotifications}")
+            logger.info(f"Button config updated: {combo_str}")
 
             # Always restart controller listener so new config takes effect immediately
             Plugin.stop_controller_listener()
@@ -910,6 +1001,21 @@ class Plugin:
             return {"success": True}
         except Exception as e:
             logger.error(f"Error setting button config: {traceback.format_exc()}")
+            return {"success": False, "error": str(e)}
+
+    async def set_recording_indicator(self, mode: str):
+        """Select toast, Gamescope overlay, or no recording cue."""
+        try:
+            mode = _normalize_recording_indicator(mode)
+            config = _read_button_config()
+            config["recordingIndicator"] = mode
+            _write_button_config(config)
+            if Plugin.recording_overlay:
+                Plugin.recording_overlay.set_enabled(mode == "overlay")
+            logger.info(f"Recording indicator set to {mode}")
+            return {"success": True, "mode": mode}
+        except Exception as e:
+            logger.error(f"Error setting recording indicator: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
 
     async def set_confirm_mode(self, enabled: bool):
@@ -1030,7 +1136,9 @@ class Plugin:
     async def get_presets(self):
         """Get all available game presets"""
         try:
-            presets = [{"id": k, "name": v["name"]} for k, v in _game_presets.items()]
+            global _game_presets
+            _game_presets = _load_game_presets()
+            presets = [{"id": k, "name": v.get("name", k)} for k, v in _game_presets.items()]
             return {"success": True, "presets": presets}
         except Exception as e:
             logger.error(f"Error getting presets: {traceback.format_exc()}")
@@ -1049,6 +1157,8 @@ class Plugin:
     async def set_active_preset(self, game: str):
         """Switch to a different game preset"""
         try:
+            global _game_presets
+            _game_presets = _load_game_presets()
             if game not in _game_presets:
                 return {"success": False, "error": f"Unknown preset: {game}"}
 
@@ -1211,6 +1321,10 @@ class Plugin:
                     "state": "Disabled", "age_seconds": None, "vocabulary_count": 0, "detail": ""},
                 "service_ready": Plugin.voice_service is not None,
                 "model_ready": model_ready,
+                "inference_device": (
+                    "gpu" if Plugin.voice_service and Plugin.voice_service.gpu_enabled else
+                    "cpu" if Plugin.voice_service and Plugin.voice_service.model is not None else None
+                ),
                 "model_loading": model_loading,
                 "recording": Plugin.voice_service.is_recording if Plugin.voice_service else False,
                 "recording_start_count": Plugin.recording_start_count,

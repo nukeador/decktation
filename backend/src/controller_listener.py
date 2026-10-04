@@ -50,6 +50,15 @@ STEAM_CONTROLLER_TYPES = {
     "0003:000028DE:00001102": "steam_controller_wired",
     "0003:000028DE:00001142": "steam_controller_wireless",
 }
+for product, kind, suffixes, bus in (
+    (0x1304, 'steam_controller_2026_puck', tuple(f'/input{i}' for i in range(2, 6)), 3),
+    (0x1305, 'steam_controller_2026_receiver', tuple(f'/input{i}' for i in range(2, 6)), 3),
+    (0x1302, 'steam_controller_2026_wired', ('/input0', '/input1', '/input2'), 3),
+    (0x1303, 'steam_controller_2026_bluetooth', None, 5),
+):
+    hid_id = f'{bus:04X}:000028DE:{product:08X}'
+    STEAM_HID_INTERFACES[hid_id] = suffixes
+    STEAM_CONTROLLER_TYPES[hid_id] = kind
 
 for product, kind, suffixes, bus in (
     (0x1304, 'steam_controller_2026_puck', tuple(f'/input{i}' for i in range(2, 6)), 3),

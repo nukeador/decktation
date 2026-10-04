@@ -49,6 +49,7 @@ const setConfirmModeRpc = callable<[enabled: boolean], RpcResponse>("set_confirm
 const setManualSendRpc = callable<[enabled: boolean], RpcResponse>("set_manual_send");
 const setRememberLastChannelRpc = callable<[enabled: boolean], RpcResponse>("set_remember_last_channel");
 const setShareDiagnosticsRpc = callable<[enabled: boolean], RpcResponse>("set_share_diagnostics");
+const setRecordingIndicatorRpc = callable<[mode: string], RpcResponse>("set_recording_indicator");
 const setHapticFeedbackRpc = callable<[enabled: boolean], RpcResponse>("set_haptic_feedback");
 const setWowCompanionRpc = callable<[enabled: boolean], RpcResponse>("set_wow_companion_enabled");
 const setActivePresetRpc = callable<[game: string], RpcResponse>("set_active_preset");
@@ -66,6 +67,7 @@ class DecktationLogic {
 	enabled: boolean = false;
 	recording: boolean = false;
 	showNotifications: boolean = true;
+ recordingIndicator: string = "toast";
 	prevRecordingStartCount: number = 0;
 	prevPendingText: string = "";
 	lastPendingToastId: number = -1;
@@ -309,7 +311,9 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [controllerComboSupported, setControllerComboSupported] = useState<boolean>(true);
 	const [recordingMode, setRecordingMode] = useState<"hold" | "tap">("hold");
 	const [buttons, setButtons] = useState<string[]>(["L1", "R1"]);
-	const [showNotifications, setShowNotifications] = useState<boolean>(true);
+	const [recordingIndicator, setRecordingIndicator] = useState<string>("toast");
+ const [inferenceDevice, setInferenceDevice] = useState<string | null>(null);
+ const [showNotifications, setShowNotifications] = useState<boolean>(true);
 	const [hapticFeedback, setHapticFeedback] = useState<boolean>(false);
 	const [activePreset, setActivePreset] = useState<string>("wow");
 	const [presets, setPresets] = useState<DropdownOption[]>([]);
@@ -341,7 +345,10 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					if (config.buttons) {
 						setButtons(config.buttons);
 					}
-					if (config.showNotifications !== undefined) {
+					const indicator = config.recordingIndicator || (config.showNotifications === false ? "none" : "overlay");
+                    setRecordingIndicator(indicator);
+                    logic.recordingIndicator = indicator;
+                    if (config.showNotifications !== undefined) {
 						setShowNotifications(config.showNotifications);
 						logic.showNotifications = config.showNotifications;
 					}
@@ -409,6 +416,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					setControllerComboSupported(result.controller_combo_supported !== false);
 					setServiceReady(result.service_ready);
 					setModelReady(result.model_ready);
+                    setInferenceDevice(result.inference_device || null);
 					setModelLoading(result.model_loading);
 					setInputReady(result.input_ready !== false);
 					if (logic.enabled) {
@@ -687,14 +695,14 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
 					</PanelSection>}
 					<PanelSection title="Feedback">
-						<PanelSectionRow><ToggleField label="Recording feedback" description="In-game recording indicator and send confirmations" checked={showNotifications}
-							onChange={async (next) => {
-								setShowNotifications(next);
-								logic.showNotifications = next;
-								if (!next && confirmMode) { setConfirmMode(false); await setConfirmModeRpc(false); }
-								await setButtonConfig(buttons, next);
-							}} /></PanelSectionRow>
-						<PanelSectionRow><ToggleField label="Haptic feedback" description="Cues on the controller used to start recording"
+						<PanelSectionRow><DropdownItem label="Recording indicator" selectedOption={recordingIndicator}
+ options={[{label: "Steam notification", data: "toast"}, {label: "In-game overlay", data: "overlay"}, {label: "Off", data: "none"}]}
+ onChange={async (option) => {
+ const result = await setRecordingIndicatorRpc(option.data);
+ if (result.success) { setRecordingIndicator(option.data); logic.recordingIndicator = option.data; setShowNotifications(option.data !== "none"); logic.showNotifications = option.data !== "none"; }
+ else setRpcError(result.error || "Could not update recording indicator");
+ }} /></PanelSectionRow>
+ <PanelSectionRow><ToggleField label="Haptic feedback" description="Cues on the controller used to start recording"
 							checked={hapticFeedback} onChange={async (next) => {
 								const result = await setHapticFeedbackRpc(next);
 								if (result.success) setHapticFeedback(next);
@@ -711,7 +719,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						<PanelSectionRow><div>Held buttons: <strong>{buttonState}</strong></div></PanelSectionRow>
 						<PanelSectionRow><div>Keyboard helper: {inputReady ? "Ready" : "Unavailable"}</div></PanelSectionRow>
 						<PanelSectionRow><div>Backend: {serviceReady ? "Ready" : "Unavailable"}</div></PanelSectionRow>
-						<PanelSectionRow><div>Model: {modelLoading ? "Loading" : modelReady ? "Ready" : "Unavailable"}</div></PanelSectionRow>
+						<PanelSectionRow><div>Model: {modelLoading ? "Loading" : modelReady ? "Ready" : "Unavailable"}{inferenceDevice ? ` · ${inferenceDevice === "gpu" ? "Vulkan GPU" : "CPU"}` : ""}</div></PanelSectionRow>
 						{(statusError || rpcError) && <PanelSectionRow><div role="alert">{statusError || rpcError}</div></PanelSectionRow>}
 					</PanelSection>
 					<PanelSection title="Diagnostics sharing">
@@ -795,6 +803,7 @@ export default definePlugin(() => {
 			const result = await getStatus();
 			if (result.success) {
 				const startCount: number = result.recording_start_count || 0;
+                if (logic.recordingIndicator === "toast" && startCount > logic.prevRecordingStartCount) logic.notify("Recording", 1500, "Recording...");
 				logic.prevRecordingStartCount = startCount;
 				if (logic.showNotifications) {
 					const pendingText: string = result.pending_text || "";

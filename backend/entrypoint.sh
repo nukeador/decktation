@@ -51,6 +51,7 @@ if ! find out/python -type f -name '*cpython-311*' | grep -q .; then
 fi
 
 cp /ydotool-build/ydotool /ydotool-build/ydotoold out/
+cp /whisper.cpp/build/bin/whisper-cli out/
 cp /usr/bin/xclip out/
 cp -L /usr/lib/libportaudio.so.2 out/lib/libportaudio.so.2
 cp /ydotool-src/LICENSE out/licenses/ydotool-AGPL-3.0.txt

@@ -5,7 +5,7 @@
 
     var React__default = /*#__PURE__*/_interopDefaultLegacy(React);
 
-    var _manifest = {"name":"Decktation","version":"0.3.18-wow-companion.2","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.18-dev.overlay.1","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -133,17 +133,19 @@
     const setManualSendRpc = callable("set_manual_send");
     const setRememberLastChannelRpc = callable("set_remember_last_channel");
     const setShareDiagnosticsRpc = callable("set_share_diagnostics");
+    const setRecordingIndicatorRpc = callable("set_recording_indicator");
     const setHapticFeedbackRpc = callable("set_haptic_feedback");
     const setWowCompanionRpc = callable("set_wow_companion_enabled");
     const setActivePresetRpc = callable("set_active_preset");
     const setModelSizeRpc = callable("set_model_size");
     const setTranscriptionOptionsRpc = callable("set_transcription_options");
-    const setButtonConfig = callable("set_button_config");
+    callable("set_button_config");
     class DecktationLogic {
         constructor() {
             this.enabled = false;
             this.recording = false;
             this.showNotifications = true;
+            this.recordingIndicator = "toast";
             this.prevRecordingStartCount = 0;
             this.prevPendingText = "";
             this.lastPendingToastId = -1;
@@ -376,6 +378,8 @@
         const [controllerComboSupported, setControllerComboSupported] = React.useState(true);
         const [recordingMode, setRecordingMode] = React.useState("hold");
         const [buttons, setButtons] = React.useState(["L1", "R1"]);
+        const [recordingIndicator, setRecordingIndicator] = React.useState("toast");
+        const [inferenceDevice, setInferenceDevice] = React.useState(null);
         const [showNotifications, setShowNotifications] = React.useState(true);
         const [hapticFeedback, setHapticFeedback] = React.useState(false);
         const [activePreset, setActivePreset] = React.useState("wow");
@@ -406,6 +410,9 @@
                         if (config.buttons) {
                             setButtons(config.buttons);
                         }
+                        const indicator = config.recordingIndicator || (config.showNotifications === false ? "none" : "overlay");
+                        setRecordingIndicator(indicator);
+                        logic.recordingIndicator = indicator;
                         if (config.showNotifications !== undefined) {
                             setShowNotifications(config.showNotifications);
                             logic.showNotifications = config.showNotifications;
@@ -473,6 +480,7 @@
                         setControllerComboSupported(result.controller_combo_supported !== false);
                         setServiceReady(result.service_ready);
                         setModelReady(result.model_ready);
+                        setInferenceDevice(result.inference_device || null);
                         setModelLoading(result.model_loading);
                         setInputReady(result.input_ready !== false);
                         if (logic.enabled) {
@@ -791,14 +799,16 @@
                             React__default["default"].createElement("div", { role: "alert" }, rpcError))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Feedback" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Recording feedback", description: "In-game recording indicator and send confirmations", checked: showNotifications, onChange: async (next) => {
-                                    setShowNotifications(next);
-                                    logic.showNotifications = next;
-                                    if (!next && confirmMode) {
-                                        setConfirmMode(false);
-                                        await setConfirmModeRpc(false);
+                            React__default["default"].createElement(DropdownItem, { label: "Recording indicator", selectedOption: recordingIndicator, options: [{ label: "Steam notification", data: "toast" }, { label: "In-game overlay", data: "overlay" }, { label: "Off", data: "none" }], onChange: async (option) => {
+                                    const result = await setRecordingIndicatorRpc(option.data);
+                                    if (result.success) {
+                                        setRecordingIndicator(option.data);
+                                        logic.recordingIndicator = option.data;
+                                        setShowNotifications(option.data !== "none");
+                                        logic.showNotifications = option.data !== "none";
                                     }
-                                    await setButtonConfig(buttons, next);
+                                    else
+                                        setRpcError(result.error || "Could not update recording indicator");
                                 } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Haptic feedback", description: "Cues on the controller used to start recording", checked: hapticFeedback, onChange: async (next) => {
@@ -835,7 +845,8 @@
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
                                 "Model: ",
-                                modelLoading ? "Loading" : modelReady ? "Ready" : "Unavailable")),
+                                modelLoading ? "Loading" : modelReady ? "Ready" : "Unavailable",
+                                inferenceDevice ? ` · ${inferenceDevice === "gpu" ? "Vulkan GPU" : "CPU"}` : "")),
                         (statusError || rpcError) && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { role: "alert" }, statusError || rpcError))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Diagnostics sharing" },
@@ -939,6 +950,8 @@
                 const result = await getStatus();
                 if (result.success) {
                     const startCount = result.recording_start_count || 0;
+                    if (logic.recordingIndicator === "toast" && startCount > logic.prevRecordingStartCount)
+                        logic.notify("Recording", 1500, "Recording...");
                     logic.prevRecordingStartCount = startCount;
                     if (logic.showNotifications) {
                         const pendingText = result.pending_text || "";

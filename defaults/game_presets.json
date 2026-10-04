@@ -13,11 +13,13 @@
       "yell": "/y ",
       "instance": "/i ",
       "whisper": "/w ",
+      "reply": "/r ",
       "type": "",
       "alert": "/rw "
     },
-    "whisper_prompt": "World of Warcraft gameplay discussion. Playing as orc warrior, tauren druid, blood elf paladin, undead warlock, troll shaman, or night elf hunter. Discussing enhancement shaman, restoration druid, protection warrior, holy paladin, arcane mage, shadow priest, affliction warlock. Running mythic dungeons, heroic raids, doing quests in Azeroth, Orgrimmar, Stormwind, Ironforge. Fighting bosses like Lich King, Ragnaros, Illidan, pulling trash mobs, need tank healer and DPS. Using abilities, cooldowns, buffs, debuffs, interrupts, dispels, cleave and AOE damage. Chat channel prefixes: say, party, raid, guild, officer, yell, instance, whisper, type, alert. Common short phrases: hi, gg, brb, afk, lol, omw, ty, np, wp, gz.",
-    "context_file": "wow_context.json"
+    "whisper_prompt": "say hello!\nsay hello everyone!\nparty let's go!\nraid stack on the boss!\nguild anyone for a dungeon?\ngeneral tank lfg sfk\ngeneral does anyone know where to find Mankrik's wife?\ngeneral anyone seen the messenger?\ngeneral looking for group\ntrade wtb silk cloth\ntrade selling linen bags at ironforge\nlocal defense crossroads under attack!\ndoing quests in azeroth\nthanks for the heal!\nwait for mana\ngive me a sec brb\nomw now!\nwatch out for adds!\ncan i get a rez please?\nty!\nthx\nhaha lol\nnice!\nready to pull!\nslash readycheck\nslash dance\nslash invite\nslash reload\ngg!\nwp!\nnp!\nthanks!\nhaha",
+    "context_file": "wow_context.json",
+    "casual_case": true
   },
   "guildwars2": {
     "name": "Guild Wars 2",
@@ -41,7 +43,8 @@
       "whisper": "/w ",
       "type": ""
     },
-    "whisper_prompt": "Guild Wars 2 gameplay discussion. Playing professions such as guardian, warrior, revenant, ranger, thief, engineer, mesmer, elementalist, and necromancer. Discussing raids, strike missions, fractals, dungeons, world bosses, meta events, structured PvP, World versus World, commanders, squads, parties, subgroups, boons, conditions, breakbars, crowd control, waypoints, and mastery points. Locations include Tyria, Lion's Arch, Divinity's Reach, Hoelbrak, Rata Sum, the Black Citadel, the Grove, Heart of Maguuma, Crystal Desert, Cantha, and Janthir. Chat channel prefixes: say, map, party, squad, raid, team, guild, guild one, guild two, guild three, guild four, guild five, guild six, whisper, type. Common short phrases: hi, gg, brb, afk, lol, omw, ty, np, wp, ready, stack, spread, dodge, break bar, waypoint, commander, tag, and LFG."
+    "whisper_prompt": "Guild Wars 2 gameplay discussion. Playing professions such as guardian, warrior, revenant, ranger, thief, engineer, mesmer, elementalist, and necromancer. Discussing raids, strike missions, fractals, dungeons, world bosses, meta events, structured PvP, World versus World, commanders, squads, parties, subgroups, boons, conditions, breakbars, crowd control, waypoints, and mastery points. Locations include Tyria, Lion's Arch, Divinity's Reach, Hoelbrak, Rata Sum, the Black Citadel, the Grove, Heart of Maguuma, Crystal Desert, Cantha, and Janthir. Chat channel prefixes: say, map, party, squad, raid, team, guild, guild one, guild two, guild three, guild four, guild five, guild six, whisper, type. Common short phrases: hi, gg, brb, afk, lol, omw, ty, np, wp, ready, stack, spread, dodge, break bar, waypoint, commander, tag, and LFG.",
+    "casual_case": true
   },
   "generic": {
     "name": "Generic",
@@ -51,6 +54,7 @@
     "channels": {
       "type": ""
     },
-    "whisper_prompt": ""
+    "whisper_prompt": "",
+    "casual_case": false
   }
 }

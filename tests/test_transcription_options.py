@@ -27,12 +27,13 @@ class FakeNumpy:
 
 
 class FakeModel:
-    def __init__(self):
+    def __init__(self, text="hello"):
         self.kwargs = None
+        self.text = text
 
     def transcribe(self, audio, **kwargs):
         self.kwargs = kwargs
-        return [SimpleNamespace(text="hello")], SimpleNamespace()
+        return [SimpleNamespace(text=self.text)], SimpleNamespace()
 
 
 class FakeWhisperCtor:
@@ -66,6 +67,26 @@ def test_transcription_defaults_auto_detect_and_transcribe(monkeypatch):
     assert service.model.kwargs["task"] == "transcribe"
 
 
+def test_transcription_capitalizes_standalone_i(monkeypatch):
+    monkeypatch.setattr(wow_voice_chat, "np", FakeNumpy)
+    service = WoWVoiceChat(lazy_load=True)
+    service.model = FakeModel("party i think i'm ready, i really do")
+    service._prepare_audio = lambda audio, sample_rate: FakeAudio([0.0, 0.1])
+
+    assert service.transcribe_audio([0.0, 0.1]) == (
+        "party I think I'm ready, I really do"
+    )
+
+
+def test_transcription_does_not_change_i_inside_words(monkeypatch):
+    monkeypatch.setattr(wow_voice_chat, "np", FakeNumpy)
+    service = WoWVoiceChat(lazy_load=True)
+    service.model = FakeModel("i use an iPhone in wiki raids")
+    service._prepare_audio = lambda audio, sample_rate: FakeAudio([0.0, 0.1])
+
+    assert service.transcribe_audio([0.0, 0.1]) == "I use an iPhone in wiki raids"
+
+
 def test_transcription_can_preselect_language(monkeypatch):
     monkeypatch.setattr(wow_voice_chat, "np", FakeNumpy)
     service = WoWVoiceChat(
@@ -81,12 +102,16 @@ def test_transcription_can_preselect_language(monkeypatch):
     assert service.model.kwargs["task"] == "transcribe"
 
 
-def test_non_english_transcription_skips_english_prompt_bias(monkeypatch):
+def test_non_english_transcription_skips_english_prompt_but_keeps_hotwords(monkeypatch):
     monkeypatch.setattr(wow_voice_chat, "np", FakeNumpy)
     service = WoWVoiceChat(
         lazy_load=True,
         transcription_language="fa",
-        preset={"whisper_prompt": "English-only prompt", "context_file": "wow_context.json"},
+        preset={
+            "whisper_prompt": "English-only prompt",
+            "hotwords": ["Sylvanas"],
+            "context_file": "wow_context.json",
+        },
     )
     service.model = FakeModel()
     service._prepare_audio = lambda audio, sample_rate: FakeAudio([0.0, 0.1])
@@ -98,7 +123,20 @@ def test_non_english_transcription_skips_english_prompt_bias(monkeypatch):
     assert service.model.kwargs["language"] == "fa"
     assert service.model.kwargs["task"] == "transcribe"
     assert service.model.kwargs["initial_prompt"] is None
-    assert service.model.kwargs["hotwords"] is None
+    assert service.model.kwargs["hotwords"] == "Sylvanas, Azeroth, Illidan"
+
+
+def test_setting_auto_language_restores_prompt_context():
+    service = WoWVoiceChat(
+        lazy_load=True,
+        transcription_language="es",
+        preset={"whisper_prompt": "Game chat"},
+    )
+
+    service.set_transcription_options("auto")
+
+    assert service.transcription_language is None
+    assert service.build_prompt_from_context() == ("Game chat", None)
 
 
 def test_model_load_uses_selected_model_size(monkeypatch):
