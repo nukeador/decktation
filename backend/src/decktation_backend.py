@@ -34,6 +34,7 @@ for dependency_path in dependency_paths:
         logger.info(f"Added dependency path: {dependency_path}")
 
 from audio_runtime import ensure_audio_environment, setup_audio_environment
+from recording_mode import RecordingGesture, EventCursor, MODES
 from haptic_feedback import HapticFeedback
 from binding_capture import read_json, write_json
 from deck_hid import STEAM_DECK_BUTTON_BITS
@@ -150,6 +151,7 @@ DEFAULT_BUTTON_CONFIG = {
     "buttons": ["L1", "R1"],
     "showNotifications": True,
     "hapticFeedback": False,
+    "recordingMode": "hold",
     "recordingIndicator": "toast",
     "enabled": False,
     "game": "wow",
@@ -323,6 +325,8 @@ class Plugin:
     controller_enabled = False
     binding_session = None
     binding_deadline = 0
+    recording_gesture = RecordingGesture()
+    recording_input_since = time.monotonic()
     # Serializes recording starts with disable requests to close the press/disable race.
     controller_lock = threading.Lock()
     # Serializes complete enable/disable transitions so an older disable cannot
@@ -338,6 +342,8 @@ class Plugin:
     def _set_controller_enabled(enabled):
         with Plugin.controller_lock:
             Plugin.controller_enabled = bool(enabled)
+            Plugin.recording_gesture.reset()
+            Plugin.recording_input_since = time.monotonic()
 
     @staticmethod
     def _controller_type():
@@ -533,83 +539,88 @@ class Plugin:
             logger.error(f"Error stopping controller listener: {e}")
 
     @staticmethod
+    def _handle_recording_event(event):
+        """Called under controller_lock; recording RPCs share this lock."""
+        gesture = Plugin.recording_gesture
+        voice = Plugin.voice_service
+        if event['kind'] == 'cancel':
+            if gesture.feed('cancel', event['time']) == 'abort' and voice:
+                voice.abort_recording()
+                if Plugin.haptic_feedback:
+                    Plugin.haptic_feedback.end_session()
+                if Plugin.recording_overlay:
+                    Plugin.recording_overlay.hide()
+                Plugin._finish_dictation_trace(False)
+            return
+        if (not Plugin.controller_enabled or not voice or
+                (Plugin.binding_session and time.time() < Plugin.binding_deadline) or
+                event['time'] < Plugin.recording_input_since):
+            gesture.reset()
+            return
+        if gesture.recording and not voice.is_recording:
+            gesture.reset()
+        if event['kind'] == 'press' and voice.pending_text:
+            voice.cancel_pending()
+            gesture.reset()
+            return
+        # Manual/Test Dictation owns its own start/stop lifecycle.
+        if voice.is_recording and not gesture.recording:
+            return
+        action = gesture.feed(event['kind'], event['time'])
+        if action == 'start':
+            if Plugin.haptic_feedback:
+                Plugin.haptic_feedback.begin_session(event.get('source') or HAPTIC_SOURCE_FILE)
+            Plugin._start_dictation_trace()
+            try:
+                voice.start_recording()
+                if not voice.is_recording:
+                    if Plugin.haptic_feedback:
+                        Plugin.haptic_feedback.end_session()
+                    gesture.reset()
+                    Plugin._finish_dictation_trace(False)
+                else:
+                    Plugin.recording_start_count += 1
+                    if Plugin.recording_overlay:
+                        Plugin.recording_overlay.show("compact")
+            except Exception:
+                if Plugin.haptic_feedback:
+                    Plugin.haptic_feedback.end_session()
+                gesture.reset()
+                Plugin._finish_dictation_trace(False)
+                raise
+        elif action == 'stop':
+            try:
+                if Plugin.recording_overlay:
+                    Plugin.recording_overlay.show("transcribing")
+                voice.stop_recording()
+            except Exception:
+                Plugin._finish_dictation_trace(False)
+                raise
+            else:
+                Plugin._finish_dictation_trace(True)
+            finally:
+                if Plugin.recording_overlay:
+                    Plugin.recording_overlay.hide()
+                if Plugin.haptic_feedback:
+                    Plugin.haptic_feedback.end_session()
+                # Transcription is synchronous. Discard gestures made while
+                # it ran instead of starting delayed recordings without speech.
+                Plugin.recording_input_since = time.monotonic()
+
+    @staticmethod
     def poll_button_state():
         """Poll the state file for button presses"""
         logger.info("Button state polling started")
-        last_state = False
+        cursor = EventCursor()
+        event_file = os.path.join(CONFIG_DIR, "controller_events.json")
         last_recording_state = False
         health_check_counter = 0
 
         while Plugin.poll_running:
             try:
-                if Plugin.binding_session and time.time() < Plugin.binding_deadline:
-                    last_state = False
-                    time.sleep(0.05)
-                    continue
-                if not Plugin.controller_enabled:
-                    time.sleep(0.1)
-                    continue
-
-                if os.path.exists(STATE_FILE):
-                    with open(STATE_FILE, 'r') as f:
-                        state = f.read().strip() == "1"
-
-                    # Detect state change
-                    if state and not last_state:
-                        with Plugin.controller_lock:
-                            if Plugin.controller_enabled:
-                                # Button pressed - cancel pending send if one is waiting
-                                if Plugin.voice_service and Plugin.voice_service.pending_text:
-                                    cancelled = Plugin.voice_service.cancel_pending()
-                                    if cancelled:
-                                        logger.info("Pending send cancelled by button press")
-                                elif Plugin.voice_service and not Plugin.voice_service.is_recording:
-                                    logger.info("Button combo pressed - starting recording")
-                                    if Plugin.haptic_feedback:
-                                        Plugin.haptic_feedback.begin_session(HAPTIC_SOURCE_FILE)
-                                    Plugin._start_dictation_trace()
-                                    try:
-                                        Plugin.voice_service.start_recording()
-                                        Plugin.recording_start_count += 1
-                                        if Plugin.recording_overlay:
-                                            Plugin.recording_overlay.show("compact")
-                                    except Exception as e:
-                                        if Plugin.haptic_feedback:
-                                            Plugin.haptic_feedback.end_session()
-                                        Plugin._finish_dictation_trace(False)
-                                        if telemetry:
-                                            telemetry_capture_error(
-                                                "recording.start_failed",
-                                                e,
-                                                preset=Plugin.active_preset,
-                                                controller_type=Plugin._controller_type(),
-                                            )
-                                        raise
-                    elif not state and last_state:
-                        # Button released
-                        logger.info("Button combo released - stopping recording")
-                        if Plugin.voice_service and Plugin.voice_service.is_recording:
-                            if Plugin.recording_overlay:
-                                Plugin.recording_overlay.show("transcribing")
-                            try:
-                                Plugin.voice_service.stop_recording()
-                            except Exception as e:
-                                Plugin._finish_dictation_trace(False)
-                                if telemetry:
-                                    telemetry_capture_error(
-                                        "recording.stop_failed",
-                                        e,
-                                        preset=Plugin.active_preset,
-                                        controller_type=Plugin._controller_type(),
-                                    )
-                                raise
-                            else:
-                                Plugin._finish_dictation_trace(True)
-                            finally:
-                                if Plugin.recording_overlay:
-                                    Plugin.recording_overlay.hide()
-
-                    last_state = state
+                for event in cursor.read(event_file):
+                    with Plugin.controller_lock:
+                        Plugin._handle_recording_event(event)
 
                 # Log recording state changes for notification debugging
                 current_recording = Plugin.voice_service.is_recording if Plugin.voice_service else False
@@ -623,6 +634,8 @@ class Plugin:
                     health_check_counter = 0
                     if Plugin.listener_process and Plugin.listener_process.poll() is not None:
                         logger.warning("Controller listener died, restarting...")
+                        with Plugin.controller_lock:
+                            Plugin._handle_recording_event({"kind": "cancel", "time": time.monotonic()})
                         if telemetry:
                             telemetry_capture_error(
                                 "controller.listener_crashed",
@@ -660,6 +673,9 @@ class Plugin:
                 saved_config = _read_button_config()
             except Exception as e:
                 logger.error(f"Error reading settings from config: {e}")
+
+            Plugin.recording_gesture = RecordingGesture(saved_config.get("recordingMode", "hold") if saved_config.get("recordingMode", "hold") in MODES else "hold")
+            Plugin.recording_input_since = time.monotonic()
 
             global _game_presets
             _game_presets = _load_game_presets()
@@ -858,6 +874,22 @@ class Plugin:
         except Exception as e:
             logger.error("Error saving haptic preference: %s", e)
             return {"success": False, "error": str(e)}
+
+    async def set_recording_mode(self, mode: str):
+        if mode not in MODES:
+            return {"success": False, "error": "Unknown recording mode."}
+        with Plugin.controller_lock:
+            if Plugin.voice_service and Plugin.voice_service.is_recording:
+                return {"success": False, "error": "Finish recording before changing the mode."}
+            try:
+                config = _read_button_config()
+                config["recordingMode"] = mode
+                _write_button_config(config)
+                Plugin.recording_gesture = RecordingGesture(mode)
+                Plugin.recording_input_since = time.monotonic()
+                return {"success": True}
+            except Exception as error:
+                return {"success": False, "error": str(error)}
 
     async def start_binding_capture(self):
         if Plugin.voice_service and Plugin.voice_service.is_recording:

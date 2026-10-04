@@ -31,6 +31,7 @@ const getStatus = callable<[], RpcResponse>("get_status");
 const startBindingCapture = callable<[], RpcResponse>("start_binding_capture");
 const getBindingCapture = callable<[session: string], RpcResponse>("get_binding_capture");
 const cancelBindingCapture = callable<[session: string], RpcResponse>("cancel_binding_capture");
+const setRecordingModeRpc = callable<[mode: string], RpcResponse>("set_recording_mode");
 const getButtonConfig = callable<[], RpcResponse>("get_button_config");
 const getPresets = callable<[], RpcResponse>("get_presets");
 const setEnabledRpc = callable<[enabled: boolean], RpcResponse>("set_enabled");
@@ -280,7 +281,7 @@ const PRESET_DISPLAY_NAMES: Record<string, string> = {
 	generic: "Generic",
 };
 
-type PanelPage = "main" | "advanced" | "diagnostics" | "help" | "game" | "model";
+type PanelPage = "main" | "advanced" | "diagnostics" | "help" | "game" | "model" | "recording-mode";
 
 const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [page, setPage] = useState<PanelPage>("main");
@@ -300,6 +301,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [inputReady, setInputReady] = useState<boolean>(true);
 	const [buttonState, setButtonState] = useState<string>("None");
 	const [controllerReady, setControllerReady] = useState<boolean>(false);
+	const [recordingMode, setRecordingMode] = useState<"hold" | "tap">("hold");
 	const [controllerStatus, setControllerStatus] = useState<string>("Waiting for input");
 	const [controllerComboSupported, setControllerComboSupported] = useState<boolean>(true);
 	const [buttons, setButtons] = useState<string[]>(["L1", "R1"]);
@@ -329,6 +331,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 			if (result.success) {
 				const config = result.config;
 				if (config) {
+					setRecordingMode(config.recordingMode === "tap" ? "tap" : "hold");
 					if (config.buttons) {
 						setButtons(config.buttons);
 					}
@@ -621,7 +624,9 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 
 					</PanelSection>
                     <PanelSection title="Recording binding">
-                        <PanelSectionRow><div>Hold <strong>{buttons.join(" + ")}</strong> to record</div></PanelSectionRow>
+                        <PanelSectionRow><ButtonItem layout="below" disabled={recording || testPhase !== "idle"} onClick={() => setPage("recording-mode")}>Mode: {recordingMode === "hold" ? "Hold to record" : "Tap to start/stop"}</ButtonItem></PanelSectionRow>
+                        <PanelSectionRow><div>{recordingMode === "hold" ? "Hold " : "Tap "}<strong>{buttons.join(" + ")}</strong>{recordingMode === "hold" ? " to record" : " to start; tap again to stop"}</div></PanelSectionRow>
+                        {recordingMode === "tap" && <PanelSectionRow><div style={{ fontSize: "12px", opacity: 0.85 }}>You can also hold and release for a quick message.</div></PanelSectionRow>}
                         <PanelSectionRow><ButtonItem layout="below" disabled={!controllerReady || recording || testPhase !== "idle"} onClick={beginCapture}>Change binding</ButtonItem></PanelSectionRow>
                         {bindingMessage && <PanelSectionRow><div role="status">{bindingMessage}</div></PanelSectionRow>}
                     </PanelSection>
@@ -697,6 +702,22 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						else setRpcError(result.error || "Could not update game");
 					}}>{option.data === activePreset ? "✓ " : ""}{option.label}</ButtonItem></PanelSectionRow>)}
 				</PanelSection>}
+                {page === "recording-mode" && <PanelSection title="Recording mode">
+                    {rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
+                    {(["hold", "tap"] as const).map(mode => <PanelSectionRow key={mode}>
+                        <ButtonItem layout="below" disabled={recording} onClick={async () => {
+                            setRpcError("");
+                            try {
+                                const result = await setRecordingModeRpc(mode);
+                                if (result.success) { setRecordingMode(mode); setPage("main"); }
+                                else setRpcError(result.error || "Could not change recording mode");
+                            } catch (error) { setRpcError(String(error)); }
+                        }}>{mode === recordingMode ? "✓ " : ""}{mode === "hold" ? "Hold to record" : "Tap to start/stop"}</ButtonItem>
+                        <div style={{ fontSize: "12px", padding: "6px 0", opacity: 0.85 }}>{mode === "hold"
+                            ? "Hold the binding to record. Release to stop and send."
+                            : "Tap once to start recording, then tap again to stop. You can also hold and release for a quick message."}</div>
+                    </PanelSectionRow>)}
+                </PanelSection>}
 				{page === "model" && <PanelSection title="Model">
 					{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
 					{MODEL_SIZE_OPTIONS.map(option => <PanelSectionRow key={String(option.data)}><ButtonItem layout="below" onClick={async () => {
@@ -711,8 +732,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 				{page === "help" && <>
 					<PanelSection title="How to use">
 						<PanelSectionRow><div style={{ fontSize: '13px', lineHeight: '1.6' }}>
-							Hold <strong>{buttons.join('+')}</strong> {buttons.length > 1 ? "together " : ""}to record.
-							Release to transcribe and type into the active game or app. Keep it in the foreground.
+							{recordingMode === "hold" ? "Hold " : "Tap "}<strong>{buttons.join('+')}</strong> {recordingMode === "hold" ? "to record." : "to start recording; tap again to stop. Holding and releasing also works for quick messages."}
+							Stopping transcribes and types into the active game or app. Keep it in the foreground.
 						</div></PanelSectionRow>
 					</PanelSection>
 					<PanelSection title="Permissions">
