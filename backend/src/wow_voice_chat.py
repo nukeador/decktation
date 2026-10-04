@@ -27,6 +27,7 @@ import numpy as np
 import wave
 from audio_runtime import ensure_audio_environment
 from clipboard_injection import temporary_clipboard
+from resident_whisper import ResidentWhisper
 
 
 def _capitalize_standalone_i(text: str) -> str:
@@ -115,6 +116,7 @@ class WoWVoiceChat:
         self.model = None
         self.gpu_model = None
         self.gpu_enabled = False
+        self.gpu_worker = None
         self.model_loading = False
         self.model_load_error = None
 
@@ -255,6 +257,9 @@ class WoWVoiceChat:
         """Release Whisper and return free heap pages where the OS supports it."""
         with self.model_lock:
             self.model = None
+            if self.gpu_worker:
+                self.gpu_worker.close()
+                self.gpu_worker = None
             self.gpu_model = None
             self.gpu_enabled = False
             self.model_load_error = None
@@ -316,6 +321,11 @@ class WoWVoiceChat:
             logger.warning("Vulkan Whisper unavailable; using CPU fallback: %s", error)
             return False
 
+        try:
+            self.gpu_worker = ResidentWhisper(whisper_cli.with_name('whisper-server'), model, _vulkan_environment())
+        except Exception as error:
+            logger.warning('Resident Vulkan startup failed; using CPU fallback: %s', error)
+            return False
         self.gpu_model = model
         self.gpu_enabled = True
         logger.info("Using AMD Vulkan Whisper transcription: executable=%s model=%s", whisper_cli, model)
@@ -329,26 +339,23 @@ class WoWVoiceChat:
                 wav_path = directory / "audio.wav"
                 out_path = directory / "transcript"
                 self.save_audio_to_wav(audio_input, wav_path, source_rate=self.whisper_sample_rate)
-                command = [str(_whisper_cli_path()), "--model", str(self.gpu_model),
-                           "--file", str(wav_path), "--no-timestamps", "--output-txt",
-                           "--output-file", str(out_path), "--beam-size", "5",
-                           "--language", self.transcription_language or "auto"]
-                # whisper-cli has no separate hotwords option. Put vocabulary
-                # first so it remains useful if the prompt reaches its token cap.
-                prompt_parts = [part for part in (hotwords, initial_prompt) if part]
-                if prompt_parts:
-                    command.extend(["--prompt", ". ".join(prompt_parts)])
-                result = subprocess.run(command, capture_output=True, text=True, timeout=90,
-                                        env=_vulkan_environment())
-                transcript = out_path.with_suffix(".txt")
-                if result.returncode or not transcript.exists():
-                    raise RuntimeError(result.stderr[-500:])
-                return _capitalize_standalone_i(transcript.read_text(errors="replace").strip())
+                if not self.gpu_worker:
+                    raise RuntimeError('Resident worker is not loaded')
+                prompt = '. '.join(part for part in (hotwords, initial_prompt) if part)
+                started = time.monotonic()
+                text = self.gpu_worker.transcribe(wav_path, self.transcription_language, prompt)
+                logger.info('Resident Vulkan inference: pid=%s audio=%.3fs request=%.3fs text=%r',
+                            self.gpu_worker.process.pid, len(audio_input)/self.whisper_sample_rate,
+                            time.monotonic()-started, text.strip())
+                return _capitalize_standalone_i(text.strip())
         except Exception as error:
             # Do not make dictation fail because a Vulkan driver resets or a
             # future AMD device lacks a required extension.  Disable this path
             # for the remainder of the process and immediately use CPU.
             logger.warning("Vulkan Whisper failed; falling back to CPU: %s", error)
+            if self.gpu_worker:
+                self.gpu_worker.close()
+                self.gpu_worker = None
             self.gpu_enabled = False
             self.gpu_model = None
             return None
@@ -413,10 +420,13 @@ class WoWVoiceChat:
             self.model_size = model_size
             self.model_load_error = None
 
-            if self.model is None:
+            if self.model is None and not self.gpu_enabled:
                 return True
 
             self.model = None
+            if self.gpu_worker:
+                self.gpu_worker.close()
+                self.gpu_worker = None
             self.gpu_model = None
             self.gpu_enabled = False
             return self._load_model()
