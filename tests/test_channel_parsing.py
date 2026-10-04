@@ -191,10 +191,15 @@ class TestCasualCase:
         assert channel == "guild"
         assert text == "WTB silk cloth"
 
-    def test_standalone_i_remains_capitalized(self, wow_svc):
-        channel, text = wow_svc.parse_channel_and_text("reply I agree.")
+    def test_every_standalone_i_is_capitalized(self, wow_svc):
+        channel, text = wow_svc.parse_channel_and_text("reply i agree, i can do it.")
         assert channel == "reply"
-        assert text == "I agree"
+        assert text == "I agree, I can do it"
+
+    def test_i_inside_words_is_not_capitalized(self, wow_svc):
+        channel, text = wow_svc.parse_channel_and_text("party i use an iPhone in raids.")
+        assert channel == "party"
+        assert text == "I use an iPhone in raids"
 
     def test_generic_preset_does_not_modify_casing(self, generic_svc):
         channel, text = generic_svc.parse_channel_and_text("Hello World. I am here.")

@@ -22,10 +22,17 @@ from audio_runtime import ensure_audio_environment
 from clipboard_injection import temporary_clipboard
 
 
+def _capitalize_standalone_i(text: str) -> str:
+    """Capitalize every standalone English first-person pronoun."""
+    return re.sub(r"\bi\b", "I", text)
+
+
 def _format_casual_message(text: str) -> str:
     """Format text for casual gaming chat."""
     if not text:
         return text
+
+    text = _capitalize_standalone_i(text)
 
     if text.endswith("."):
         text = text.rstrip(".")
@@ -35,11 +42,6 @@ def _format_casual_message(text: str) -> str:
     if first != "I" and not (len(first) > 1 and first.isupper()):
         words[0] = first[:1].lower() + first[1:]
     return " ".join(words)
-
-
-def _normalize_transcription_text(text):
-    """Correct Whisper's lowercase standalone English pronoun."""
-    return re.sub(r"\bi\b", "I", text)
 
 
 class WoWVoiceChat:
@@ -560,7 +562,7 @@ class WoWVoiceChat:
             full_text = []
             for segment in segments:
                 full_text.append(segment.text)
-            return _normalize_transcription_text("".join(full_text).strip())
+            return _capitalize_standalone_i("".join(full_text).strip())
         except Exception as e:
             self._report_diagnostic("transcription.failed", e)
             raise
