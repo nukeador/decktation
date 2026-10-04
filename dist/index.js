@@ -654,7 +654,7 @@
                         } }))),
             React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Input" },
                 React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                    React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Haptic feedback", description: "Brief cues when recording starts and stops on Steam Deck", checked: hapticFeedback, onChange: async (enabled) => {
+                    React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Haptic feedback", description: "Brief cues on the controller when recording starts and stops", checked: hapticFeedback, onChange: async (enabled) => {
                             const result = await setHapticFeedbackRpc(enabled);
                             if (result.success)
                                 setHapticFeedback(enabled);

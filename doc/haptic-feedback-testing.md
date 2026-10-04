@@ -76,7 +76,7 @@ On the tested 2026 Steam Controller, the physical L1+R1 binding triggered
 dictation, the start cue occurred once, and the two-burst stop cue occurred
 once on that controller. Transcription and controls worked in WoW with the QAM
 closed. Tapping a Deck button during the recording did not move the stop cue to
-the Deck. The log selected `steam_controller_2026: triton-hid-rumble` for both
+the Deck. The log selected `steam_controller_2026_puck: triton-hid-rumble` for both
 transitions. A virtual-pad `FF_RUMBLE` probe also reached the Controller, but
 L1+R1 did not activate dictation via that virtual input under the tested WoW
 layout; the raw Puck path is required for this layout. Switching Haptic feedback

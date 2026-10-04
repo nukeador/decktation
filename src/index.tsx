@@ -657,7 +657,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 				<PanelSectionRow>
 					<ToggleField
 						label="Haptic feedback"
-						description="Brief cues when recording starts and stops on Steam Deck"
+						description="Brief cues on the controller when recording starts and stops"
 						checked={hapticFeedback}
 						onChange={async (enabled: boolean) => {
 							const result = await setHapticFeedbackRpc(enabled);

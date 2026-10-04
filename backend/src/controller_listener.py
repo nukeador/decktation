@@ -11,7 +11,6 @@ import time
 import json
 import glob
 import selectors
-import struct
 import tempfile
 from deck_hid import STEAM_DECK_BUTTON_BITS, raw_button_states, triton_button_states
 from gamepad_evdev import EvdevGamepad
@@ -42,21 +41,11 @@ STEAM_HID_INTERFACES = {
     # appeared as input1 and input2 across hid-steam/kernel versions.
     "0003:000028DE:00001102": ("/input2",),
     "0003:000028DE:00001142": ("/input1", "/input2"),
-    # 2026 Steam Controller Puck: four independent wireless controller slots.
-    "0003:000028DE:00001304": ("/input2", "/input3", "/input4", "/input5"),
 }
 STEAM_CONTROLLER_TYPES = {
     "0003:000028DE:00001205": "steam_deck",
     "0003:000028DE:00001102": "steam_controller_wired",
     "0003:000028DE:00001142": "steam_controller_wireless",
-    "0003:000028DE:00001304": "steam_controller_2026",
-}
-
-TRITON_BUTTON_BITS = {
-    'A': 0x00000001, 'B': 0x00000002, 'X': 0x00000004,
-    'Y': 0x00000008, 'R1': 0x00000200, 'L1': 0x00080000,
-    'R4': 0x00000080, 'R5': 0x00000100,
-    'L4': 0x00020000, 'L5': 0x00040000,
 }
 for product, kind, suffixes, bus in (
     (0x1304, 'steam_controller_2026_puck', tuple(f'/input{i}' for i in range(2, 6)), 3),
