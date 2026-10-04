@@ -27,7 +27,7 @@ if [ "$CLEANUP_ONLY" != "true" ]; then
 fi
 
 normalize_ref() {
-  printf '%s' "$1" | python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=""))'
+  python3 "$WORKSPACE_DIR/scripts/branch-slug.py" "$1"
 }
 
 encode_url_path() {
@@ -251,10 +251,50 @@ checkout_pages_branch() {
   }
 }
 
+migrate_branch_dirs() {
+  python3 - "$PAGES_DIR/branches" "$WORKSPACE_DIR/scripts/branch-slug.py" <<'PY_MIGRATE'
+import importlib.util, json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("branch_slug", sys.argv[2])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+planned = {}
+for metadata in sorted(root.glob("*/metadata.json")):
+    ref = json.loads(metadata.read_text())["ref"]
+    slug = module.branch_slug(ref)
+    if slug in planned and planned[slug][1] != ref:
+        raise SystemExit(f"Branch URL collision: {ref} and {planned[slug][1]}")
+    planned[slug] = (metadata.parent, ref)
+for slug, (source, ref) in planned.items():
+    target = root / slug
+    if source != target:
+        if target.exists():
+            raise SystemExit(f"Migration target already exists: {target}")
+        source.rename(target)
+PY_MIGRATE
+}
+
+assert_branch_target_available() {
+  local branch_key="$1"
+  local metadata="$PAGES_DIR/branches/$branch_key/metadata.json"
+  if [ ! -f "$metadata" ]; then
+    return
+  fi
+  local existing_ref
+  existing_ref="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ref"])' "$metadata")"
+  if [ "$existing_ref" != "$REF_NAME" ]; then
+    echo "Branch URL collision: $REF_NAME and $existing_ref both use $branch_key" >&2
+    exit 1
+  fi
+}
+
 render_pages_content() {
+  migrate_branch_dirs
   if [ "$CLEANUP_ONLY" != "true" ]; then
     local branch_key
     branch_key="$(normalize_ref "$REF_NAME")"
+    assert_branch_target_available "$branch_key"
     local branch_url_path
     branch_url_path="$(encode_url_path "branches/$branch_key")"
     local zip_url="$PAGES_BASE_URL/$branch_url_path/decktation.zip"
@@ -417,7 +457,7 @@ render_pages_content() {
         <p><strong>Short install URL</strong><br><code>${PAGES_BASE_URL}/latest.zip</code></p>
         <p><strong>Latest release ZIP</strong><br><code>${PAGES_BASE_URL}/releases/latest/decktation.zip</code></p>
         <p><strong>Decky Custom Store URL</strong><br><code>https://homebrew.imsilverfoxy.com/plugins.json</code></p>
-        <p><strong>Branch ZIP pattern</strong><br><code>${PAGES_BASE_URL}/branches/&lt;url-encoded-branch-name&gt;/decktation.zip</code></p>
+        <p><strong>Branch ZIP pattern</strong><br><code>${PAGES_BASE_URL}/branches/&lt;branch-slug&gt;/decktation.zip</code></p>
       </div>
     </div>
     $(render_index_list "$PAGES_DIR/releases" "Releases" "$PAGES_BASE_URL")
