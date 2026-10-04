@@ -347,7 +347,11 @@ class WoWVoiceChat:
                 logger.info('Resident Vulkan inference: pid=%s audio=%.3fs request=%.3fs text=%r',
                             self.gpu_worker.process.pid, len(audio_input)/self.whisper_sample_rate,
                             time.monotonic()-started, text.strip())
-                return _capitalize_standalone_i(text.strip())
+                # whisper-server wraps longer output into multiple lines. Chat
+                # injection intentionally rejects control characters; convert
+                # only presentation line breaks to spaces at this boundary.
+                text = re.sub(r"[ \t]*[\r\n]+[ \t]*", " ", text).strip()
+                return _capitalize_standalone_i(text)
         except Exception as error:
             # Do not make dictation fail because a Vulkan driver resets or a
             # future AMD device lacks a required extension.  Disable this path

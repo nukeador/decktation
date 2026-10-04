@@ -131,3 +131,14 @@ def test_vulkan_removes_frozen_library_path_without_original(monkeypatch):
     monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEIdecky")
     monkeypatch.delenv("LD_LIBRARY_PATH_ORIG", raising=False)
     assert "LD_LIBRARY_PATH" not in wow_voice_chat._vulkan_environment()
+
+
+def test_resident_wrapped_text_becomes_single_chat_line():
+    service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
+    service.save_audio_to_wav = MagicMock()
+    service.gpu_worker = MagicMock()
+    service.gpu_worker.transcribe.return_value = "So it works in English\n perfectly.\r\n Mañana también.\n"
+    assert service._transcribe_vulkan(MagicMock(), None, None) == "So it works in English perfectly. Mañana también."
+    # Other control characters remain visible to the insertion validator.
+    service.gpu_worker.transcribe.return_value = "hello\x00world\nnext"
+    assert service._transcribe_vulkan(MagicMock(), None, None) == "hello\x00world next"
