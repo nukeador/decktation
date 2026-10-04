@@ -305,6 +305,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [recording, setRecording] = useState<boolean>(false);
 	const [serviceReady, setServiceReady] = useState<boolean>(false);
 	const [modelReady, setModelReady] = useState<boolean>(false);
+	const [inferenceDevice, setInferenceDevice] = useState<"cpu" | "gpu" | null>(null);
 	const [modelLoading, setModelLoading] = useState<boolean>(false);
 	const [isToggling, setIsToggling] = useState<boolean>(false);
 	const [inputReady, setInputReady] = useState<boolean>(true);
@@ -407,6 +408,11 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					setStatusError("");
 					setServiceReady(result.service_ready);
 					setModelReady(result.model_ready);
+					setInferenceDevice(
+						result.inference_device === "gpu" || result.inference_device === "cpu"
+							? result.inference_device
+							: null,
+					);
 					setModelLoading(result.model_loading);
 					setInputReady(result.input_ready !== false);
 					if (logic.enabled) {
@@ -584,6 +590,13 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						<PanelSectionRow><div ref={advancedModelRowRef}><ButtonItem layout="below" onClick={() => setPage("model")}>
 							Model: {MODEL_SIZE_OPTIONS.find(option => option.data === modelSize)?.label || modelSize}
 						</ButtonItem></div></PanelSectionRow>
+						{modelReady && !modelLoading && inferenceDevice && (
+							<PanelSectionRow><div>
+								{inferenceDevice === "gpu"
+									? "Transcription runs on the GPU via Vulkan."
+									: "Transcription runs on the CPU."}
+							</div></PanelSectionRow>
+						)}
 						<PanelSectionRow><div style={{ fontSize: '12px' }}>Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use.</div></PanelSectionRow>
 					</PanelSection>
 					<PanelSection title="Recording binding">
