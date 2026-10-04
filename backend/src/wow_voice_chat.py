@@ -321,7 +321,7 @@ class WoWVoiceChat:
         logger.info("Using AMD Vulkan Whisper transcription: executable=%s model=%s", whisper_cli, model)
         return True
 
-    def _transcribe_vulkan(self, audio_input, initial_prompt):
+    def _transcribe_vulkan(self, audio_input, initial_prompt, hotwords):
         """Run whisper.cpp once; return None when CPU fallback should be used."""
         try:
             with tempfile.TemporaryDirectory(prefix="decktation-whisper-") as directory:
@@ -331,11 +331,13 @@ class WoWVoiceChat:
                 self.save_audio_to_wav(audio_input, wav_path, source_rate=self.whisper_sample_rate)
                 command = [str(_whisper_cli_path()), "--model", str(self.gpu_model),
                            "--file", str(wav_path), "--no-timestamps", "--output-txt",
-                           "--output-file", str(out_path), "--beam-size", "5"]
-                if self.transcription_language:
-                    command.extend(["--language", self.transcription_language])
-                if initial_prompt:
-                    command.extend(["--prompt", initial_prompt])
+                           "--output-file", str(out_path), "--beam-size", "5",
+                           "--language", self.transcription_language or "auto"]
+                # whisper-cli has no separate hotwords option. Put vocabulary
+                # first so it remains useful if the prompt reaches its token cap.
+                prompt_parts = [part for part in (hotwords, initial_prompt) if part]
+                if prompt_parts:
+                    command.extend(["--prompt", ". ".join(prompt_parts)])
                 result = subprocess.run(command, capture_output=True, text=True, timeout=90,
                                         env=_vulkan_environment())
                 transcript = out_path.with_suffix(".txt")
@@ -400,7 +402,7 @@ class WoWVoiceChat:
 
     def set_transcription_options(self, language=None):
         """Update faster-whisper transcription options without reloading the model."""
-        self.transcription_language = language or None
+        self.transcription_language = None if language in (None, "", "auto") else language
 
     def set_model_size(self, model_size):
         """Update the selected model size and reload if a model is already active."""
@@ -457,12 +459,6 @@ class WoWVoiceChat:
 
     def build_prompt_from_context(self):
         """Build initial_prompt and hotwords from context"""
-        # English game prompts bias non-English transcription heavily. When the
-        # user explicitly selects a non-English language, let Whisper work from
-        # the audio alone.
-        if self.transcription_language:
-            return None, None
-
         base_prompt = self.preset.get("whisper_prompt") if self.preset else None
 
         # Fall back to hardcoded WoW prompt when no preset is provided (direct CLI usage)
@@ -488,9 +484,14 @@ class WoWVoiceChat:
         else:
             hotwords = []
 
+        # English game prompts bias non-English transcription heavily. Keep
+        # language-neutral vocabulary, but omit the prose prompt when the user
+        # explicitly selects a non-English language.
+        use_prompt = not self.transcription_language
+
         # Only append dynamic game context if this preset uses a context file (e.g. WoW addon)
         if not self.preset.get("context_file"):
-            return base_prompt or None, ", ".join(hotwords) or None
+            return (base_prompt or None) if use_prompt else None, ", ".join(hotwords) or None
 
         zone = self.context.get("zone", "")
         subzone = self.context.get("subzone", "")
@@ -509,7 +510,9 @@ class WoWVoiceChat:
         if party:
             dynamic_parts.append(f"with party members {', '.join(party[:5])}")
 
-        if dynamic_parts:
+        if not use_prompt:
+            initial_prompt = None
+        elif dynamic_parts:
             initial_prompt = base_prompt + " " + " ".join(dynamic_parts) + "."
         else:
             initial_prompt = base_prompt
@@ -676,7 +679,7 @@ class WoWVoiceChat:
             return ""
 
         if self.gpu_enabled:
-            transcript = self._transcribe_vulkan(audio_input, initial_prompt)
+            transcript = self._transcribe_vulkan(audio_input, initial_prompt, hotwords)
             if transcript is not None:
                 return transcript
             # A GPU failure after loading is handled as a normal CPU fallback.

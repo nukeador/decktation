@@ -62,6 +62,7 @@ def test_vulkan_writes_wav_and_keeps_prepared_sample_rate(monkeypatch, tmp_path)
     service.gpu_enabled = True
     service.gpu_model = tmp_path / "model.bin"
     rates = []
+    commands = []
     audio = MagicMock()
 
     def prepare_audio(data, rate):
@@ -73,6 +74,7 @@ def test_vulkan_writes_wav_and_keeps_prepared_sample_rate(monkeypatch, tmp_path)
     monkeypatch.setattr(wow_voice_chat.np, "clip", lambda *args: SimpleNamespace(astype=lambda dtype: pcm))
 
     def transcribe(command, **kwargs):
+        commands.append(command)
         wav_path = command[command.index("--file") + 1]
         with wave.open(wav_path, "rb") as recording:
             assert recording.getframerate() == 16000
@@ -82,9 +84,32 @@ def test_vulkan_writes_wav_and_keeps_prepared_sample_rate(monkeypatch, tmp_path)
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(wow_voice_chat.subprocess, "run", transcribe)
-    assert service._transcribe_vulkan(audio, "") == "hello"
+    assert service._transcribe_vulkan(audio, "Game chat", "Azeroth, Illidan") == "hello"
     assert rates == [16000]
+    assert commands[0][commands[0].index("--language") + 1] == "auto"
+    assert commands[0][commands[0].index("--prompt") + 1] == (
+        "Azeroth, Illidan. Game chat"
+    )
     assert service.gpu_enabled
+
+
+def test_vulkan_passes_explicit_language(monkeypatch, tmp_path):
+    service = wow_voice_chat.WoWVoiceChat(lazy_load=True, transcription_language="es")
+    service.gpu_model = tmp_path / "model.bin"
+    service.save_audio_to_wav = MagicMock()
+    commands = []
+
+    def transcribe(command, **kwargs):
+        commands.append(command)
+        output = wow_voice_chat.Path(command[command.index("--output-file") + 1])
+        output.with_suffix(".txt").write_text("hola")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(wow_voice_chat.subprocess, "run", transcribe)
+
+    assert service._transcribe_vulkan(MagicMock(), None, "Azeroth") == "hola"
+    assert commands[0][commands[0].index("--language") + 1] == "es"
+    assert commands[0][commands[0].index("--prompt") + 1] == "Azeroth"
 
 
 def test_vulkan_restores_host_library_path(monkeypatch):
