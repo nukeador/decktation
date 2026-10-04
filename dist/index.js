@@ -799,7 +799,7 @@
                             React__default["default"].createElement("div", { role: "alert" }, rpcError))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Feedback" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(DropdownItem, { label: "Recording indicator", selectedOption: recordingIndicator, options: [{ label: "Steam notification", data: "toast" }, { label: "In-game overlay", data: "overlay" }, { label: "Off", data: "none" }], onChange: async (option) => {
+                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: "Recording indicator", selectedOption: recordingIndicator, options: [{ label: "Steam notification", data: "toast" }, { label: "In-game overlay", data: "overlay" }, { label: "Off", data: "none" }], onChange: async (option) => {
                                     const result = await setRecordingIndicatorRpc(option.data);
                                     if (result.success) {
                                         setRecordingIndicator(option.data);

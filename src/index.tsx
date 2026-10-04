@@ -6,6 +6,7 @@ import {
 	ToggleField,
 	ButtonItem,
 	DropdownOption,
+	DropdownItem,
 	Focusable,
 	Menu,
 	MenuItem,
