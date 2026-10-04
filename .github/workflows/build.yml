@@ -60,6 +60,7 @@ jobs:
         run: |
           unzip -t build-output/decktation.zip
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/ydotoold'
+          unzip -l build-output/decktation.zip | grep -q 'decktation/bin/whisper-cli'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/xclip'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/clipboard_injection.py'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/faster_whisper'
