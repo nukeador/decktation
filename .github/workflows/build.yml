@@ -21,7 +21,7 @@ jobs:
       - run: node --test cloudflare/tests/*.test.js
       - run: pip install pytest sentry-sdk==2.66.0
       - run: pytest tests/ -v
-      - run: python -m py_compile main.py backend/src/decktation_backend.py backend/src/wow_voice_chat.py backend/src/controller_listener.py backend/src/deck_hid.py backend/src/gamepad_evdev.py backend/src/telemetry.py
+      - run: python -m py_compile main.py backend/src/decktation_backend.py backend/src/wow_voice_chat.py backend/src/controller_listener.py backend/src/deck_hid.py backend/src/gamepad_evdev.py backend/src/telemetry.py backend/src/haptic_feedback.py
 
   build:
     if: github.event_name != 'delete'
@@ -38,13 +38,13 @@ jobs:
         run: |
           node scripts/release-version.mjs check "$RELEASE_TAG"
 
-      - name: Set development version for master builds
-        if: github.ref == 'refs/heads/master'
+      - name: Set development version for branch builds
+        if: startsWith(github.ref, 'refs/heads/')
         env:
           COMMIT_SHA: ${{ github.sha }}
         run: |
           BASE_VERSION="$(node scripts/release-version.mjs print)"
-          DEV_VERSION="$(node -e 'const [major, minor, patch] = process.argv[1].split(".").map(Number); console.log(`${major}.${minor}.${patch + 1}-dev.${process.argv[2].slice(0, 7)}`)' "$BASE_VERSION" "$COMMIT_SHA")"
+          DEV_VERSION="$(node scripts/release-version.mjs next-dev "$BASE_VERSION" "$COMMIT_SHA")"
           node scripts/release-version.mjs set "$DEV_VERSION"
 
       - name: Download Decky CLI
@@ -68,6 +68,7 @@ jobs:
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/telemetry.py'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/decktation_backend.py'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/controller_listener.py'
+          unzip -l build-output/decktation.zip | grep -q 'decktation/bin/haptic_feedback.py'
           unzip -l build-output/decktation.zip | grep -q 'decktation/game_presets.json'
           unzip -l build-output/decktation.zip | grep -q 'decktation/channel_languages.json'
           unzip -l build-output/decktation.zip | grep -q 'cpython-311'

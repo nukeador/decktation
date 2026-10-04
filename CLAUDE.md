@@ -73,7 +73,7 @@ Clipboard paste → Game Chat
 ```
 
 ### Chat Channel Detection
-Voice input like "party, hello everyone" or "raid: pull boss" is parsed to extract channel prefix (`/p`, `/raid`) and message text. Supports separators: colon, comma, period, or space. Channels: `/s`, `/p`, `/raid`, `/g`, `/o`, `/y`, `/i`, `/w`.
+Voice input like "party, hello everyone" or "raid: pull boss" is parsed to extract channel prefix (`/p`, `/raid`) and message text. Supports separators: colon, comma, period, or space. Channels: `/s`, `/p`, `/raid`, `/g`, `/o`, `/y`, `/i`, `/w`, `/r`.
 
 ## Key Files
 

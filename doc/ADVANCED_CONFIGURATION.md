@@ -9,7 +9,7 @@ Most settings can be changed in the Decktation panel. The source configuration f
 - **Confirm:** Adds a two-second delay before a message is sent. Hold push-to-talk during the countdown to cancel it.
 - **Manual:** Enters the message but leaves sending it to you; press Enter in the game to send.
 - **Remember channel:** Reuses the last channel you spoke when the next message has no channel prefix.
-- **Toasts:** Shows recording alerts. Turning off toasts also turns off Confirm.
+- **Recording cue:** Selects a Steam toast, the in-game Gamescope overlay, or no recording indicator.
 
 ## Game presets
 
@@ -23,7 +23,7 @@ Decktation includes three presets defined in [`defaults/game_presets.json`](../d
 
 In WoW or GW2, start a message with a spoken channel name to route it. For example, “party ready” selects party chat, and “guild: hello” selects guild chat. Prefix matching is case-insensitive; a space, colon, comma, or period can separate the channel from the message. The **type** channel enters the text without opening or sending game chat. Trigger words are configured in [`defaults/channel_languages.json`](../defaults/channel_languages.json).
 
-Built-in WoW channels include `say`, `party`, `raid`, `guild`, `officer`, `yell`, `instance`, `whisper`, `type`, and `alert` (raid warning). GW2 includes `say`, `map`, `party`, `squad` (also `raid`), `team`, `guild`, `guild one` through `guild six`, `whisper`, and `type`.
+Built-in WoW channels include `say`, `party`, `raid`, `guild`, `officer`, `yell`, `instance`, `whisper`, `reply`, `type`, and `alert` (raid warning). GW2 includes `say`, `map`, `party`, `squad` (also `raid`), `team`, `guild`, `guild one` through `guild six`, `whisper`, and `type`.
 
 ### Add a custom channel
 

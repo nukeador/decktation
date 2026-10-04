@@ -8,13 +8,13 @@ import ctypes
 import gc
 import os
 import json
+import re
 import time
 import queue
 import threading
 import subprocess
 from pathlib import Path
 from faster_whisper import WhisperModel
-
 import sounddevice as sd
 import numpy as np
 import wave
@@ -22,10 +22,33 @@ from audio_runtime import ensure_audio_environment
 from clipboard_injection import temporary_clipboard
 
 
+def _capitalize_standalone_i(text: str) -> str:
+    """Capitalize every standalone English first-person pronoun."""
+    return re.sub(r"\bi\b", "I", text)
+
+
+def _format_casual_message(text: str) -> str:
+    """Format text for casual gaming chat."""
+    if not text:
+        return text
+
+    text = _capitalize_standalone_i(text)
+
+    if text.endswith("."):
+        text = text.rstrip(".")
+
+    words = text.split(" ")
+    first = words[0]
+    if first != "I" and not (len(first) > 1 and first.isupper()):
+        words[0] = first[:1].lower() + first[1:]
+    return " ".join(words)
+
+
 class WoWVoiceChat:
-    def __init__(self, context_file="wow_context.json", sample_rate=44100, default_channel="say", lazy_load=False, test_mode=False, test_audio_file=None, preset=None, confirm_delay=0, manual_send=False, transcription_language=None, model_size="base", diagnostic_reporter=None, remember_last_channel=False, last_channel=None, channel_rememberer=None):
+    def __init__(self, context_file="wow_context.json", sample_rate=44100, default_channel="say", lazy_load=False, test_mode=False, test_audio_file=None, preset=None, confirm_delay=0, manual_send=False, transcription_language=None, model_size="base", diagnostic_reporter=None, remember_last_channel=False, last_channel=None, channel_rememberer=None, recording_state_callback=None):
         self.preset = preset or {}
         self.diagnostic_reporter = diagnostic_reporter
+        self.recording_state_callback = recording_state_callback
         self.context_file = Path(context_file)
         self.sample_rate = sample_rate  # Recording sample rate
         self.whisper_sample_rate = 16000  # Whisper expects 16kHz
@@ -76,10 +99,19 @@ class WoWVoiceChat:
         self.channel_commands = self.preset.get("channels") or self.default_channel_commands
         if self.last_channel not in self.channel_commands:
             self.last_channel = None
+        self.casual_case = bool(self.preset.get("casual_case", False))
 
     def _report_diagnostic(self, name, error=None):
         if self.diagnostic_reporter:
             self.diagnostic_reporter(name, error)
+
+    def _recording_transition(self, state):
+        if self.recording_state_callback:
+            try:
+                self.recording_state_callback(state)
+            except Exception:
+                # Feedback must never interrupt recording or transcription.
+                pass
 
     def _load_language_config(self):
         """Load language configuration for multi-language channel detection"""
@@ -93,6 +125,7 @@ class WoWVoiceChat:
             "yell": "/y ",
             "instance": "/i ",
             "whisper": "/w ",
+            "reply": "/r ",
             "type": "",
         }
 
@@ -202,6 +235,7 @@ class WoWVoiceChat:
         self.preset = preset
         self.default_channel = preset.get("default_channel", "say")
         self.channel_commands = preset.get("channels") or {"say": "", "type": ""}
+        self.casual_case = bool(preset.get("casual_case", False))
         if self.last_channel not in self.channel_commands:
             self.last_channel = None
 
@@ -224,11 +258,16 @@ class WoWVoiceChat:
             prefixes = [f"{trigger}:", f"{trigger},", f"{trigger}.", f"{trigger} "]
             for prefix in prefixes:
                 if text_lower.startswith(prefix) and channel_name in self.channel_commands:
-                    return channel_name, text[len(prefix):].strip(), True
+                    message = text[len(prefix):].strip()
+                    if self.casual_case:
+                        message = _format_casual_message(message)
+                    return channel_name, message, True
 
         channel = self.last_channel if (
             self.remember_last_channel and self.last_channel in self.channel_commands
         ) else self.default_channel
+        if self.casual_case:
+            text = _format_casual_message(text)
         return channel, text, False
 
     def set_transcription_options(self, language=None):
@@ -305,13 +344,23 @@ class WoWVoiceChat:
                 "Running mythic dungeons, heroic raids, doing quests in Azeroth, Orgrimmar, Stormwind, Ironforge. "
                 "Fighting bosses like Lich King, Ragnaros, Illidan, pulling trash mobs, need tank healer and DPS. "
                 "Using abilities, cooldowns, buffs, debuffs, interrupts, dispels, cleave and AOE damage. "
-                "Chat channel prefixes: say, party, raid, guild, officer, yell, instance, whisper, type. "
+                "Chat channel prefixes: say, party, raid, guild, officer, yell, instance, whisper, reply, type. "
                 "Common short phrases: hi, gg, brb, afk, lol, omw, ty, np, wp, gz."
             )
 
+        # Extract preset hotwords if configured. Keep them as a list until the
+        # context hotwords have also been added.
+        preset_hotwords_raw = self.preset.get("hotwords") if self.preset else None
+        if isinstance(preset_hotwords_raw, list):
+            hotwords = [str(word).strip() for word in preset_hotwords_raw if str(word).strip()]
+        elif isinstance(preset_hotwords_raw, str):
+            hotwords = [preset_hotwords_raw.strip()] if preset_hotwords_raw.strip() else []
+        else:
+            hotwords = []
+
         # Only append dynamic game context if this preset uses a context file (e.g. WoW addon)
         if not self.preset.get("context_file"):
-            return base_prompt or None, None
+            return base_prompt or None, ", ".join(hotwords) or None
 
         zone = self.context.get("zone", "")
         subzone = self.context.get("subzone", "")
@@ -335,17 +384,13 @@ class WoWVoiceChat:
         else:
             initial_prompt = base_prompt
 
-        # Keep hotwords simple - just the most relevant current context
-        hotwords = []
-        if zone:
-            hotwords.append(zone)
-        if boss:
-            hotwords.append(boss)
-        if target:
-            hotwords.append(target)
-        hotwords_str = ", ".join(hotwords) if hotwords else None
+        # Preserve the context-derived hotwords used by existing presets while
+        # allowing user profiles to add their own vocabulary.
+        for contextual_hotword in (zone, boss, target):
+            if contextual_hotword and contextual_hotword not in hotwords:
+                hotwords.append(contextual_hotword)
 
-        return initial_prompt, hotwords_str
+        return initial_prompt, ", ".join(hotwords) or None
 
     def audio_callback(self, indata, frames, time_info, status):
         """Callback for audio recording"""
@@ -526,7 +571,7 @@ class WoWVoiceChat:
             full_text = []
             for segment in segments:
                 full_text.append(segment.text)
-            return "".join(full_text).strip()
+            return _capitalize_standalone_i("".join(full_text).strip())
         except Exception as e:
             self._report_diagnostic("transcription.failed", e)
             raise
@@ -715,6 +760,7 @@ class WoWVoiceChat:
             # TEST MODE: Skip actual recording
             if self.test_mode:
                 self.is_recording = True
+                self._recording_transition("started")
                 print(f"[TEST MODE] Recording started (will use {self.test_audio_file})")
                 return
 
@@ -729,6 +775,7 @@ class WoWVoiceChat:
                 raise
             self.recording_stream = stream
             self.is_recording = True
+            self._recording_transition("started")
 
     def stop_recording(self, send=True):
         """Stop recording and process audio (for push-to-talk)"""
@@ -740,6 +787,7 @@ class WoWVoiceChat:
 
             # TEST MODE: Use static audio file instead of recorded audio
             if self.test_mode:
+                self._recording_transition("stopped")
                 print(f"[TEST MODE] Recording stopped, using {self.test_audio_file}")
                 if self.test_audio_file and Path(self.test_audio_file).exists():
                     try:
@@ -768,6 +816,8 @@ class WoWVoiceChat:
                 self.recording_stream.stop()
                 self.recording_stream.close()
                 self.recording_stream = None
+
+            self._recording_transition("stopped")
 
             # Collect all audio
             audio_data = []
@@ -889,7 +939,7 @@ if __name__ == "__main__":
     parser.add_argument("--mode", choices=["once", "continuous", "push-to-talk", "daemon"],
                        default="once",
                        help="Recording mode (default: once)")
-    parser.add_argument("--channel", choices=["say", "party", "raid", "guild", "officer", "yell", "instance", "auto"],
+    parser.add_argument("--channel", choices=["say", "party", "raid", "guild", "officer", "yell", "instance", "whisper", "reply", "auto"],
                        default="say",
                        help="Default chat channel (default: say). Use 'auto' to detect from context or voice prefix")
     parser.add_argument("--duration", type=int, default=5,
