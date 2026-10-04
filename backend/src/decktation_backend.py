@@ -35,6 +35,8 @@ for dependency_path in dependency_paths:
         logger.info(f"Added dependency path: {dependency_path}")
 
 from audio_runtime import ensure_audio_environment, setup_audio_environment
+from haptic_feedback import HapticFeedback
+from recording_overlay_manager import RecordingOverlay
 
 # Decky plugins run outside the desktop user's login environment.  Configure
 # the PipeWire runtime before sounddevice is imported by wow_voice_chat.
@@ -130,6 +132,9 @@ STATE_FILE = "/tmp/decktation_l5"
 PREVIEW_FILE = "/tmp/decktation_button_preview"
 PID_FILE = "/tmp/decktation_listener.pid"
 CONTROLLER_TYPE_FILE = "/tmp/decktation_controller_type"
+HAPTIC_SOURCE_FILE = "/tmp/decktation_haptic_source.json"
+RECENT_SOURCE_FILE = "/tmp/decktation_recent_controller.json"
+CONTROLLER_STATUS_FILE = "/tmp/decktation_controller_status"
 # Decktation owns this socket and never modifies a system ydotool service.
 YDOTOOL_SOCKET = "/tmp/decktation-ydotool.sock"
 
@@ -142,6 +147,8 @@ if not os.path.exists(PRESETS_FILE):
 DEFAULT_BUTTON_CONFIG = {
     "buttons": ["L1", "R1"],
     "showNotifications": True,
+    "hapticFeedback": False,
+    "recordingIndicator": "toast",
     "enabled": False,
     "game": "wow",
     "confirmMode": False,
@@ -155,6 +162,7 @@ DEFAULT_BUTTON_CONFIG = {
 }
 
 SUPPORTED_WHISPER_MODEL_SIZES = {"base", "small", "medium"}
+SUPPORTED_RECORDING_INDICATORS = {"toast", "overlay", "none"}
 
 SUPPORTED_WHISPER_LANGUAGES = {
     "af", "am", "ar", "as", "az", "ba", "be", "bg", "bn", "bo", "br",
@@ -186,19 +194,37 @@ def _normalize_model_size(model_size):
     return model_size
 
 
+def _normalize_recording_indicator(indicator):
+    indicator = (indicator or "toast").strip().lower()
+    if indicator not in SUPPORTED_RECORDING_INDICATORS:
+        raise ValueError(f"Unsupported recording indicator: {indicator}")
+    return indicator
+
+
 def _read_button_config():
     config = dict(DEFAULT_BUTTON_CONFIG)
+    saved_config = {}
     if os.path.exists(BUTTON_CONFIG_FILE):
         with open(BUTTON_CONFIG_FILE, "r") as config_file:
             saved_config = json.load(config_file)
         if isinstance(saved_config, dict):
             config.update(saved_config)
 
+    # Pre-overlay versions used one boolean for recording and confirmation
+    # toasts. Preserve that preference when the new setting is first read.
+    if "recordingIndicator" not in saved_config:
+        config["recordingIndicator"] = (
+            "toast" if config.get("showNotifications", True) else "none"
+        )
+
     config["transcriptionLanguage"] = _normalize_transcription_language(
         config.get("transcriptionLanguage")
     )
     config["modelSize"] = _normalize_model_size(config.get("modelSize"))
     config["wowCompanionEnabled"] = config.get("wowCompanionEnabled") is True
+    config["recordingIndicator"] = _normalize_recording_indicator(
+        config.get("recordingIndicator")
+    )
     config["translateToEnglish"] = False
     return config
 
@@ -213,19 +239,78 @@ def _write_button_config(config):
         normalized_config.get("modelSize")
     )
     normalized_config["wowCompanionEnabled"] = normalized_config.get("wowCompanionEnabled") is True
+    normalized_config["recordingIndicator"] = _normalize_recording_indicator(
+        normalized_config.get("recordingIndicator")
+    )
+    # Keep old frontends/config readers compatible with the new modes.
+    normalized_config["showNotifications"] = (
+        normalized_config["recordingIndicator"] != "none"
+    )
     normalized_config["translateToEnglish"] = False
     with open(BUTTON_CONFIG_FILE, "w") as config_file:
         json.dump(normalized_config, config_file)
     return normalized_config
 
+USER_PROFILES_FILE = os.path.join(CONFIG_DIR, "profiles.json")
+
+
+def _merge_game_profile(default_profile, user_profile):
+    """Merge a user profile without discarding built-in channel additions."""
+    merged = dict(default_profile)
+    merged.update(user_profile)
+
+    default_channels = default_profile.get("channels")
+    user_channels = user_profile.get("channels")
+    if isinstance(default_channels, dict) and isinstance(user_channels, dict):
+        merged["channels"] = {**default_channels, **user_channels}
+
+    return merged
+
+
+def _load_game_presets():
+    """Load default game presets and merge user profile overrides from CONFIG_DIR."""
+    presets = {}
+    if os.path.exists(PRESETS_FILE):
+        try:
+            with open(PRESETS_FILE, "r") as f:
+                presets = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load default game presets from {PRESETS_FILE}: {e}")
+
+    # Check for user profile overrides in CONFIG_DIR
+    user_file = None
+    for candidate in [
+        os.path.join(CONFIG_DIR, "profiles.json"),
+        os.path.join(CONFIG_DIR, "custom_presets.json"),
+        os.path.join(CONFIG_DIR, "game_presets.json"),
+    ]:
+        if os.path.exists(candidate):
+            user_file = candidate
+            break
+
+    if user_file:
+        try:
+            with open(user_file, "r") as f:
+                user_profiles = json.load(f)
+            if isinstance(user_profiles, dict):
+                for game_key, profile_data in user_profiles.items():
+                    if isinstance(profile_data, dict):
+                        if game_key in presets and isinstance(presets[game_key], dict):
+                            presets[game_key] = _merge_game_profile(
+                                presets[game_key], profile_data
+                            )
+                        else:
+                            presets[game_key] = profile_data
+                logger.info(f"Loaded user profile overrides from {user_file}")
+        except Exception as e:
+            logger.error(f"Failed to load user profiles from {user_file}: {e}")
+
+    logger.info(f"Loaded {len(presets)} game presets: {list(presets.keys())}")
+    return presets
+
+
 # Load game presets
-_game_presets = {}
-try:
-    with open(PRESETS_FILE, 'r') as f:
-        _game_presets = json.load(f)
-    logger.info(f"Loaded {len(_game_presets)} game presets: {list(_game_presets.keys())}")
-except Exception as e:
-    logger.error(f"Failed to load game presets: {e}")
+_game_presets = _load_game_presets()
 
 
 class Plugin:
@@ -246,6 +331,8 @@ class Plugin:
     active_preset = "wow"
     companion = None
     dictation_transaction = None
+    haptic_feedback = None
+    recording_overlay = None
 
     @staticmethod
     def _set_controller_enabled(enabled):
@@ -438,7 +525,8 @@ class Plugin:
                 Plugin.listener_process = None
 
             # Clean up files
-            for f in [STATE_FILE, PREVIEW_FILE, PID_FILE, CONTROLLER_TYPE_FILE]:
+            for f in [STATE_FILE, PREVIEW_FILE, PID_FILE, CONTROLLER_TYPE_FILE,
+                      HAPTIC_SOURCE_FILE, RECENT_SOURCE_FILE]:
                 if os.path.exists(f):
                     os.remove(f)
         except Exception as e:
@@ -473,11 +561,17 @@ class Plugin:
                                         logger.info("Pending send cancelled by button press")
                                 elif Plugin.voice_service and not Plugin.voice_service.is_recording:
                                     logger.info("Button combo pressed - starting recording")
+                                    if Plugin.haptic_feedback:
+                                        Plugin.haptic_feedback.begin_session(HAPTIC_SOURCE_FILE)
                                     Plugin._start_dictation_trace()
                                     try:
                                         Plugin.voice_service.start_recording()
                                         Plugin.recording_start_count += 1
+                                        if Plugin.recording_overlay:
+                                            Plugin.recording_overlay.show("compact")
                                     except Exception as e:
+                                        if Plugin.haptic_feedback:
+                                            Plugin.haptic_feedback.end_session()
                                         Plugin._finish_dictation_trace(False)
                                         if telemetry:
                                             telemetry_capture_error(
@@ -491,6 +585,8 @@ class Plugin:
                         # Button released
                         logger.info("Button combo released - stopping recording")
                         if Plugin.voice_service and Plugin.voice_service.is_recording:
+                            if Plugin.recording_overlay:
+                                Plugin.recording_overlay.show("transcribing")
                             try:
                                 Plugin.voice_service.stop_recording()
                             except Exception as e:
@@ -505,6 +601,9 @@ class Plugin:
                                 raise
                             else:
                                 Plugin._finish_dictation_trace(True)
+                            finally:
+                                if Plugin.recording_overlay:
+                                    Plugin.recording_overlay.hide()
 
                     last_state = state
 
@@ -558,6 +657,14 @@ class Plugin:
             except Exception as e:
                 logger.error(f"Error reading settings from config: {e}")
 
+            global _game_presets
+            _game_presets = _load_game_presets()
+            Plugin.recording_overlay = RecordingOverlay(
+                plugin_path,
+                logger,
+                decky_user_home=getattr(decky, "DECKY_USER_HOME", None),
+                enabled=saved_config.get("recordingIndicator") == "overlay",
+            )
             active_game = saved_config.get("game", "wow")
             active_preset = _game_presets.get(active_game, _game_presets.get("wow", {}))
             Plugin.active_preset = active_game
@@ -569,6 +676,9 @@ class Plugin:
             last_channel = saved_config.get("lastChannel")
             model_size = saved_config.get("modelSize", "base")
             transcription_language = saved_config.get("transcriptionLanguage", "auto")
+            Plugin.haptic_feedback = HapticFeedback(
+                enabled=saved_config.get("hapticFeedback", False), logger=logger
+            )
 
             # Initialize the voice service with lazy model loading
             context_file = f"{plugin_path}/wow_context.json"
@@ -597,6 +707,7 @@ class Plugin:
                     )
                     if telemetry else None
                 ),
+                recording_state_callback=Plugin.haptic_feedback.emit,
             )
             Plugin.companion = Companion(
                 Path(plugin_path) / "bin" / "companion-capture", decky_user_home)
@@ -640,12 +751,16 @@ class Plugin:
     async def _unload(self):
         """Cleanup when plugin unloads"""
         logger.info("Unloading Decktation plugin")
+        if Plugin.haptic_feedback:
+            Plugin.haptic_feedback.set_enabled(False)
         try:
             if Plugin.companion:
                 await asyncio.to_thread(Plugin.companion.close)
             Plugin.poll_running = False
             Plugin.stop_controller_listener()
             Plugin.stop_ydotoold()
+            if Plugin.recording_overlay:
+                Plugin.recording_overlay.stop()
             if Plugin.voice_service and Plugin.voice_service.is_recording:
                 Plugin.voice_service.stop_recording()
                 Plugin._finish_dictation_trace(False)
@@ -661,9 +776,13 @@ class Plugin:
         """Remove runtime processes and transient files on uninstall."""
         if Plugin.companion:
             await asyncio.to_thread(Plugin.companion.close)
+        if Plugin.haptic_feedback:
+            Plugin.haptic_feedback.set_enabled(False)
         Plugin.poll_running = False
         Plugin.stop_controller_listener()
         Plugin.stop_ydotoold()
+        if Plugin.recording_overlay:
+            Plugin.recording_overlay.stop()
 
     async def _migration(self):
         """Move settings created by pre-store releases into Decky's settings."""
@@ -692,6 +811,9 @@ class Plugin:
                 _write_button_config(config)
             except Exception as e:
                 logger.error(f"Error saving enabled state: {e}")
+
+            if not enabled and Plugin.recording_overlay:
+                Plugin.recording_overlay.hide()
 
             if not enabled and Plugin.voice_service:
                 try:
@@ -746,7 +868,20 @@ class Plugin:
             logger.error(f"Error saving diagnostics preference: {e}")
             return {"success": False, "error": str(e)}
 
-    async def set_button_config(self, buttons: list, showNotifications: bool = True):
+    async def set_haptic_feedback(self, enabled: bool):
+        """Persist the optional recording cues without restarting input."""
+        try:
+            config = _read_button_config()
+            config["hapticFeedback"] = bool(enabled)
+            _write_button_config(config)
+            if Plugin.haptic_feedback:
+                Plugin.haptic_feedback.set_enabled(enabled)
+            return {"success": True}
+        except Exception as e:
+            logger.error("Error saving haptic preference: %s", e)
+            return {"success": False, "error": str(e)}
+
+    async def set_button_config(self, buttons: list, showNotifications: bool = None):
         """Set button configuration and settings, restart listener"""
         try:
             # Validate buttons list
@@ -764,12 +899,11 @@ class Plugin:
             config = _read_button_config()
 
             config["buttons"] = unique_buttons
-            config["showNotifications"] = showNotifications
 
             _write_button_config(config)
 
             combo_str = "+".join(unique_buttons)
-            logger.info(f"Button config updated: {combo_str}, notifications: {showNotifications}")
+            logger.info(f"Button config updated: {combo_str}")
 
             # Always restart controller listener so new config takes effect immediately
             Plugin.stop_controller_listener()
@@ -778,6 +912,21 @@ class Plugin:
             return {"success": True}
         except Exception as e:
             logger.error(f"Error setting button config: {traceback.format_exc()}")
+            return {"success": False, "error": str(e)}
+
+    async def set_recording_indicator(self, mode: str):
+        """Select toast, Gamescope overlay, or no recording cue."""
+        try:
+            mode = _normalize_recording_indicator(mode)
+            config = _read_button_config()
+            config["recordingIndicator"] = mode
+            _write_button_config(config)
+            if Plugin.recording_overlay:
+                Plugin.recording_overlay.set_enabled(mode == "overlay")
+            logger.info(f"Recording indicator set to {mode}")
+            return {"success": True, "mode": mode}
+        except Exception as e:
+            logger.error(f"Error setting recording indicator: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
 
     async def set_confirm_mode(self, enabled: bool):
@@ -898,7 +1047,9 @@ class Plugin:
     async def get_presets(self):
         """Get all available game presets"""
         try:
-            presets = [{"id": k, "name": v["name"]} for k, v in _game_presets.items()]
+            global _game_presets
+            _game_presets = _load_game_presets()
+            presets = [{"id": k, "name": v.get("name", k)} for k, v in _game_presets.items()]
             return {"success": True, "presets": presets}
         except Exception as e:
             logger.error(f"Error getting presets: {traceback.format_exc()}")
@@ -917,6 +1068,8 @@ class Plugin:
     async def set_active_preset(self, game: str):
         """Switch to a different game preset"""
         try:
+            global _game_presets
+            _game_presets = _load_game_presets()
             if game not in _game_presets:
                 return {"success": False, "error": f"Unknown preset: {game}"}
 
@@ -959,10 +1112,16 @@ class Plugin:
                     return {"success": False, "error": "Decktation is disabled"}
 
                 logger.info("Starting recording")
+                if Plugin.haptic_feedback and not Plugin.voice_service.is_recording:
+                    Plugin.haptic_feedback.begin_session(RECENT_SOURCE_FILE, max_age=10)
                 Plugin._start_dictation_trace()
                 try:
                     Plugin.voice_service.start_recording()
+                    if Plugin.recording_overlay:
+                        Plugin.recording_overlay.show("compact")
                 except Exception as e:
+                    if Plugin.haptic_feedback:
+                        Plugin.haptic_feedback.end_session()
                     Plugin._finish_dictation_trace(False)
                     if telemetry:
                         telemetry_capture_error(
@@ -988,6 +1147,8 @@ class Plugin:
             # Stream shutdown happens promptly in the worker, while Decky's
             # event loop remains available for status/UI requests during
             # transcription.
+            if Plugin.recording_overlay and Plugin.voice_service.is_recording:
+                Plugin.recording_overlay.show("transcribing")
             try:
                 await asyncio.to_thread(Plugin.voice_service.stop_recording, send)
             except Exception as e:
@@ -1002,6 +1163,9 @@ class Plugin:
                 raise
             else:
                 Plugin._finish_dictation_trace(True)
+            finally:
+                if Plugin.recording_overlay:
+                    Plugin.recording_overlay.hide()
             return {"success": True}
         except Exception as e:
             logger.error(f"Error stopping recording: {traceback.format_exc()}")
@@ -1048,6 +1212,20 @@ class Plugin:
             except Exception:
                 pass
 
+            listener_running = Plugin.listener_process is not None and Plugin.listener_process.poll() is None
+            controller_sources = []
+            try:
+                with open(CONTROLLER_STATUS_FILE) as status_file:
+                    controller_sources = json.load(status_file).get('sources', [])
+            except (OSError, ValueError, AttributeError):
+                pass
+            receiving_sources = [source for source in controller_sources if source.get('input_received')]
+            controller_status = ('Listener stopped' if not listener_running else
+                                 'No controller found' if not controller_sources else
+                                 'Waiting for input' if not receiving_sources else
+                                 'Receiving input')
+            combo_supported = any(source.get('combo_supported') for source in receiving_sources)
+
             return {
                 "success": True,
                 "companion": Plugin.companion.status() if Plugin.companion else {
@@ -1058,7 +1236,9 @@ class Plugin:
                 "recording": Plugin.voice_service.is_recording if Plugin.voice_service else False,
                 "recording_start_count": Plugin.recording_start_count,
                 "detected_button": detected_button,
-                "controller_ready": Plugin.listener_process is not None and Plugin.listener_process.poll() is None,
+                "controller_ready": listener_running and bool(receiving_sources),
+                "controller_status": controller_status,
+                "controller_combo_supported": combo_supported,
                 "pending_text": Plugin.voice_service.pending_text or "" if Plugin.voice_service else "",
                 "pending_delay": Plugin.voice_service._confirm_delay_for(Plugin.voice_service.pending_text) if Plugin.voice_service and Plugin.voice_service.pending_text else 0,
                 "confirm_mode": Plugin.voice_service.confirm_delay > 0 if Plugin.voice_service else False,

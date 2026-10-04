@@ -308,6 +308,19 @@ python wow_voice_chat.py --mode once --duration 5
 
 Note: You need to say the player name clearly for this to work!
 
+To answer the last person who whispered you, say the **reply** prefix instead. No player name is
+needed, because the game sends it to the most recent whisper conversation:
+
+```bash
+python wow_voice_chat.py --mode once --duration 5
+```
+
+**Say:** "reply yeah let's run it"
+
+**Result:** `/r yeah let's run it`
+
+The game reports "There is nobody to reply to" when you have not received a whisper yet.
+
 ## Summary
 
 **Three ways to control channels:**

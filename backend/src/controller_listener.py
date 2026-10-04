@@ -12,13 +12,16 @@ import json
 import glob
 import selectors
 import tempfile
-from deck_hid import STEAM_DECK_BUTTON_BITS, raw_button_states
+from deck_hid import STEAM_DECK_BUTTON_BITS, raw_button_states, triton_button_states
 from gamepad_evdev import EvdevGamepad
 
 STATE_FILE = "/tmp/decktation_l5"
 PREVIEW_FILE = "/tmp/decktation_button_preview"
 PID_FILE = "/tmp/decktation_listener.pid"
 CONTROLLER_TYPE_FILE = "/tmp/decktation_controller_type"
+HAPTIC_SOURCE_FILE = "/tmp/decktation_haptic_source.json"
+RECENT_SOURCE_FILE = "/tmp/decktation_recent_controller.json"
+STATUS_FILE = "/tmp/decktation_controller_status"
 # The Decky backend passes its user-owned settings directory. The fallback is
 # retained for standalone development runs.
 CONFIG_DIR = os.environ.get(
@@ -44,6 +47,15 @@ STEAM_CONTROLLER_TYPES = {
     "0003:000028DE:00001102": "steam_controller_wired",
     "0003:000028DE:00001142": "steam_controller_wireless",
 }
+for product, kind, suffixes, bus in (
+    (0x1304, 'steam_controller_2026_puck', tuple(f'/input{i}' for i in range(2, 6)), 3),
+    (0x1305, 'steam_controller_2026_receiver', tuple(f'/input{i}' for i in range(2, 6)), 3),
+    (0x1302, 'steam_controller_2026_wired', ('/input0', '/input1', '/input2'), 3),
+    (0x1303, 'steam_controller_2026_bluetooth', None, 5),
+):
+    hid_id = f'{bus:04X}:000028DE:{product:08X}'
+    STEAM_HID_INTERFACES[hid_id] = suffixes
+    STEAM_CONTROLLER_TYPES[hid_id] = kind
 
 DIAGNOSTIC_PREFIX = 'DECKTATION_CONTROLLER '
 
@@ -51,12 +63,18 @@ DIAGNOSTIC_PREFIX = 'DECKTATION_CONTROLLER '
 def controller_details(device, controller_type):
     if controller_type != 'evdev_gamepad':
         buttons = set(RAW_BUTTON_BITS)
-        if controller_type != 'steam_deck':
+        if controller_type not in ('steam_deck',) and not controller_type.startswith('steam_controller_2026'):
             buttons -= {'L4', 'R4'}
         product = {'steam_deck': 0x1205, 'steam_controller_wired': 0x1102,
-                   'steam_controller_wireless': 0x1142}.get(controller_type, 0)
+                   'steam_controller_wireless': 0x1142,
+                   'steam_controller_2026_puck': 0x1304,
+                   'steam_controller_2026_receiver': 0x1305,
+                   'steam_controller_2026_wired': 0x1302,
+                   'steam_controller_2026_bluetooth': 0x1303}.get(controller_type, 0)
+        bluetooth = controller_type.endswith('_bluetooth')
         return {'controller_type': controller_type, 'input_backend': 'hidraw',
-                'vendor_id': 0x28de, 'product_id': product, 'connection': 'usb', 'bus': 3,
+                'vendor_id': 0x28de, 'product_id': product,
+                'connection': 'bluetooth' if bluetooth else 'usb', 'bus': 5 if bluetooth else 3,
                 'supported_buttons': sorted(buttons)}
     identity = getattr(device, 'identity', {})
     family = {0x045e: 'xbox', 0x054c: 'playstation', 0x057e: 'nintendo',
@@ -74,6 +92,19 @@ def write_button_preview(states):
         f.write(value)
     try:
         os.replace(temporary, PREVIEW_FILE)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def write_source(path, value):
+    """Publish a source before the recording state becomes visible."""
+    with tempfile.NamedTemporaryFile(mode='w', dir=os.path.dirname(path),
+                                     prefix='.decktation-source-', delete=False) as f:
+        temporary = f.name
+        json.dump(value, f)
+    try:
+        os.replace(temporary, path)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
@@ -107,7 +138,8 @@ def find_steam_hidraw():
                 )
             hid_id = properties.get("HID_ID")
             interface_suffixes = STEAM_HID_INTERFACES.get(hid_id, ())
-            if properties.get("HID_PHYS", "").endswith(interface_suffixes):
+            if hid_id in STEAM_CONTROLLER_TYPES and (interface_suffixes is None or
+                    properties.get("HID_PHYS", "").endswith(interface_suffixes)):
                 yield path, STEAM_CONTROLLER_TYPES[hid_id]
         except (OSError, ValueError):
             continue
@@ -130,6 +162,16 @@ class RawGamepad:
             yield {name: False for name in RAW_BUTTON_BITS}
             return
         states = raw_button_states(report)
+        if states is not None:
+            yield states
+
+
+class TritonGamepad(RawGamepad):
+    def read_states(self):
+        report = os.read(self.fd, 64)
+        if not report:
+            raise OSError('empty HID report')
+        states = triton_button_states(report)
         if states is not None:
             yield states
 
@@ -200,15 +242,33 @@ def main():
             'current_controller': details.get(active_source, {}),
             **extra,
         }
+        # Publish discovery and receipt independently of process liveness.
+        with tempfile.NamedTemporaryFile(mode='w', dir=os.path.dirname(STATUS_FILE),
+                                         prefix='.decktation-status-', delete=False) as f:
+            json.dump(snapshot, f)
+            temporary = f.name
+        os.replace(temporary, STATUS_FILE)
         print(DIAGNOSTIC_PREFIX + json.dumps(snapshot), flush=True)
 
     def update_combo():
         nonlocal combo_active
         if tracker.active != combo_active:
             combo_active = tracker.active
+            if combo_active:
+                # The source completing the combo is selected in publish(),
+                # before the backend can observe STATE_FILE=1.
+                write_source(HAPTIC_SOURCE_FILE, source_snapshot(active_source))
             print(f"{combo_str} COMBO: {'pressed' if combo_active else 'released'}", flush=True)
             with open(STATE_FILE, 'w') as f:
                 f.write("1" if combo_active else "0")
+
+    def source_snapshot(path):
+        if path not in details:
+            return None
+        return {'path': path, 'kind': devices[path][1],
+                'identity': {key: details[path].get(key) for key in
+                             ('bus', 'vendor_id', 'product_id')},
+                'time': time.time()}
 
     def publish(path, states, controller_type):
         nonlocal active_source
@@ -233,6 +293,8 @@ def main():
                 f.write(details[path]['controller_type'])
             if changed_source:
                 diagnostic('active_changed')
+        if changed and any(states.values()):
+            write_source(RECENT_SOURCE_FILE, source_snapshot(path))
         tracker.update(path, states)
         if changed:
             write_button_preview(tracker.sources.get(active_source, {}))
@@ -272,18 +334,20 @@ def main():
                         continue
                     device = None
                     try:
-                        device = (EvdevGamepad(path) if controller_type == 'evdev_gamepad'
-                                  else RawGamepad(path))
+                        reader = (EvdevGamepad if controller_type == 'evdev_gamepad' else
+                                  TritonGamepad if controller_type.startswith('steam_controller_2026') else
+                                  RawGamepad)
+                        device = reader(path)
                         selector.register(device.fd, selectors.EVENT_READ, path)
                     except ValueError:
                         continue  # Not a gamepad; constructor closes its fd.
                     except OSError as e:
                         if device is not None:
                             device.close()
-                        print(f"Cannot open controller {path}: {e}", flush=True)
                         error_key = (path, e.errno)
                         if error_key not in open_errors:
                             open_errors.add(error_key)
+                            print(f"Cannot open controller {path}: {e}", flush=True)
                             diagnostic('open_failed', errno=e.errno,
                                        input_backend='evdev' if controller_type == 'evdev_gamepad' else 'hidraw')
                         continue
@@ -325,7 +389,8 @@ def main():
         for device, _ in devices.values():
             device.close()
         selector.close()
-        for path in (STATE_FILE, PID_FILE, PREVIEW_FILE, CONTROLLER_TYPE_FILE):
+        for path in (STATE_FILE, PID_FILE, PREVIEW_FILE, CONTROLLER_TYPE_FILE, STATUS_FILE,
+                     HAPTIC_SOURCE_FILE, RECENT_SOURCE_FILE):
             try:
                 os.remove(path)
             except FileNotFoundError:

@@ -275,11 +275,26 @@ for slug, (source, ref) in planned.items():
 PY_MIGRATE
 }
 
+assert_branch_target_available() {
+  local branch_key="$1"
+  local metadata="$PAGES_DIR/branches/$branch_key/metadata.json"
+  if [ ! -f "$metadata" ]; then
+    return
+  fi
+  local existing_ref
+  existing_ref="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ref"])' "$metadata")"
+  if [ "$existing_ref" != "$REF_NAME" ]; then
+    echo "Branch URL collision: $REF_NAME and $existing_ref both use $branch_key" >&2
+    exit 1
+  fi
+}
+
 render_pages_content() {
   migrate_branch_dirs
   if [ "$CLEANUP_ONLY" != "true" ]; then
     local branch_key
     branch_key="$(normalize_ref "$REF_NAME")"
+    assert_branch_target_available "$branch_key"
     local branch_url_path
     branch_url_path="$(encode_url_path "branches/$branch_key")"
     local zip_url="$PAGES_BASE_URL/$branch_url_path/decktation.zip"
@@ -442,7 +457,7 @@ render_pages_content() {
         <p><strong>Short install URL</strong><br><code>${PAGES_BASE_URL}/latest.zip</code></p>
         <p><strong>Latest release ZIP</strong><br><code>${PAGES_BASE_URL}/releases/latest/decktation.zip</code></p>
         <p><strong>Decky Custom Store URL</strong><br><code>https://homebrew.imsilverfoxy.com/plugins.json</code></p>
-        <p><strong>Branch ZIP pattern</strong><br><code>${PAGES_BASE_URL}/branches/&lt;url-encoded-branch-name&gt;/decktation.zip</code></p>
+        <p><strong>Branch ZIP pattern</strong><br><code>${PAGES_BASE_URL}/branches/&lt;branch-slug&gt;/decktation.zip</code></p>
       </div>
     </div>
     $(render_index_list "$PAGES_DIR/releases" "Releases" "$PAGES_BASE_URL")
