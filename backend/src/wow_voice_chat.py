@@ -328,16 +328,15 @@ class WoWVoiceChat:
             return False
         self.gpu_model = model
         self.gpu_enabled = True
-        logger.info("Using AMD Vulkan Whisper transcription: executable=%s model=%s", whisper_cli, model)
+        logger.info("Using AMD Vulkan Whisper transcription: executable=%s model=%s", whisper_cli.with_name("whisper-server"), model)
         return True
 
     def _transcribe_vulkan(self, audio_input, initial_prompt, hotwords):
-        """Run whisper.cpp once; return None when CPU fallback should be used."""
+        """Reuse the Vulkan worker; return None when CPU fallback should be used."""
         try:
             with tempfile.TemporaryDirectory(prefix="decktation-whisper-") as directory:
                 directory = Path(directory)
                 wav_path = directory / "audio.wav"
-                out_path = directory / "transcript"
                 self.save_audio_to_wav(audio_input, wav_path, source_rate=self.whisper_sample_rate)
                 if not self.gpu_worker:
                     raise RuntimeError('Resident worker is not loaded')
