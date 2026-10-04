@@ -118,7 +118,10 @@ logger.info(f"Current working directory: {os.getcwd()}")
 # Import our voice chat service
 WoWVoiceChat = None
 try:
+    import wow_voice_chat
+    wow_voice_chat.logger = logger
     from wow_voice_chat import WoWVoiceChat
+    logger.info("Voice service source: %s", wow_voice_chat.__file__)
     logger.info("Successfully imported WoWVoiceChat")
 except ImportError as e:
     logger.error(f"Failed to import WoWVoiceChat: {e}")
@@ -1196,6 +1199,10 @@ class Plugin:
                 "success": True,
                 "service_ready": Plugin.voice_service is not None,
                 "model_ready": model_ready,
+                "inference_device": (
+                    "gpu" if Plugin.voice_service and Plugin.voice_service.gpu_enabled else
+                    "cpu" if Plugin.voice_service and Plugin.voice_service.model is not None else None
+                ),
                 "model_loading": model_loading,
                 "recording": Plugin.voice_service.is_recording if Plugin.voice_service else False,
                 "recording_start_count": Plugin.recording_start_count,
