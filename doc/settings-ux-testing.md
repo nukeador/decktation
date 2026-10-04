@@ -1,6 +1,6 @@
 # Settings UX (#20): Steam Deck test checklist
 
-This branch starts from `feat/haptic-feedback`. Test it with that runtime installed. The UX change itself is frontend only (`src/index.tsx` and built `dist/index.js`).
+This branch assumes the merged haptic-feedback runtime. The UX change itself is frontend only (`src/index.tsx` and built `dist/index.js`).
 
 ## Smallest deployment for an approved Deck test
 

@@ -400,7 +400,6 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 				const result = await getStatus();
 				if (cancelled) return;
 				if (result.success) {
-					setStatusError("");
 					setButtonState(result.detected_button || "None");
 					setControllerReady(result.controller_ready === true);
 					setControllerStatus(result.controller_status || "Waiting for input");
@@ -630,7 +629,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					</PanelSection>
 					<PanelSection title="Feedback">
 						<PanelSectionRow><DropdownItem label="Recording cue" menuLabel="Recording cue" rgOptions={[{data:"toast",label:"Toast"},{data:"overlay",label:"Overlay"},{data:"none",label:"None"}]} selectedOption={recordingIndicator} onChange={async (option) => { const mode = option.data as string; setRecordingIndicator(mode); logic.recordingIndicator = mode; const result = await setRecordingIndicatorRpc(mode); if (!result.success) setRpcError(result.error || "Could not update recording cue"); }} /></PanelSectionRow>
-						<PanelSectionRow><ToggleField label="Haptic feedback" description="Cues when recording starts and stops on Steam Deck"
+						<PanelSectionRow><ToggleField label="Haptic feedback" description="Cues on the controller when recording starts and stops"
 							checked={hapticFeedback} onChange={async (next) => {
 								const result = await setHapticFeedbackRpc(next);
 								if (result.success) setHapticFeedback(next);
