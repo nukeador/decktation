@@ -32,7 +32,7 @@ class ResidentWhisper:
                 ['/usr/bin/python3', str(Path(__file__).resolve()), str(binary),
                  '--model', str(model), '--host', '127.0.0.1', '--port', str(port),
                  '--language', 'auto', '--beam-size', '5'],
-                env=environment, stdin=subprocess.DEVNULL,
+                env={**environment, "DECKTATION_WHISPER_PARENT": str(os.getpid())}, stdin=subprocess.DEVNULL,
                 stdout=self.log_file, stderr=subprocess.STDOUT, start_new_session=True)
             while time.monotonic() - start < timeout:
                 if self.process.poll() is not None:
@@ -102,7 +102,9 @@ if __name__ == '__main__':
     # This separate launcher avoids preexec_fn in Decky's threaded process.
     # Kernel kills the resident worker if its owning plugin exits or crashes.
     import sys
-    parent = os.getppid()
+    parent = int(os.environ.pop("DECKTATION_WHISPER_PARENT"))
+    if os.getppid() != parent:
+        raise SystemExit(1)
     libc = ctypes.CDLL(None, use_errno=True)
     if libc.prctl(1, signal.SIGTERM, 0, 0, 0) != 0:
         raise OSError(ctypes.get_errno(), 'Could not set worker parent-death signal')
