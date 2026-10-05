@@ -145,3 +145,19 @@ document.getElementById('other-device').addEventListener('click', () => {
   deviceDownload.hidden = true;
   document.getElementById('confirm-steamos').focus({ preventScroll: true });
 });
+
+const systemTheme = matchMedia('(prefers-color-scheme: dark)');
+let themeChoice = 'auto';
+try { themeChoice = localStorage.getItem('decktation-theme') || 'auto'; } catch {}
+if (!['auto', 'light', 'dark'].includes(themeChoice)) themeChoice = 'auto';
+function applyTheme() {
+  document.documentElement.dataset.theme = themeChoice === 'auto' ? (systemTheme.matches ? 'dark' : 'light') : themeChoice;
+  document.querySelectorAll('[data-theme-choice]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.themeChoice === themeChoice)));
+}
+document.querySelectorAll('[data-theme-choice]').forEach(button => button.addEventListener('click', () => {
+  themeChoice = button.dataset.themeChoice;
+  try { localStorage.setItem('decktation-theme', themeChoice); } catch {}
+  applyTheme();
+}));
+systemTheme.addEventListener('change', applyTheme);
+applyTheme();

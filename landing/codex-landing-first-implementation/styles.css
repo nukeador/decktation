@@ -234,3 +234,24 @@ header{background:#fefefe;backdrop-filter:none}
 #install .install-path h3,#install #install-question{scroll-margin-top:100px}
 
 #install .install-wizard h5{font-size:16px;margin:20px 0 8px}#install .install-zip-option{margin-top:24px;padding-top:4px;border-top:1px solid #cddbf0}
+
+html{color-scheme:light}html[data-theme="dark"]{color-scheme:dark;--bg:#11151c;--alt:#191f29;--ink:#edf1f8;--muted:#b2bdce;--line:#333d4e;--blue:#4381ff;--blue2:#2868ed;--dark:#0d1118}
+.theme-picker{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:24px;margin-top:20px;border-top:1px solid #333d4e}.theme-options{display:flex;gap:8px}.theme-picker .btn{background:#191f29;color:#dce5f3;border-color:#333d4e;font-size:13px}.theme-picker .btn[aria-pressed="true"]{background:#246bfd;color:white;border-color:#246bfd}
+html[data-theme="dark"] header,html[data-theme="dark"] .navlinks.is-open{background:var(--bg)}
+html[data-theme="dark"] .navlinks{color:var(--muted)}
+html[data-theme="dark"] .btn:not(.primary),html[data-theme="dark"] .language-control,html[data-theme="dark"] .mobile-menu,html[data-theme="dark"] .demo-toggle,html[data-theme="dark"] .routing,html[data-theme="dark"] .code{background:var(--alt);color:var(--ink);border-color:var(--line)}
+html[data-theme="dark"] .btn:not(.primary):hover{background:#263044}
+html[data-theme="dark"] .install-band{background:#18273f;border-color:#2d4568}
+html[data-theme="dark"] #install .install-wizard>li,html[data-theme="dark"] #install .install-zip-option,html[data-theme="dark"] #install #install-ready{border-color:#324763}
+html[data-theme="dark"] .live-demo,html[data-theme="dark"] .hero-shot,html[data-theme="dark"] .wow-shot,html[data-theme="dark"] .hero-shot figcaption,html[data-theme="dark"] .wow-shot figcaption{background:var(--alt)}
+html[data-theme="dark"] .hero-shot figcaption,html[data-theme="dark"] .wow-shot figcaption,html[data-theme="dark"] .demo-status{color:var(--muted)}
+html[data-theme="dark"] .text-link,html[data-theme="dark"] .routing strong{color:#84adff}
+html[data-theme="dark"] .game-logo .fa-steam{color:var(--ink)}
+html[data-theme="dark"] .brand-art{isolation:isolate}html[data-theme="dark"] .brand-logo,html[data-theme="dark"] .brand-wave{filter:invert(1);mix-blend-mode:screen}html[data-theme="dark"] .brand-wave-cover{background:var(--bg)}html[data-theme="dark"] footer .brand{background:transparent}html[data-theme="dark"] footer .brand-wave-cover{background:#101216}
+html[data-theme="dark"] .skip{background:var(--alt)}
+@media(max-width:480px){.theme-picker{align-items:flex-start;flex-direction:column}.theme-options{width:100%}.theme-options .btn{flex:1;padding:0 10px}}
+
+/* Blend the complete animated logo against the header, including its waveform mask. */
+html[data-theme="dark"] .brand-art{isolation:auto;mix-blend-mode:screen}
+html[data-theme="dark"] .brand-logo,html[data-theme="dark"] .brand-wave{mix-blend-mode:normal}
+html[data-theme="dark"] .brand-wave-cover,html[data-theme="dark"] footer .brand-wave-cover{background:#000}
