@@ -47,7 +47,7 @@
     .feature .ico{font-size:24px;margin-bottom:14px}
     .install-band{background:#eef5ff;border:1px solid #dbe8ff;border-radius:24px;padding:34px}
     .install-top{display:flex;justify-content:space-between;gap:24px;align-items:end;margin-bottom:30px}
-    .install-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .install-steps{display:grid;grid-template-columns:1fr;gap:16px}
     .install-step{padding:18px;background:#fff;border-radius:14px;border:1px solid #dfe8f6}
     .code{display:flex;align-items:center;gap:10px;margin-top:22px;background:#fff;border:1px solid #cad8ef;padding:12px;border-radius:12px}
     .code code{overflow:auto;white-space:nowrap;flex:1;font-size:13px}
@@ -180,3 +180,5 @@ header{background:#fefefe;backdrop-filter:none}
 
 .wow-gameplay{position:relative}.wow-chat-demo{position:absolute;left:2%;bottom:4%;width:54%;color:#fafafa;background:#111820ed;border:1px solid #ffffff29;border-radius:5px;padding:8px;font-size:clamp(10px,1vw,14px);line-height:1.5}.wow-party-label{color:#bab8ff}.wow-chat-input{margin-top:6px;padding:4px 6px;border:1px solid #ab9964;border-radius:3px;white-space:normal}.wow-recording{left:78%;bottom:7%;width:29%;min-height:30px}.wow-recording .demo-bars>span{animation:none}
 @media(max-width:480px){.wow-chat-demo{padding:5px;font-size:11px;width:58%}.wow-chat-input{padding:2px 4px}.wow-recording{width:29%;left:80%;gap:6px;padding:4px;min-height:24px}.wow-recording .demo-bars{gap:2px}.wow-recording .demo-bars>span{width:2px}}
+
+.install-step p{margin:12px 0 0}.install-step .code{margin-top:16px}
