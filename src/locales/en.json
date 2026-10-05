@@ -2,7 +2,6 @@
   "Back": "Back",
   "Enable": "Enable",
   "Quick settings": "Quick settings",
-  "Game": "Game",
   "Language": "Language",
   "Binding": "Binding",
   "Edit Bindings": "Edit Bindings",
@@ -106,5 +105,6 @@
   "Status unavailable": "Status unavailable",
   "Backend status request failed": "Backend status request failed",
   "Could not update language setting": "Could not update language setting",
-  "Interface": "Interface"
+  "Interface": "Interface",
+  "Mode": "Mode"
 }

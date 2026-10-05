@@ -25,7 +25,7 @@ import React, {
 
 import { FaMicrophone, FaTrash } from "react-icons/fa";
 
-import { t, getInterfacePreference, setInterfacePreference, languageName, initializeSteamLanguage } from "./i18n";
+import { t, getInterfacePreference, setInterfacePreference, languageName, initializeSteamLanguage, INTERFACE_LANGUAGE_OPTIONS, InterfacePreference } from "./i18n";
 
 type RpcResponse = { success: boolean; error?: string; [key: string]: any };
 
@@ -559,7 +559,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					<PanelSection title={t("Quick settings")}>
 
 						{presets.length > 0 && <PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("game")}>
-							Game: {t(String(presets.find(option => option.data === activePreset)?.label || activePreset))}
+							{t("Mode")}: {t(String(presets.find(option => option.data === activePreset)?.label || activePreset))}
 						</ButtonItem></PanelSectionRow>}
 						<PanelSectionRow><div style={{ position: 'relative', width: '100%' }}>
 							<span ref={languageMenuAnchorRef} aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, width: '1px', height: '1px', pointerEvents: 'none' }} />
@@ -598,7 +598,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 		{page === "advanced" && <>
 					<PanelSection title={t("Transcription model")}>
 						<PanelSectionRow><div ref={advancedModelRowRef}><ButtonItem layout="below" onClick={() => setPage("model")}>
-							Model: {t(String(MODEL_SIZE_OPTIONS.find(option => option.data === modelSize)?.label || modelSize))}
+							{t("Model")}: {t(String(MODEL_SIZE_OPTIONS.find(option => option.data === modelSize)?.label || modelSize))}
 						</ButtonItem></div></PanelSectionRow>
 						{modelReady && !modelLoading && inferenceDevice && (
 							<PanelSectionRow><div>
@@ -661,8 +661,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					</PanelSection>
 					<PanelSection title={t("Interface")}>
 <PanelSectionRow><DropdownItem label={t("Interface language")} description={t("Only changes the menu language, not the dictation language.")}
-                            rgOptions={[{data:"auto",label:t("Automatic (system)")},{data:"en",label:"English"},{data:"es",label:"Español"}]}
-                            selectedOption={interfaceLanguage} onChange={option => { const next = String(option.data) as "auto" | "en" | "es"; setInterfacePreference(next); updateInterfaceLanguage(next); }} /></PanelSectionRow>
+                            rgOptions={[{data:"auto",label:t("Automatic (system)")}, ...INTERFACE_LANGUAGE_OPTIONS]}
+                            selectedOption={interfaceLanguage} onChange={option => { const next = String(option.data) as InterfacePreference; setInterfacePreference(next); updateInterfaceLanguage(next); }} /></PanelSectionRow>
 </PanelSection>
 <PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("diagnostics")}>{t("Diagnostics")}</ButtonItem></PanelSectionRow>
 					<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("help")}>{t("Help & permissions")}</ButtonItem></PanelSectionRow>
@@ -686,7 +686,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 							}} /></PanelSectionRow>
 					</PanelSection>
 				</>}
-				{page === "game" && <PanelSection title={t("Game")}>
+				{page === "game" && <PanelSection title={t("Mode")}>
 					{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
 					{presets.map(option => <PanelSectionRow key={String(option.data)}><ButtonItem layout="below" onClick={async () => {
 						const next = option.data as string;

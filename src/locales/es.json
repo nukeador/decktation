@@ -2,7 +2,6 @@
   "Back": "Volver",
   "Enable": "Activar",
   "Quick settings": "Ajustes rápidos",
-  "Game": "Juego",
   "Language": "Idioma del dictado",
   "Binding": "Combinación",
   "Edit Bindings": "Editar combinación",
@@ -90,7 +89,7 @@
   "Could not update recording cue": "No se pudo cambiar el indicador de grabación",
   "Could not update haptic feedback": "No se pudo cambiar la vibración",
   "Could not update diagnostics setting": "No se pudo cambiar el ajuste de diagnóstico",
-  "Could not update game": "No se pudo cambiar el juego",
+  "Could not update game": "No se pudo cambiar el modo",
   "Could not update model size": "No se pudo cambiar el modelo",
   "Could not update binding": "No se pudo cambiar la combinación",
   "Could not update language": "No se pudo cambiar el idioma",
@@ -106,5 +105,6 @@
   "Status unavailable": "Estado no disponible",
   "Backend status request failed": "No se pudo consultar el estado del servicio",
   "Could not update language setting": "No se pudo cambiar el idioma del dictado",
-  "Interface": "Interfaz"
+  "Interface": "Interfaz",
+  "Mode": "Modo"
 }
