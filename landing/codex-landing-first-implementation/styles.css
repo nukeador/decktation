@@ -203,6 +203,6 @@ header{background:#fefefe;backdrop-filter:none}
 .wow-gameplay[data-phase="typing"] .wow-chat-filled,.wow-gameplay[data-phase="done"] .wow-chat-filled{opacity:1}
 
 .wow-gameplay{overflow:hidden}
-.wow-gameplay>img{transform-origin:0% 100%;transition:transform 850ms cubic-bezier(.22,.61,.36,1)}
-.wow-gameplay[data-phase="done"]>img{transform:scale(2.2)}
+.wow-gameplay>img{transform-origin:0% 100%;transition:transform 1700ms cubic-bezier(.22,.61,.36,1)}
+.wow-gameplay[data-phase="transcribing"]>img,.wow-gameplay[data-phase="typing"]>img,.wow-gameplay[data-phase="done"]>img{transform:scale(2.2)}
 @media(prefers-reduced-motion:reduce){.wow-gameplay>img{transition:none;transform:none!important}}

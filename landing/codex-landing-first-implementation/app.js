@@ -68,7 +68,9 @@ const typed = demo.querySelector('.demo-typed');
 const message = typed?.textContent;
 const toggle = demo.querySelector('.demo-toggle');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-const stages = [2800, 650, 180, 3000];
+const stages = demo.classList.contains('wow-gameplay')
+  ? [2800, 1900, 180, 3400]
+  : [2800, 650, 180, 3000];
 const phases = ['listening', 'transcribing', 'typing', 'done'];
 let stage = 0;
 let elapsed = 0;
