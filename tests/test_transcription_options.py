@@ -126,7 +126,7 @@ def test_non_english_transcription_skips_english_prompt_but_keeps_hotwords(monke
     assert service.model.kwargs["hotwords"] == "Sylvanas, Azeroth, Illidan"
 
 
-def test_setting_auto_language_restores_prompt_context():
+def test_setting_auto_language_does_not_restore_example_prompt():
     service = WoWVoiceChat(
         lazy_load=True,
         transcription_language="es",
@@ -136,7 +136,7 @@ def test_setting_auto_language_restores_prompt_context():
     service.set_transcription_options("auto")
 
     assert service.transcription_language is None
-    assert service.build_prompt_from_context() == ("Game chat", None)
+    assert service.build_prompt_from_context() == (None, None)
 
 
 def test_model_load_uses_selected_model_size(monkeypatch):

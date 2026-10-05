@@ -27,6 +27,7 @@ import numpy as np
 import wave
 from audio_runtime import ensure_audio_environment
 from clipboard_injection import temporary_clipboard
+from resident_whisper import ResidentWhisper
 
 
 def _capitalize_standalone_i(text: str) -> str:
@@ -115,6 +116,7 @@ class WoWVoiceChat:
         self.model = None
         self.gpu_model = None
         self.gpu_enabled = False
+        self.gpu_worker = None
         self.model_loading = False
         self.model_load_error = None
 
@@ -255,6 +257,9 @@ class WoWVoiceChat:
         """Release Whisper and return free heap pages where the OS supports it."""
         with self.model_lock:
             self.model = None
+            if self.gpu_worker:
+                self.gpu_worker.close()
+                self.gpu_worker = None
             self.gpu_model = None
             self.gpu_enabled = False
             self.model_load_error = None
@@ -316,39 +321,44 @@ class WoWVoiceChat:
             logger.warning("Vulkan Whisper unavailable; using CPU fallback: %s", error)
             return False
 
+        try:
+            self.gpu_worker = ResidentWhisper(whisper_cli.with_name('whisper-server'), model, _vulkan_environment())
+        except Exception as error:
+            logger.warning('Resident Vulkan startup failed; using CPU fallback: %s', error)
+            return False
         self.gpu_model = model
         self.gpu_enabled = True
-        logger.info("Using AMD Vulkan Whisper transcription: executable=%s model=%s", whisper_cli, model)
+        logger.info("Using AMD Vulkan Whisper transcription: executable=%s model=%s", whisper_cli.with_name("whisper-server"), model)
         return True
 
     def _transcribe_vulkan(self, audio_input, initial_prompt, hotwords):
-        """Run whisper.cpp once; return None when CPU fallback should be used."""
+        """Reuse the Vulkan worker; return None when CPU fallback should be used."""
         try:
             with tempfile.TemporaryDirectory(prefix="decktation-whisper-") as directory:
                 directory = Path(directory)
                 wav_path = directory / "audio.wav"
-                out_path = directory / "transcript"
                 self.save_audio_to_wav(audio_input, wav_path, source_rate=self.whisper_sample_rate)
-                command = [str(_whisper_cli_path()), "--model", str(self.gpu_model),
-                           "--file", str(wav_path), "--no-timestamps", "--output-txt",
-                           "--output-file", str(out_path), "--beam-size", "5",
-                           "--language", self.transcription_language or "auto"]
-                # whisper-cli has no separate hotwords option. Put vocabulary
-                # first so it remains useful if the prompt reaches its token cap.
-                prompt_parts = [part for part in (hotwords, initial_prompt) if part]
-                if prompt_parts:
-                    command.extend(["--prompt", ". ".join(prompt_parts)])
-                result = subprocess.run(command, capture_output=True, text=True, timeout=90,
-                                        env=_vulkan_environment())
-                transcript = out_path.with_suffix(".txt")
-                if result.returncode or not transcript.exists():
-                    raise RuntimeError(result.stderr[-500:])
-                return _capitalize_standalone_i(transcript.read_text(errors="replace").strip())
+                if not self.gpu_worker:
+                    raise RuntimeError('Resident worker is not loaded')
+                prompt = '. '.join(part for part in (hotwords, initial_prompt) if part)
+                started = time.monotonic()
+                text = self.gpu_worker.transcribe(wav_path, self.transcription_language, prompt)
+                logger.info('Resident Vulkan inference: pid=%s audio=%.3fs request=%.3fs text=%r',
+                            self.gpu_worker.process.pid, len(audio_input)/self.whisper_sample_rate,
+                            time.monotonic()-started, text.strip())
+                # whisper-server wraps longer output into multiple lines. Chat
+                # injection intentionally rejects control characters; convert
+                # only presentation line breaks to spaces at this boundary.
+                text = re.sub(r"[ \t]*[\r\n]+[ \t]*", " ", text).strip()
+                return _capitalize_standalone_i(text)
         except Exception as error:
             # Do not make dictation fail because a Vulkan driver resets or a
             # future AMD device lacks a required extension.  Disable this path
             # for the remainder of the process and immediately use CPU.
             logger.warning("Vulkan Whisper failed; falling back to CPU: %s", error)
+            if self.gpu_worker:
+                self.gpu_worker.close()
+                self.gpu_worker = None
             self.gpu_enabled = False
             self.gpu_model = None
             return None
@@ -413,10 +423,13 @@ class WoWVoiceChat:
             self.model_size = model_size
             self.model_load_error = None
 
-            if self.model is None:
+            if self.model is None and not self.gpu_enabled:
                 return True
 
             self.model = None
+            if self.gpu_worker:
+                self.gpu_worker.close()
+                self.gpu_worker = None
             self.gpu_model = None
             self.gpu_enabled = False
             return self._load_model()
@@ -459,21 +472,6 @@ class WoWVoiceChat:
 
     def build_prompt_from_context(self):
         """Build initial_prompt and hotwords from context"""
-        base_prompt = self.preset.get("whisper_prompt") if self.preset else None
-
-        # Fall back to hardcoded WoW prompt when no preset is provided (direct CLI usage)
-        if base_prompt is None:
-            base_prompt = (
-                "World of Warcraft gameplay discussion. "
-                "Playing as orc warrior, tauren druid, blood elf paladin, undead warlock, troll shaman, or night elf hunter. "
-                "Discussing enhancement shaman, restoration druid, protection warrior, holy paladin, arcane mage, shadow priest, affliction warlock. "
-                "Running mythic dungeons, heroic raids, doing quests in Azeroth, Orgrimmar, Stormwind, Ironforge. "
-                "Fighting bosses like Lich King, Ragnaros, Illidan, pulling trash mobs, need tank healer and DPS. "
-                "Using abilities, cooldowns, buffs, debuffs, interrupts, dispels, cleave and AOE damage. "
-                "Chat channel prefixes: say, party, raid, guild, officer, yell, instance, whisper, reply, type. "
-                "Common short phrases: hi, gg, brb, afk, lol, omw, ty, np, wp, gz."
-            )
-
         # Extract preset hotwords if configured. Keep them as a list until the
         # context hotwords have also been added.
         preset_hotwords_raw = self.preset.get("hotwords") if self.preset else None
@@ -484,38 +482,14 @@ class WoWVoiceChat:
         else:
             hotwords = []
 
-        # English game prompts bias non-English transcription heavily. Keep
-        # language-neutral vocabulary, but omit the prose prompt when the user
-        # explicitly selects a non-English language.
-        use_prompt = not self.transcription_language
-
-        # Only append dynamic game context if this preset uses a context file (e.g. WoW addon)
+        # Experimental comparison: do not send prose/example messages, even
+        # if a saved preset still contains the old English whisper_prompt.
+        # Preserve explicitly configured vocabulary and actual game names.
         if not self.preset.get("context_file"):
-            return (base_prompt or None) if use_prompt else None, ", ".join(hotwords) or None
-
+            return None, ", ".join(hotwords) or None
         zone = self.context.get("zone", "")
-        subzone = self.context.get("subzone", "")
         boss = self.context.get("boss", "")
         target = self.context.get("target", "")
-        party = self.context.get("party", [])
-
-        # Add dynamic context to the prompt
-        dynamic_parts = []
-        if zone:
-            dynamic_parts.append(f"Currently in {zone}")
-        if subzone:
-            dynamic_parts.append(f"at {subzone}")
-        if boss:
-            dynamic_parts.append(f"fighting {boss}")
-        if party:
-            dynamic_parts.append(f"with party members {', '.join(party[:5])}")
-
-        if not use_prompt:
-            initial_prompt = None
-        elif dynamic_parts:
-            initial_prompt = base_prompt + " " + " ".join(dynamic_parts) + "."
-        else:
-            initial_prompt = base_prompt
 
         # Preserve the context-derived hotwords used by existing presets while
         # allowing user profiles to add their own vocabulary.
@@ -523,7 +497,7 @@ class WoWVoiceChat:
             if contextual_hotword and contextual_hotword not in hotwords:
                 hotwords.append(contextual_hotword)
 
-        return initial_prompt, ", ".join(hotwords) or None
+        return None, ", ".join(hotwords) or None
 
     def audio_callback(self, indata, frames, time_info, status):
         """Callback for audio recording"""

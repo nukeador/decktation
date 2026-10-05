@@ -752,8 +752,10 @@ class Plugin:
             if Plugin.recording_overlay:
                 Plugin.recording_overlay.stop()
             if Plugin.voice_service and Plugin.voice_service.is_recording:
-                Plugin.voice_service.stop_recording()
+                await asyncio.to_thread(Plugin.voice_service.abort_recording)
                 Plugin._finish_dictation_trace(False)
+            if Plugin.voice_service:
+                await asyncio.to_thread(Plugin.voice_service.unload_model)
         except Exception as e:
             logger.error(f"Error during unload: {traceback.format_exc()}")
             if telemetry:
@@ -769,6 +771,9 @@ class Plugin:
         Plugin.poll_running = False
         Plugin.stop_controller_listener()
         Plugin.stop_ydotoold()
+        if Plugin.voice_service:
+            await asyncio.to_thread(Plugin.voice_service.abort_recording)
+            await asyncio.to_thread(Plugin.voice_service.unload_model)
         if Plugin.recording_overlay:
             Plugin.recording_overlay.stop()
 

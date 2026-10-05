@@ -62,55 +62,61 @@ def test_vulkan_writes_wav_and_keeps_prepared_sample_rate(monkeypatch, tmp_path)
     service.gpu_enabled = True
     service.gpu_model = tmp_path / "model.bin"
     rates = []
-    commands = []
     audio = MagicMock()
-
-    def prepare_audio(data, rate):
-        rates.append(rate)
-        return audio
-
-    service._prepare_audio = prepare_audio
+    service._prepare_audio = lambda data, rate: rates.append(rate) or audio
     pcm = SimpleNamespace(tobytes=lambda: b"\0\0" * 160)
     monkeypatch.setattr(wow_voice_chat.np, "clip", lambda *args: SimpleNamespace(astype=lambda dtype: pcm))
-
-    def transcribe(command, **kwargs):
-        commands.append(command)
-        wav_path = command[command.index("--file") + 1]
-        with wave.open(wav_path, "rb") as recording:
+    worker = MagicMock()
+    def transcribe(path, language, prompt):
+        with wave.open(str(path), 'rb') as recording:
             assert recording.getframerate() == 16000
             assert recording.getnframes() == 160
-        output = wow_voice_chat.Path(command[command.index("--output-file") + 1])
-        output.with_suffix(".txt").write_text("hello")
-        return SimpleNamespace(returncode=0)
-
-    monkeypatch.setattr(wow_voice_chat.subprocess, "run", transcribe)
-    assert service._transcribe_vulkan(audio, "Game chat", "Azeroth, Illidan") == "hello"
+        assert language is None and prompt == "Azeroth, Illidan. Game chat"
+        return 'hello'
+    worker.transcribe.side_effect = transcribe
+    service.gpu_worker = worker
+    assert service._transcribe_vulkan(audio, "Game chat", "Azeroth, Illidan") == 'hello'
     assert rates == [16000]
-    assert commands[0][commands[0].index("--language") + 1] == "auto"
-    assert commands[0][commands[0].index("--prompt") + 1] == (
-        "Azeroth, Illidan. Game chat"
-    )
     assert service.gpu_enabled
 
 
 def test_vulkan_passes_explicit_language(monkeypatch, tmp_path):
-    service = wow_voice_chat.WoWVoiceChat(lazy_load=True, transcription_language="es")
-    service.gpu_model = tmp_path / "model.bin"
+    service = wow_voice_chat.WoWVoiceChat(lazy_load=True, transcription_language='es')
     service.save_audio_to_wav = MagicMock()
-    commands = []
+    service.gpu_worker = MagicMock()
+    service.gpu_worker.transcribe.return_value = 'hola'
+    assert service._transcribe_vulkan(MagicMock(), None, 'Azeroth') == 'hola'
+    assert service.gpu_worker.transcribe.call_args.args[1:] == ('es', 'Azeroth')
 
-    def transcribe(command, **kwargs):
-        commands.append(command)
-        output = wow_voice_chat.Path(command[command.index("--output-file") + 1])
-        output.with_suffix(".txt").write_text("hola")
-        return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(wow_voice_chat.subprocess, "run", transcribe)
+def test_resident_failure_closes_worker_and_selects_fallback():
+    service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
+    service.gpu_enabled = True
+    service.gpu_worker = worker = MagicMock()
+    worker.transcribe.side_effect = RuntimeError('driver failure')
+    service.save_audio_to_wav = MagicMock()
+    assert service._transcribe_vulkan(MagicMock(), None, None) is None
+    worker.close.assert_called_once()
+    assert not service.gpu_enabled and service.gpu_worker is None
 
-    assert service._transcribe_vulkan(MagicMock(), None, "Azeroth") == "hola"
-    assert commands[0][commands[0].index("--language") + 1] == "es"
-    assert commands[0][commands[0].index("--prompt") + 1] == "Azeroth"
 
+def test_unload_releases_resident_worker():
+    service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
+    service.gpu_enabled = True
+    service.gpu_worker = worker = MagicMock()
+    service.unload_model()
+    worker.close.assert_called_once()
+    assert not service.gpu_enabled and service.gpu_worker is None
+
+
+def test_model_change_reloads_resident_worker():
+    service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
+    service.gpu_enabled = True
+    service.gpu_worker = worker = MagicMock()
+    service._load_model = MagicMock(return_value=True)
+    assert service.set_model_size('small')
+    worker.close.assert_called_once()
+    service._load_model.assert_called_once()
 
 def test_vulkan_restores_host_library_path(monkeypatch):
     monkeypatch.setattr(wow_voice_chat.sys, "frozen", True, raising=False)
@@ -125,3 +131,14 @@ def test_vulkan_removes_frozen_library_path_without_original(monkeypatch):
     monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEIdecky")
     monkeypatch.delenv("LD_LIBRARY_PATH_ORIG", raising=False)
     assert "LD_LIBRARY_PATH" not in wow_voice_chat._vulkan_environment()
+
+
+def test_resident_wrapped_text_becomes_single_chat_line():
+    service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
+    service.save_audio_to_wav = MagicMock()
+    service.gpu_worker = MagicMock()
+    service.gpu_worker.transcribe.return_value = "So it works in English\n perfectly.\r\n Mañana también.\n"
+    assert service._transcribe_vulkan(MagicMock(), None, None) == "So it works in English perfectly. Mañana también."
+    # Other control characters remain visible to the insertion validator.
+    service.gpu_worker.transcribe.return_value = "hello\x00world\nnext"
+    assert service._transcribe_vulkan(MagicMock(), None, None) == "hello\x00world next"
