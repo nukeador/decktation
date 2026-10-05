@@ -2,12 +2,25 @@ name: Build Decktation Plugin
 
 on:
   push:
-    branches: ['**']
+    branches: ['**', '!gh-pages']
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/landing.yml'
+      - 'scripts/publish-landing.sh'
     tags: ['v*']
   pull_request:
     branches: [master, main]
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/landing.yml'
+      - 'scripts/publish-landing.sh'
   delete:
   workflow_dispatch:
+
+# Serialize writers and deployments of the shared gh-pages tree.
+concurrency:
+  group: pages-publication-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   test:

@@ -205,3 +205,19 @@ class TestCasualCase:
         channel, text = generic_svc.parse_channel_and_text("Hello World. I am here.")
         assert channel == "type"
         assert text == "Hello World. I am here."
+
+
+@pytest.mark.parametrize("spoken,channel,message", [
+    ("grupo ¿listos para empezar?", "party", "¿listos para empezar?"),
+    ("hermandad hola a todos", "guild", "hola a todos"),
+    ("responder genial, voy de camino", "reply", "genial, voy de camino"),
+    ("decir vuelvo en cinco minutos", "say", "vuelvo en cinco minutos"),
+    ("HERMANDAD: ¡hola a todos!", "guild", "¡hola a todos!"),
+    ("susurrar Ana hola", "whisper", "ana hola"),
+])
+def test_spanish_spoken_channels(wow_svc, spoken, channel, message):
+    assert wow_svc.parse_channel_and_text(spoken) == (channel, message)
+
+
+def test_spanish_words_inside_message_do_not_change_channel(wow_svc):
+    assert wow_svc.parse_channel_and_text("hola a mi hermandad") == ("say", "hola a mi hermandad")

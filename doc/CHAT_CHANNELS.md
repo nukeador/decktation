@@ -346,3 +346,15 @@ This gives you:
 - Push-to-talk for easy activation
 
 Happy chatting!
+
+
+### Spanish spoken prefixes
+
+The default vocabulary also recognizes Spanish alongside English and French.
+For example, “grupo ¿listos para empezar?” routes to `/p ¿listos para empezar?`,
+“hermandad hola a todos” to `/g hola a todos`, “responder genial, voy de camino”
+to `/r genial, voy de camino`, and “decir vuelvo en cinco minutos” to
+`/s vuelvo en cinco minutos`. The game slash commands remain unchanged.
+Prefixes are recognized at the beginning of the utterance; mentioning a channel
+inside a message does not reroute it. Speech recognition language is configured
+separately from this vocabulary and the website language.

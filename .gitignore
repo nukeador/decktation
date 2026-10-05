@@ -46,3 +46,6 @@ bin/  # ydotool binaries built by build_ydotool.sh
 # User config
 .setup_status
 button_config.json
+
+# Generated landing output
+site/dist/
