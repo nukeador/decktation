@@ -65,7 +65,7 @@ copyButton.addEventListener('click', async () => {
 // Lightweight staged demo; pauses off-screen, in background tabs, and on request.
 document.querySelectorAll('.animated-demo').forEach(demo => {
 const typed = demo.querySelector('.demo-typed');
-const message = typed.textContent;
+const message = typed?.textContent;
 const toggle = demo.querySelector('.demo-toggle');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const stages = [2800, 650, 180, 3000];
@@ -79,7 +79,7 @@ let paused = false;
 function renderDemo() {
   const phase = reducedMotion.matches ? 'done' : phases[stage];
   demo.dataset.phase = phase;
-  typed.textContent = phase === 'done' || phase === 'typing' ? message : '';
+  if (typed) typed.textContent = phase === 'done' || phase === 'typing' ? message : '';
 }
 function tickDemo(time) {
   elapsed += lastTime ? Math.min(time - lastTime, 100) : 0;
@@ -96,7 +96,7 @@ function syncDemo() {
   renderDemo();
   if (running) frame = requestAnimationFrame(tickDemo);
 }
-toggle.addEventListener('click', () => {
+toggle?.addEventListener('click', () => {
   paused = !paused;
   toggle.setAttribute('aria-pressed', String(paused));
   toggle.querySelector('i').className = 'fa-solid ' + (paused ? 'fa-play' : 'fa-pause');

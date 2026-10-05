@@ -178,8 +178,8 @@ header{background:#fefefe;backdrop-filter:none}
 .feature-heading .ico{display:flex;align-items:center;flex-shrink:0;margin:0}
 .feature-heading h3{margin:0;line-height:1.3}
 
-.wow-gameplay{position:relative}.wow-chat-demo{position:absolute;left:2%;bottom:4%;width:54%;color:#fafafa;background:#111820ed;border:1px solid #ffffff29;border-radius:5px;padding:8px;font-size:clamp(10px,1vw,14px);line-height:1.5}.wow-party-label{color:#bab8ff}.wow-chat-input{margin-top:6px;padding:4px 6px;border:1px solid #ab9964;border-radius:3px;white-space:normal}.wow-recording{left:78%;bottom:7%;width:29%;min-height:30px}.wow-recording .demo-bars>span{animation:none}
-@media(max-width:480px){.wow-chat-demo{padding:5px;font-size:11px;width:58%}.wow-chat-input{padding:2px 4px}.wow-recording{width:29%;left:80%;gap:6px;padding:4px;min-height:24px}.wow-recording .demo-bars{gap:2px}.wow-recording .demo-bars>span{width:2px}}
+.wow-gameplay{position:relative}
+@media(max-width:480px){.wow-recording{gap:6px;padding:4px;min-height:24px}.wow-recording .demo-bars{gap:2px}.wow-recording .demo-bars>span{width:2px}}
 
 .install-step p{margin:12px 0 0}.install-step .code{margin-top:16px}
 
@@ -197,6 +197,12 @@ header{background:#fefefe;backdrop-filter:none}
 
 .wow-gameplay .wow-recording{left:50%;top:50%;bottom:auto;transform:translate(-50%,-50%);width:36%}
 .wow-recording .demo-bars>span{animation:demo-wave .72s ease-in-out infinite alternate;animation-delay:calc(var(--bar)*-.11s)}
-.wow-gameplay .wow-animated-chat{left:1%;right:auto;bottom:8.5%;width:45%;background:#0b101b;min-height:15%;padding:5px;border-radius:3px;font-size:clamp(9px,1vw,13px)}
-.wow-demo-controls{position:absolute;right:2%;bottom:2%;z-index:3}.wow-demo-controls .demo-toggle{width:32px;height:32px;min-height:32px;background:#111820dd;color:white;border-color:#ffffff40}
 @media(prefers-reduced-motion:reduce){.wow-recording .demo-bars>span{animation:none}}
+
+.wow-gameplay .wow-chat-filled{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;opacity:0;pointer-events:none}
+.wow-gameplay[data-phase="typing"] .wow-chat-filled,.wow-gameplay[data-phase="done"] .wow-chat-filled{opacity:1}
+
+.wow-gameplay{overflow:hidden}
+.wow-gameplay>img{transform-origin:0% 100%;transition:transform 850ms cubic-bezier(.22,.61,.36,1)}
+.wow-gameplay[data-phase="done"]>img{transform:scale(2.2)}
+@media(prefers-reduced-motion:reduce){.wow-gameplay>img{transition:none;transform:none!important}}
