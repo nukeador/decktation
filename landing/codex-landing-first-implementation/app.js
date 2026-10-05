@@ -126,12 +126,13 @@ function showInstallPath(path) {
   });
   const heading = path ? document.querySelector(`#install-${path} h3`) : document.getElementById('install-question');
   heading.focus({ preventScroll: true });
+  heading.scrollIntoView({ behavior: 'instant', block: 'start' });
 }
 installSection.querySelectorAll('[data-install-path]').forEach(button => {
   button.addEventListener('click', () => showInstallPath(button.dataset.installPath));
 });
 installChange.addEventListener('click', () => showInstallPath(''));
-document.getElementById('decky-finished').addEventListener('click', () => showInstallPath('ready'));
+document.getElementById('decky-finished').addEventListener('click', () => showInstallPath('existing'));
 const transfer = document.getElementById('install-transfer');
 const deviceDownload = document.getElementById('install-device-download');
 document.getElementById('confirm-steamos').addEventListener('click', () => {
@@ -142,28 +143,5 @@ document.getElementById('confirm-steamos').addEventListener('click', () => {
 document.getElementById('other-device').addEventListener('click', () => {
   transfer.hidden = false;
   deviceDownload.hidden = true;
-  document.getElementById('copy-address').focus({ preventScroll: true });
-});
-const siteAddress = document.getElementById('site-address');
-const address = new URL(window.location.href);
-address.hash = 'install';
-siteAddress.textContent = address.href;
-const copyAddress = document.getElementById('copy-address');
-copyAddress.addEventListener('click', async () => {
-  const feedback = document.getElementById('address-status');
-  try {
-    await navigator.clipboard.writeText(siteAddress.textContent);
-    feedback.textContent = document.getElementById('address-copied').textContent;
-    const original = copyAddress.textContent;
-    copyAddress.textContent = feedback.textContent;
-    copyAddress.disabled = true;
-    setTimeout(() => { copyAddress.textContent = original; copyAddress.disabled = false; }, 1600);
-  } catch {
-    const range = document.createRange();
-    range.selectNodeContents(siteAddress);
-    const selection = window.getSelection();
-    selection.removeAllRanges(); selection.addRange(range);
-    siteAddress.focus();
-    feedback.textContent = document.getElementById('address-copy-error').textContent;
-  }
+  document.getElementById('confirm-steamos').focus({ preventScroll: true });
 });

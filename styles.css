@@ -230,3 +230,7 @@ header{background:#fefefe;backdrop-filter:none}
 #install #install-ready{padding:24px 0;border-top:1px solid #cddbf0}
 @media(max-width:767px){#install .install-choices{grid-template-columns:1fr}#install .btn{width:100%;white-space:normal}#install .install-wizard>li{padding-left:28px}#install .code{padding:12px}#install .install-choices .btn{text-align:left}#install .install-wizard h4{font-size:17px}}
 @media(max-width:767px){#install .code code{flex:0 1 auto}}
+
+#install .install-path h3,#install #install-question{scroll-margin-top:100px}
+
+#install .install-wizard h5{font-size:16px;margin:20px 0 8px}#install .install-zip-option{margin-top:24px;padding-top:4px;border-top:1px solid #cddbf0}
