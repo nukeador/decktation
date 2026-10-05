@@ -5,7 +5,7 @@
 
     var React__default = /*#__PURE__*/_interopDefaultLegacy(React);
 
-    var _manifest = {"name":"Decktation","version":"0.3.20-dev.i18n.3","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.20-dev.i18n.4","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -1780,6 +1780,8 @@
         return nativeLanguageNames[code] || fallback;
     }
 
+    const setOverlayLabel = callable("set_overlay_transcribing_label");
+    const syncOverlayLanguage = () => setOverlayLabel(t("Transcribing...")).catch(() => { });
     const getStatus = callable("get_status");
     const getButtonConfig = callable("get_button_config");
     const getPresets = callable("get_presets");
@@ -2037,8 +2039,10 @@
         const [, refreshLocale] = React.useState(0);
         React.useEffect(() => {
             let mounted = true;
-            void initializeSteamLanguage().then(() => { if (mounted)
-                refreshLocale(value => value + 1); });
+            void initializeSteamLanguage().then(() => { if (mounted) {
+                refreshLocale(value => value + 1);
+                void syncOverlayLanguage();
+            } });
             return () => { mounted = false; };
         }, []);
         const [page, setPage] = React.useState("main");
@@ -2402,7 +2406,7 @@
                                 } }))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Interface") },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: t("Interface language"), description: t("Only changes the menu language, not the dictation language."), rgOptions: [{ data: "auto", label: t("Automatic (system)") }, ...INTERFACE_LANGUAGE_OPTIONS], selectedOption: interfaceLanguage, onChange: option => { const next = String(option.data); setInterfacePreference(next); updateInterfaceLanguage(next); } }))),
+                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: t("Interface language"), description: t("Only changes the menu language, not the dictation language."), rgOptions: [{ data: "auto", label: t("Automatic (system)") }, ...INTERFACE_LANGUAGE_OPTIONS], selectedOption: interfaceLanguage, onChange: option => { const next = String(option.data); setInterfacePreference(next); updateInterfaceLanguage(next); void syncOverlayLanguage(); } }))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                         React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("diagnostics") }, t("Diagnostics"))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
@@ -2517,6 +2521,7 @@
     };
     var index = deckyFrontendLib.definePlugin(() => {
         let logic = new DecktationLogic();
+        void initializeSteamLanguage().then(syncOverlayLanguage);
         // Seed the recording start count so we don't fire a spurious toast on load
         getStatus().then((result) => {
             if (result.success) {

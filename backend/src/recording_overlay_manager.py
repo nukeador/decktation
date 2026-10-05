@@ -20,6 +20,7 @@ class RecordingOverlay:
         self.session_user = self._resolve_session_user(decky_user_home)
         self.lock = threading.RLock()
         self.desired_state = "hidden"
+        self.transcribing_label = "Transcribing..."
         self.discovery_thread = None
         self.next_discovery = 0
         if self.enabled:
@@ -127,11 +128,24 @@ class RecordingOverlay:
 
     def _write_state(self, state):
         self.directory.mkdir(mode=0o755, exist_ok=True)
+        self._write_label()
         state_file = self.directory / "state"
         temp_file = self.directory / "state.new"
         temp_file.write_text(state + "\n")
         os.chmod(temp_file, 0o644)
         temp_file.replace(state_file)
+
+    def _write_label(self):
+        temp_file = self.directory / "label.new"
+        temp_file.write_text(self.transcribing_label, encoding="utf-8")
+        os.chmod(temp_file, 0o644)
+        temp_file.replace(self.directory / "label")
+
+    def set_transcribing_label(self, label):
+        with self.lock:
+            self.transcribing_label = label
+            if self.directory:
+                self._write_label()
 
     def show(self, state):
         with self.lock:

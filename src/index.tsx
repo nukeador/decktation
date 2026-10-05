@@ -29,6 +29,9 @@ import { t, getInterfacePreference, setInterfacePreference, languageName, initia
 
 type RpcResponse = { success: boolean; error?: string; [key: string]: any };
 
+const setOverlayLabel = callable<[label: string], RpcResponse>("set_overlay_transcribing_label");
+const syncOverlayLanguage = () => setOverlayLabel(t("Transcribing...")).catch(() => {});
+
 const getStatus = callable<[], RpcResponse>("get_status");
 const getButtonConfig = callable<[], RpcResponse>("get_button_config");
 const getPresets = callable<[], RpcResponse>("get_presets");
@@ -302,7 +305,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
     const [, refreshLocale] = useState(0);
     useEffect(() => {
         let mounted = true;
-        void initializeSteamLanguage().then(() => { if (mounted) refreshLocale(value => value + 1); });
+        void initializeSteamLanguage().then(() => { if (mounted) { refreshLocale(value => value + 1); void syncOverlayLanguage(); } });
         return () => { mounted = false; };
     }, []);
 	const [page, setPage] = useState<PanelPage>("main");
@@ -662,7 +665,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					<PanelSection title={t("Interface")}>
 <PanelSectionRow><DropdownItem label={t("Interface language")} description={t("Only changes the menu language, not the dictation language.")}
                             rgOptions={[{data:"auto",label:t("Automatic (system)")}, ...INTERFACE_LANGUAGE_OPTIONS]}
-                            selectedOption={interfaceLanguage} onChange={option => { const next = String(option.data) as InterfacePreference; setInterfacePreference(next); updateInterfaceLanguage(next); }} /></PanelSectionRow>
+                            selectedOption={interfaceLanguage} onChange={option => { const next = String(option.data) as InterfacePreference; setInterfacePreference(next); updateInterfaceLanguage(next); void syncOverlayLanguage(); }} /></PanelSectionRow>
 </PanelSection>
 <PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("diagnostics")}>{t("Diagnostics")}</ButtonItem></PanelSectionRow>
 					<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("help")}>{t("Help & permissions")}</ButtonItem></PanelSectionRow>
@@ -738,6 +741,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 
 export default definePlugin(() => {
 	let logic = new DecktationLogic();
+	void initializeSteamLanguage().then(syncOverlayLanguage);
 	// Seed the recording start count so we don't fire a spurious toast on load
 	getStatus().then((result) => {
 		if (result.success) {
