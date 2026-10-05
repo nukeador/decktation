@@ -66,9 +66,13 @@ class ResidentWhisper:
             raise RuntimeError('Resident Vulkan worker died: ' + self._tail())
         # Send every mutable decoding option on every request, including empty
         # prompt, so a previous recording's language/context cannot leak.
+        # The pinned server creates fresh request parameters with no_context
+        # enabled by default. It does not parse a no_context form field, so send
+        # the mutable values it does support, including an explicitly empty
+        # prompt to prevent one recording's context from leaking into another.
         fields = {'language': language or 'auto', 'prompt': prompt or '',
                   'response_format': 'json', 'beam_size': '5',
-                  'translate': 'false', 'no_context': 'true'}
+                  'translate': 'false'}
         boundary = 'decktation-' + uuid.uuid4().hex
         body = bytearray()
         for key, value in fields.items():

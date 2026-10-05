@@ -1004,7 +1004,7 @@ class Plugin:
 
             reloaded = False
             if Plugin.voice_service:
-                reloaded = Plugin.voice_service.model is not None
+                reloaded = Plugin.voice_service.is_model_ready()
                 success = await asyncio.to_thread(
                     Plugin.voice_service.set_model_size,
                     model_size,

@@ -100,6 +100,22 @@ def test_resident_failure_closes_worker_and_selects_fallback():
     assert not service.gpu_enabled and service.gpu_worker is None
 
 
+def test_resident_close_failure_still_selects_cpu_fallback():
+    service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
+    service.gpu_enabled = True
+    service.gpu_model = MagicMock()
+    service.gpu_worker = worker = MagicMock()
+    worker.transcribe.side_effect = RuntimeError('driver failure')
+    worker.close.side_effect = RuntimeError('worker would not close')
+    service.save_audio_to_wav = MagicMock()
+
+    assert service._transcribe_vulkan(MagicMock(), None, None) is None
+    worker.close.assert_called_once()
+    assert service.gpu_worker is None
+    assert service.gpu_model is None
+    assert not service.gpu_enabled
+
+
 def test_unload_releases_resident_worker():
     service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
     service.gpu_enabled = True

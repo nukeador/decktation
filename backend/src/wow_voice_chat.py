@@ -257,11 +257,7 @@ class WoWVoiceChat:
         """Release Whisper and return free heap pages where the OS supports it."""
         with self.model_lock:
             self.model = None
-            if self.gpu_worker:
-                self.gpu_worker.close()
-                self.gpu_worker = None
-            self.gpu_model = None
-            self.gpu_enabled = False
+            self._disable_vulkan_worker()
             self.model_load_error = None
             # Native allocators may keep freed pages; both steps are best-effort.
             gc.collect()
@@ -278,6 +274,22 @@ class WoWVoiceChat:
     def is_model_ready(self):
         """Check if model is loaded and ready"""
         return self.model is not None or self.gpu_enabled
+
+    def _disable_vulkan_worker(self):
+        """Clear Vulkan state and best-effort stop its resident worker."""
+        worker = self.gpu_worker
+        # Clear readiness before shutdown so a close failure can never leave a
+        # dead or partially stopped worker advertised as usable.
+        self.gpu_worker = None
+        self.gpu_model = None
+        self.gpu_enabled = False
+        if worker:
+            try:
+                worker.close()
+            except Exception as error:
+                # Cleanup must not mask an inference failure or prevent the
+                # caller from continuing with the portable CPU implementation.
+                logger.warning("Failed to close resident Vulkan worker: %s", error)
 
     def _load_vulkan_model(self):
         """Prepare bundled whisper.cpp on supported AMD Vulkan hardware.
@@ -356,11 +368,7 @@ class WoWVoiceChat:
             # future AMD device lacks a required extension.  Disable this path
             # for the remainder of the process and immediately use CPU.
             logger.warning("Vulkan Whisper failed; falling back to CPU: %s", error)
-            if self.gpu_worker:
-                self.gpu_worker.close()
-                self.gpu_worker = None
-            self.gpu_enabled = False
-            self.gpu_model = None
+            self._disable_vulkan_worker()
             return None
 
     def get_last_transcription(self):
@@ -427,11 +435,7 @@ class WoWVoiceChat:
                 return True
 
             self.model = None
-            if self.gpu_worker:
-                self.gpu_worker.close()
-                self.gpu_worker = None
-            self.gpu_model = None
-            self.gpu_enabled = False
+            self._disable_vulkan_worker()
             return self._load_model()
 
     def _confirm_delay_for(self, text: str) -> float:
@@ -472,6 +476,15 @@ class WoWVoiceChat:
 
     def build_prompt_from_context(self):
         """Build initial_prompt and hotwords from context"""
+        # Bundled presets intentionally use an empty prompt because English
+        # examples can bias automatic language detection. Preserve prompts
+        # supplied by user profiles for Auto Detect and explicit English, but
+        # never send an English prompt with an explicitly non-English language.
+        configured_prompt = self.preset.get("whisper_prompt") if self.preset else None
+        initial_prompt = configured_prompt or None
+        if self.transcription_language not in (None, "en"):
+            initial_prompt = None
+
         # Extract preset hotwords if configured. Keep them as a list until the
         # context hotwords have also been added.
         preset_hotwords_raw = self.preset.get("hotwords") if self.preset else None
@@ -482,11 +495,10 @@ class WoWVoiceChat:
         else:
             hotwords = []
 
-        # Experimental comparison: do not send prose/example messages, even
-        # if a saved preset still contains the old English whisper_prompt.
-        # Preserve explicitly configured vocabulary and actual game names.
+        # Keep dynamic context language-neutral: vocabulary and actual game
+        # names are useful without constructing English prose around them.
         if not self.preset.get("context_file"):
-            return None, ", ".join(hotwords) or None
+            return initial_prompt, ", ".join(hotwords) or None
         zone = self.context.get("zone", "")
         boss = self.context.get("boss", "")
         target = self.context.get("target", "")
@@ -497,7 +509,7 @@ class WoWVoiceChat:
             if contextual_hotword and contextual_hotword not in hotwords:
                 hotwords.append(contextual_hotword)
 
-        return None, ", ".join(hotwords) or None
+        return initial_prompt, ", ".join(hotwords) or None
 
     def audio_callback(self, indata, frames, time_info, status):
         """Callback for audio recording"""
