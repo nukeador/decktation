@@ -1,9 +1,10 @@
 # Settings translations
 
 The frontend owns its language independently of the dictation language. Choose
-Automatic (system), English or Español under Quick settings. Automatic uses the
-Steam browser renderer's navigator.language, not the selected Whisper language;
-if Steam reports English, use the explicit override. Unsupported languages fall
+Automatic (system), English or Español under Advanced settings → Interface. Automatic first asks
+SteamClient.Settings.GetCurrentLanguage(), with a bounded timeout. Steam names
+spanish and latam map to Spanish. navigator.language is a fallback, never the
+selected Whisper language. Unsupported languages fall
 back to English. The override is stored locally in the renderer and does not
 alter backend settings, profiles, language codes or recordings.
 

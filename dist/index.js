@@ -5,7 +5,7 @@
 
     var React__default = /*#__PURE__*/_interopDefaultLegacy(React);
 
-    var _manifest = {"name":"Decktation","version":"0.3.20-dev.i18n.1","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.20-dev.i18n.2","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -145,6 +145,7 @@
     var Permissions$1 = "Permissions";
     var Recording$1 = "Recording";
     var Generic$1 = "Generic";
+    var Interface$1 = "Interface";
     var en = {
       Back: Back$1,
       Enable: Enable$1,
@@ -221,7 +222,7 @@
       "Sending in {seconds}s": "Sending in {seconds}s",
       "\"{text}\" — hold PTT to cancel": "\"{text}\" — hold PTT to cancel",
       "Interface language": "Interface language",
-      "Automatic (system)": "Automatic (system)",
+      "Automatic (system)": "Automatic (Steam)",
       "Only changes the menu language, not the dictation language.": "Only changes the menu language, not the dictation language.",
       Generic: Generic$1,
       "Base · Fast": "Base · Fast",
@@ -252,7 +253,8 @@
       "Waiting for input": "Waiting for input",
       "Status unavailable": "Status unavailable",
       "Backend status request failed": "Backend status request failed",
-      "Could not update language setting": "Could not update language setting"
+      "Could not update language setting": "Could not update language setting",
+      Interface: Interface$1
     };
 
     var Back = "Volver";
@@ -281,6 +283,7 @@
     var Permissions = "Permisos";
     var Recording = "Grabación";
     var Generic = "Texto general";
+    var Interface = "Interfaz";
     var es = {
       Back: Back,
       Enable: Enable,
@@ -357,7 +360,7 @@
       "Sending in {seconds}s": "Envío en {seconds} s",
       "\"{text}\" — hold PTT to cancel": "«{text}» — mantén la combinación de grabación para cancelar",
       "Interface language": "Idioma de la interfaz",
-      "Automatic (system)": "Automático (sistema)",
+      "Automatic (system)": "Automático (Steam)",
       "Only changes the menu language, not the dictation language.": "Solo cambia el idioma del menú, no el del dictado.",
       Generic: Generic,
       "Base · Fast": "Base · Rápido",
@@ -388,11 +391,13 @@
       "Waiting for input": "Esperando entrada",
       "Status unavailable": "Estado no disponible",
       "Backend status request failed": "No se pudo consultar el estado del servicio",
-      "Could not update language setting": "No se pudo cambiar el idioma del dictado"
+      "Could not update language setting": "No se pudo cambiar el idioma del dictado",
+      Interface: Interface
     };
 
     const STORAGE_KEY = "decktation.interfaceLanguage";
     let preference = "auto";
+    let steamLanguage;
     try {
         const saved = window.localStorage.getItem(STORAGE_KEY);
         if (saved === "en" || saved === "es")
@@ -412,10 +417,29 @@
     function resolveLocale(value, systemLanguage) {
         if (value !== "auto")
             return value;
-        return /^es(?:[-_]|$)/i.test(systemLanguage) ? "es" : "en";
+        return /^(?:es(?:[-_]|$)|spanish$|latam$)/i.test(systemLanguage) ? "es" : "en";
+    }
+    async function initializeSteamLanguage() {
+        let timer;
+        try {
+            const settings = window.SteamClient?.Settings;
+            if (typeof settings?.GetCurrentLanguage !== "function")
+                return;
+            const value = await Promise.race([
+                settings.GetCurrentLanguage(),
+                new Promise(resolve => { timer = setTimeout(() => resolve(undefined), 1500); }),
+            ]);
+            if (typeof value === "string" && value)
+                steamLanguage = value;
+        }
+        catch (_) { /* Use navigator.language if Steam cannot provide its locale. */ }
+        finally {
+            if (timer !== undefined)
+                clearTimeout(timer);
+        }
     }
     function locale() {
-        return resolveLocale(preference, typeof navigator === "undefined" ? "en" : navigator.language);
+        return resolveLocale(preference, steamLanguage || (typeof navigator === "undefined" ? "en" : navigator.language));
     }
     function t(key, values = {}) {
         const english = en;
@@ -692,6 +716,13 @@
     };
     const DecktationPanel = ({ logic }) => {
         const [interfaceLanguage, updateInterfaceLanguage] = React.useState(getInterfacePreference);
+        const [, refreshLocale] = React.useState(0);
+        React.useEffect(() => {
+            let mounted = true;
+            void initializeSteamLanguage().then(() => { if (mounted)
+                refreshLocale(value => value + 1); });
+            return () => { mounted = false; };
+        }, []);
         const [page, setPage] = React.useState("main");
         const panelRef = React.useRef(null);
         const languageMenuAnchorRef = React.useRef(null);
@@ -940,8 +971,6 @@
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { role: "status", style: { padding: statusProblem ? '10px' : '4px 0', borderRadius: '6px', backgroundColor: statusProblem ? '#713030' : undefined } }, statusMessage))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Quick settings") },
-                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: t("Interface language"), description: t("Only changes the menu language, not the dictation language."), rgOptions: [{ data: "auto", label: t("Automatic (system)") }, { data: "en", label: "English" }, { data: "es", label: "Español" }], selectedOption: interfaceLanguage, onChange: option => { const next = String(option.data); setInterfacePreference(next); updateInterfaceLanguage(next); } })),
                         presets.length > 0 && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("game") },
                                 "Game: ",
@@ -1051,6 +1080,9 @@
                                     else
                                         setRpcError(result.error || t("Could not update haptic feedback"));
                                 } }))),
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Interface") },
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: t("Interface language"), description: t("Only changes the menu language, not the dictation language."), rgOptions: [{ data: "auto", label: t("Automatic (system)") }, { data: "en", label: "English" }, { data: "es", label: "Español" }], selectedOption: interfaceLanguage, onChange: option => { const next = String(option.data); setInterfacePreference(next); updateInterfaceLanguage(next); } }))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                         React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("diagnostics") }, t("Diagnostics"))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,

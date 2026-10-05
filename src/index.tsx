@@ -25,7 +25,7 @@ import React, {
 
 import { FaMicrophone, FaTrash } from "react-icons/fa";
 
-import { t, getInterfacePreference, setInterfacePreference, languageName } from "./i18n";
+import { t, getInterfacePreference, setInterfacePreference, languageName, initializeSteamLanguage } from "./i18n";
 
 type RpcResponse = { success: boolean; error?: string; [key: string]: any };
 
@@ -299,6 +299,12 @@ type PanelPage = "main" | "advanced" | "diagnostics" | "help" | "game" | "model"
 
 const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [interfaceLanguage, updateInterfaceLanguage] = useState(getInterfacePreference);
+    const [, refreshLocale] = useState(0);
+    useEffect(() => {
+        let mounted = true;
+        void initializeSteamLanguage().then(() => { if (mounted) refreshLocale(value => value + 1); });
+        return () => { mounted = false; };
+    }, []);
 	const [page, setPage] = useState<PanelPage>("main");
 	const panelRef = useRef<HTMLDivElement>(null);
 	const languageMenuAnchorRef = useRef<HTMLSpanElement>(null);
@@ -551,9 +557,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						</PanelSectionRow>
 					</PanelSection>
 					<PanelSection title={t("Quick settings")}>
-<PanelSectionRow><DropdownItem label={t("Interface language")} description={t("Only changes the menu language, not the dictation language.")}
-                            rgOptions={[{data:"auto",label:t("Automatic (system)")},{data:"en",label:"English"},{data:"es",label:"Español"}]}
-                            selectedOption={interfaceLanguage} onChange={option => { const next = String(option.data) as "auto" | "en" | "es"; setInterfacePreference(next); updateInterfaceLanguage(next); }} /></PanelSectionRow>
+
 						{presets.length > 0 && <PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("game")}>
 							Game: {t(String(presets.find(option => option.data === activePreset)?.label || activePreset))}
 						</ButtonItem></PanelSectionRow>}
@@ -655,7 +659,12 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 								else setRpcError(result.error || t("Could not update haptic feedback"));
 							}} /></PanelSectionRow>
 					</PanelSection>
-					<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("diagnostics")}>{t("Diagnostics")}</ButtonItem></PanelSectionRow>
+					<PanelSection title={t("Interface")}>
+<PanelSectionRow><DropdownItem label={t("Interface language")} description={t("Only changes the menu language, not the dictation language.")}
+                            rgOptions={[{data:"auto",label:t("Automatic (system)")},{data:"en",label:"English"},{data:"es",label:"Español"}]}
+                            selectedOption={interfaceLanguage} onChange={option => { const next = String(option.data) as "auto" | "en" | "es"; setInterfacePreference(next); updateInterfaceLanguage(next); }} /></PanelSectionRow>
+</PanelSection>
+<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("diagnostics")}>{t("Diagnostics")}</ButtonItem></PanelSectionRow>
 					<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("help")}>{t("Help & permissions")}</ButtonItem></PanelSectionRow>
 				</>}
 				{page === "diagnostics" && <>

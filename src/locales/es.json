@@ -74,7 +74,7 @@
   "Sending in {seconds}s": "Envío en {seconds} s",
   "\"{text}\" — hold PTT to cancel": "«{text}» — mantén la combinación de grabación para cancelar",
   "Interface language": "Idioma de la interfaz",
-  "Automatic (system)": "Automático (sistema)",
+  "Automatic (system)": "Automático (Steam)",
   "Only changes the menu language, not the dictation language.": "Solo cambia el idioma del menú, no el del dictado.",
   "Generic": "Texto general",
   "Base · Fast": "Base · Rápido",
@@ -105,5 +105,6 @@
   "Waiting for input": "Esperando entrada",
   "Status unavailable": "Estado no disponible",
   "Backend status request failed": "No se pudo consultar el estado del servicio",
-  "Could not update language setting": "No se pudo cambiar el idioma del dictado"
+  "Could not update language setting": "No se pudo cambiar el idioma del dictado",
+  "Interface": "Interfaz"
 }

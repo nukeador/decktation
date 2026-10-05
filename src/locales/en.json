@@ -74,7 +74,7 @@
   "Sending in {seconds}s": "Sending in {seconds}s",
   "\"{text}\" — hold PTT to cancel": "\"{text}\" — hold PTT to cancel",
   "Interface language": "Interface language",
-  "Automatic (system)": "Automatic (system)",
+  "Automatic (system)": "Automatic (Steam)",
   "Only changes the menu language, not the dictation language.": "Only changes the menu language, not the dictation language.",
   "Generic": "Generic",
   "Base · Fast": "Base · Fast",
@@ -105,5 +105,6 @@
   "Waiting for input": "Waiting for input",
   "Status unavailable": "Status unavailable",
   "Backend status request failed": "Backend status request failed",
-  "Could not update language setting": "Could not update language setting"
+  "Could not update language setting": "Could not update language setting",
+  "Interface": "Interface"
 }
