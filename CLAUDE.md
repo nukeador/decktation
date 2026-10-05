@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Decktation is a push-to-talk dictation plugin for Steam Deck that enables voice-to-text input for gaming. It uses OpenAI's Whisper model (via faster-whisper) with context-aware transcription optimized for World of Warcraft gameplay. All processing is done locally on the device.
+Decktation is a push-to-talk dictation plugin for Steam Deck that enables voice-to-text input for gaming. It uses OpenAI's Whisper model through a resident whisper.cpp server, with context-aware transcription optimized for World of Warcraft gameplay. All processing is done locally on the device.
 
 ## Build Commands
 
@@ -14,7 +14,7 @@ npm run build         # Compile TypeScript to dist/index.js
 npm run watch         # Watch mode for development
 ```
 
-Python dependencies are installed via `install_deps.sh` using the venv pip, which installs faster-whisper, sounddevice, and numpy to the `lib/` folder.
+The packaged Python runtime includes sounddevice, NumPy, Sentry, and their small supporting dependencies. Speech inference is provided by the bundled `whisper-server` executable rather than a Python ML package.
 
 ## Testing
 
@@ -51,7 +51,7 @@ The system has five main components:
 
 3. **Controller Listener** (`controller_listener.py`) - Separate Python process using the Steam Deck vendor raw HID interface to detect a configurable physical button combo. Reads configuration from `button_config.json` (array of 1-5 buttons). Writes button state to `/tmp/decktation_l5`. All buttons in the combo must be pressed simultaneously to activate, independent of the active Steam Input layout.
 
-4. **Voice Service** (`wow_voice_chat.py`) - Core audio processing. Records audio via sounddevice, transcribes with faster-whisper (base model, int8, CPU), parses chat channel prefixes, types output via ydotool.
+4. **Voice Service** (`wow_voice_chat.py`) - Core audio processing. Records audio via sounddevice, transcribes through resident whisper.cpp using Vulkan when available and `--no-gpu` CPU fallback otherwise, parses chat channel prefixes, and types output via ydotool.
 
 5. **WoW Addon** (`WowAddon/DecktationContext/`) - Lua addon that exports game state (zone, target, party members, class/spec) to SavedVariables every 2 seconds. The `convert_wow_context.py` script watches and converts this to `wow_context.json` for the voice service.
 
@@ -87,7 +87,7 @@ Voice input like "party, hello everyone" or "raid: pull boss" is parsed to extra
 
 ## Configuration
 
-- Whisper model: `WhisperModel("base", device="cpu", compute_type="int8")`
+- Whisper models: multilingual GGML `base`, `small`, or `medium`, shared by the Vulkan and CPU whisper.cpp paths
 - Context file: `wow_context.json` (auto-generated from WoW SavedVariables)
 - Button config: `button_config.json` (default: `{"buttons": ["L1", "R1"]}`)
 - Push-to-talk: Configurable 1-5 button combo via UI (default: L1+R1)

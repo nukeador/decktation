@@ -55,12 +55,16 @@ sudo cp "$SOURCE_DIR/backend/src/controller_listener.py" "$PLUGIN_DIR/bin/"
 sudo cp "$SOURCE_DIR/backend/src/deck_hid.py" "$PLUGIN_DIR/bin/"
 sudo cp "$SOURCE_DIR/backend/src/telemetry.py" "$PLUGIN_DIR/bin/"
 sudo cp "$SOURCE_DIR/backend/src/wow_voice_chat.py" "$PLUGIN_DIR/bin/"
+sudo cp "$SOURCE_DIR/backend/src/resident_whisper.py" "$PLUGIN_DIR/bin/"
+sudo cp "$SOURCE_DIR/backend/src/clipboard_injection.py" "$PLUGIN_DIR/bin/"
 sudo cp "$SOURCE_DIR/backend/src/convert_wow_context.py" "$PLUGIN_DIR/bin/"
-sudo cp -R "$SOURCE_DIR/lib/" "$PLUGIN_DIR/"
+sudo cp "$SOURCE_DIR/backend/src/gamepad_evdev.py" "$PLUGIN_DIR/bin/"
+sudo cp "$SOURCE_DIR/backend/src/haptic_feedback.py" "$PLUGIN_DIR/bin/"
+sudo cp "$SOURCE_DIR/backend/src/recording_overlay.py" "$PLUGIN_DIR/bin/"
+sudo cp "$SOURCE_DIR/backend/src/recording_overlay_manager.py" "$PLUGIN_DIR/bin/"
 
-# Telemetry was added after the legacy lib bundle was created. Install it
-# explicitly so local source-tree updates match marketplace artifacts.
-echo "  → Sentry SDK..."
+# Install the same slim Python runtime used by marketplace artifacts.
+echo "  → Python runtime..."
 if [ -x "$SOURCE_DIR/venv/bin/pip" ]; then
   PIP="$SOURCE_DIR/venv/bin/pip"
 elif [ -x "$SOURCE_DIR/.venv/bin/pip" ]; then
@@ -70,7 +74,9 @@ else
 fi
 SDK_TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$SDK_TMP_DIR"' EXIT
-$PIP install --target "$SDK_TMP_DIR" sentry-sdk==2.66.0
+$PIP install --target "$SDK_TMP_DIR" -r "$SOURCE_DIR/backend/src/requirements.txt"
+sudo rm -rf "$PLUGIN_DIR/lib"
+sudo mkdir -p "$PLUGIN_DIR/lib"
 sudo cp -R "$SDK_TMP_DIR/." "$PLUGIN_DIR/lib/"
 
 # Built frontend
@@ -129,6 +135,9 @@ sudo chmod +x "$PLUGIN_DIR/bin/controller_listener.py"
 sudo chmod 644 "$PLUGIN_DIR/bin/decktation_backend.py"
 sudo chmod 644 "$PLUGIN_DIR/bin/audio_runtime.py"
 sudo chmod 644 "$PLUGIN_DIR/bin/telemetry.py"
+sudo chmod 644 "$PLUGIN_DIR/bin/wow_voice_chat.py"
+sudo chmod 644 "$PLUGIN_DIR/bin/resident_whisper.py"
+[ ! -f "$PLUGIN_DIR/bin/whisper-server" ] || sudo chmod 755 "$PLUGIN_DIR/bin/whisper-server"
 echo "✓ Permissions set"
 echo ""
 

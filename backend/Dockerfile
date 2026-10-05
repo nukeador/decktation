@@ -1,9 +1,15 @@
 FROM ghcr.io/steamdeckhomebrew/holo-base:latest
 
 ARG YDOTOOL_COMMIT=57ba7d0af525e82da2de0e275d169477f293b197
+ARG WHISPER_CPP_COMMIT=f24588a272ae8e23280d9c220536437164e6ed28
 
+# holo-base already ships glslc, shaderc, and the Vulkan headers. Installing
+# their packages again fails because those files are not tracked by its pacman
+# database, so install only the additional build/runtime dependencies here.
 RUN pacman -Sydd --noconfirm --dbpath /var/lib/pacman \
-        git portaudio python-pip xclip
+        cmake cppdap git libuv portaudio python-pip rhash spirv-headers vulkan-icd-loader xclip \
+    && cmake --version \
+    && glslc --version
 
 COPY src/requirements.txt /tmp/decktation-requirements.txt
 
@@ -51,5 +57,21 @@ RUN git init /xclip-src \
     && git -C /xclip-src remote add origin https://github.com/astrand/xclip.git \
     && git -C /xclip-src fetch --depth 1 origin 9aa7090c3b8b437c6489edca32ae43d82e0c1281 \
     && git -C /xclip-src checkout --detach FETCH_HEAD
+
+# Benchmark-only Vulkan build. One binary exercises both paths: its normal
+# mode uses Vulkan, while --no-gpu runs the same whisper.cpp revision/model on
+# CPU for an apples-to-apples comparison on the Deck.
+RUN git init /whisper.cpp \
+    && git -C /whisper.cpp remote add origin https://github.com/ggml-org/whisper.cpp.git \
+    && git -C /whisper.cpp fetch --depth 1 origin "${WHISPER_CPP_COMMIT}" \
+    && git -C /whisper.cpp checkout --detach FETCH_HEAD \
+    && cmake -S /whisper.cpp -B /whisper.cpp/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DGGML_NATIVE=OFF \
+        -DGGML_VULKAN=ON \
+        -DWHISPER_BUILD_TESTS=OFF \
+        -DWHISPER_BUILD_SERVER=ON \
+    && cmake --build /whisper.cpp/build --config Release --target whisper-server -j2
 
 ENTRYPOINT ["/backend/entrypoint.sh"]

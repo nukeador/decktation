@@ -118,7 +118,10 @@ logger.info(f"Current working directory: {os.getcwd()}")
 # Import our voice chat service
 WoWVoiceChat = None
 try:
+    import wow_voice_chat
+    wow_voice_chat.logger = logger
     from wow_voice_chat import WoWVoiceChat
+    logger.info("Voice service source: %s", wow_voice_chat.__file__)
     logger.info("Successfully imported WoWVoiceChat")
 except ImportError as e:
     logger.error(f"Failed to import WoWVoiceChat: {e}")
@@ -749,8 +752,10 @@ class Plugin:
             if Plugin.recording_overlay:
                 Plugin.recording_overlay.stop()
             if Plugin.voice_service and Plugin.voice_service.is_recording:
-                Plugin.voice_service.stop_recording()
+                await asyncio.to_thread(Plugin.voice_service.abort_recording)
                 Plugin._finish_dictation_trace(False)
+            if Plugin.voice_service:
+                await asyncio.to_thread(Plugin.voice_service.unload_model)
         except Exception as e:
             logger.error(f"Error during unload: {traceback.format_exc()}")
             if telemetry:
@@ -766,6 +771,9 @@ class Plugin:
         Plugin.poll_running = False
         Plugin.stop_controller_listener()
         Plugin.stop_ydotoold()
+        if Plugin.voice_service:
+            await asyncio.to_thread(Plugin.voice_service.abort_recording)
+            await asyncio.to_thread(Plugin.voice_service.unload_model)
         if Plugin.recording_overlay:
             Plugin.recording_overlay.stop()
 
@@ -960,7 +968,7 @@ class Plugin:
             return {"success": False, "error": str(e)}
 
     async def set_transcription_options(self, language: str = "auto", translateToEnglish: bool = False):
-        """Set Faster Whisper language selection."""
+        """Set whisper.cpp language selection."""
         try:
             language = _normalize_transcription_language(language)
             config = _read_button_config()
@@ -987,7 +995,7 @@ class Plugin:
             return {"success": False, "error": str(e)}
 
     async def set_model_size(self, modelSize: str = "base"):
-        """Set the Faster Whisper model size and reload the model if needed."""
+        """Set the whisper.cpp model size and reload the model if needed."""
         try:
             model_size = _normalize_model_size(modelSize)
             config = _read_button_config()
@@ -996,7 +1004,7 @@ class Plugin:
 
             reloaded = False
             if Plugin.voice_service:
-                reloaded = Plugin.voice_service.model is not None
+                reloaded = Plugin.voice_service.is_model_ready()
                 success = await asyncio.to_thread(
                     Plugin.voice_service.set_model_size,
                     model_size,
@@ -1196,6 +1204,10 @@ class Plugin:
                 "success": True,
                 "service_ready": Plugin.voice_service is not None,
                 "model_ready": model_ready,
+                "inference_device": (
+                    Plugin.voice_service.inference_device
+                    if Plugin.voice_service else None
+                ),
                 "model_loading": model_loading,
                 "recording": Plugin.voice_service.is_recording if Plugin.voice_service else False,
                 "recording_start_count": Plugin.recording_start_count,

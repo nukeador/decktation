@@ -1,6 +1,6 @@
 # Development
 
-Decktation has a TypeScript/React Decky panel and a Python backend. The backend records audio, runs faster-whisper with CPU int8 inference, parses game-channel prefixes, and starts a controller listener. The packaged plugin includes its runtime dependencies and keyboard helper.
+Decktation has a TypeScript/React Decky panel and a Python backend. The backend records audio, runs a resident whisper.cpp server with Vulkan or CPU inference, parses game-channel prefixes, and starts a controller listener. The packaged plugin includes its runtime dependencies and keyboard helper.
 
 ## Build the frontend
 

@@ -1,6 +1,6 @@
 {
   "name": "Decktation",
-  "version": "0.3.18-dev.overlay.1",
+  "version": "0.3.19-dev.resident.4",
   "author": "silverfoxy",
   "flags": [
     "root"
@@ -16,7 +16,7 @@
       "gaming",
       "accessibility"
     ],
-    "description": "Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using faster-whisper.",
+    "description": "Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.",
     "image": "https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"
   }
 }
