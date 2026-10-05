@@ -24,6 +24,7 @@ def test_requests_reuse_worker_and_clear_previous_context(tmp_path):
     assert b'\r\nes\r\n' in bodies[0] and b'Azeroth' in bodies[0]
     assert b'\r\nauto\r\n' in bodies[1] and b'Azeroth' not in bodies[1]
     assert b'name="prompt"\r\n\r\n\r\n' in bodies[1]
+    assert b'name="no_context"' not in bodies[1]
 
 
 def test_startup_failure_reaps_worker(monkeypatch):

@@ -63,6 +63,10 @@ class TestPresetsFile:
         assert guildwars2["chat_open_key"] == "enter"
         assert guildwars2["chat_send_key"] == "enter"
 
+    def test_builtin_presets_do_not_bias_language_detection(self, presets):
+        assert presets["wow"]["whisper_prompt"] == ""
+        assert presets["guildwars2"]["whisper_prompt"] == ""
+
     def test_guildwars2_chat_commands(self, presets):
         channels = presets["guildwars2"]["channels"]
         assert channels["say"] == "/s "
@@ -244,7 +248,7 @@ class TestUserProfileOverrides:
 
         prompt, hotwords = service.build_prompt_from_context()
 
-        assert prompt is None
+        assert prompt == "Game chat."
         assert hotwords == "Eorzea, Azeroth, Illidan, Akama"
 
     def test_user_profiles_add_new_game(self, tmp_path, monkeypatch):

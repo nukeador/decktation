@@ -90,3 +90,15 @@ long dictations appeared to do nothing. Normalise CR/LF wrapping to spaces only
 at the Vulkan transcript boundary; preserve other controls for rejection. This
 is output formatting and does not resolve wrong-language recognition. Added
 regression coverage for a wrapped Unicode transcript and preserved NUL rejection.
+
+## resident.4: opt-in prompts and fallback cleanup
+
+Keep the bundled WoW and Guild Wars 2 prose/example prompts empty so Auto Detect
+does not receive English-biased examples. Preserve a non-empty prompt supplied
+by a user profile when using Auto Detect or explicit English. Explicitly
+non-English languages continue to suppress that prompt, while configured and
+context-derived vocabulary remains available as hotwords.
+
+When resident inference fails, clear Vulkan readiness before stopping the
+worker. Worker cleanup errors are logged separately and cannot prevent the
+existing CPU fallback from loading.
