@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://nukeador.github.io/decktation/sitemap.xml
