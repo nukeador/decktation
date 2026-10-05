@@ -182,3 +182,9 @@ header{background:#fefefe;backdrop-filter:none}
 @media(max-width:480px){.wow-chat-demo{padding:5px;font-size:11px;width:58%}.wow-chat-input{padding:2px 4px}.wow-recording{width:29%;left:80%;gap:6px;padding:4px;min-height:24px}.wow-recording .demo-bars{gap:2px}.wow-recording .demo-bars>span{width:2px}}
 
 .install-step p{margin:12px 0 0}.install-step .code{margin-top:16px}
+
+/* Shoulder buttons follow the recording phase: held while listening, released before transcription. */
+.demo-shoulder{position:absolute;top:3.2%;width:11%;height:5.8%;z-index:1;display:flex;align-items:center;justify-content:center;border-radius:45% 45% 15% 15%;background:#202124;color:#fff;font:bold clamp(6px,1.1vw,12px)/1 system-ui,sans-serif;box-shadow:inset 0 2px 0 #55565b;transition:background .16s,box-shadow .16s,transform .16s}
+.demo-shoulder-left{left:10%}.demo-shoulder-right{right:10%}
+.live-demo[data-phase="listening"] .demo-shoulder{background:#ed3547;box-shadow:0 0 14px #ed354770,inset 0 2px 0 #ff909b;transform:translateY(1px)}
+@media(prefers-reduced-motion:reduce){.demo-shoulder{transition:none}}
