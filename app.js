@@ -63,7 +63,7 @@ copyButton.addEventListener('click', async () => {
 });
 
 // Lightweight staged demo; pauses off-screen, in background tabs, and on request.
-const demo = document.querySelector('.live-demo');
+document.querySelectorAll('.animated-demo').forEach(demo => {
 const typed = demo.querySelector('.demo-typed');
 const message = typed.textContent;
 const toggle = demo.querySelector('.demo-toggle');
@@ -109,3 +109,5 @@ new IntersectionObserver(entries => {
 reducedMotion.addEventListener('change', syncDemo);
 document.addEventListener('visibilitychange', syncDemo);
 renderDemo();
+
+});
