@@ -93,7 +93,7 @@ Decktation uses Decky’s `_root` permission to read controller inputs and type 
 
 ## Credits and license
 
-Built with [faster-whisper](https://github.com/guillaumekln/faster-whisper) and [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader). Decktation is licensed under the MIT License.
+Built with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) and [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader). Decktation is licensed under the MIT License.
 
 ### Experimental WoW Companion
 

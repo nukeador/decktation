@@ -50,7 +50,13 @@ cp "$SOURCE_DIR/backend/src/controller_listener.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/deck_hid.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/telemetry.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/wow_voice_chat.py" "$PLUGIN_DIR/bin/"
+cp "$SOURCE_DIR/backend/src/resident_whisper.py" "$PLUGIN_DIR/bin/"
+cp "$SOURCE_DIR/backend/src/clipboard_injection.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/backend/src/convert_wow_context.py" "$PLUGIN_DIR/bin/"
+cp "$SOURCE_DIR/backend/src/gamepad_evdev.py" "$PLUGIN_DIR/bin/"
+cp "$SOURCE_DIR/backend/src/haptic_feedback.py" "$PLUGIN_DIR/bin/"
+cp "$SOURCE_DIR/backend/src/recording_overlay.py" "$PLUGIN_DIR/bin/"
+cp "$SOURCE_DIR/backend/src/recording_overlay_manager.py" "$PLUGIN_DIR/bin/"
 cp "$SOURCE_DIR/defaults/game_presets.json" "$PLUGIN_DIR/"
 cp "$SOURCE_DIR/defaults/channel_languages.json" "$PLUGIN_DIR/"
 cp "$SOURCE_DIR/package.json" "$PLUGIN_DIR/"
@@ -107,11 +113,7 @@ echo "Using pip: $PIP"
 echo ""
 
 $PIP install --target "$PLUGIN_DIR/lib" \
-    av \
-    faster-whisper \
-    sounddevice \
-    numpy \
-    sentry-sdk==2.66.0
+    -r "$SOURCE_DIR/backend/src/requirements.txt"
 
 echo "✓ Dependencies installed"
 echo ""
@@ -124,24 +126,26 @@ chmod 644 "$PLUGIN_DIR/bin/audio_runtime.py"
 chmod 644 "$PLUGIN_DIR/bin/deck_hid.py"
 chmod 644 "$PLUGIN_DIR/bin/telemetry.py"
 chmod 644 "$PLUGIN_DIR/bin/wow_voice_chat.py"
+chmod 644 "$PLUGIN_DIR/bin/resident_whisper.py"
 chmod 644 "$PLUGIN_DIR/bin/convert_wow_context.py"
 chmod 755 "$PLUGIN_DIR/bin/controller_listener.py"
+[ ! -f "$PLUGIN_DIR/bin/whisper-server" ] || chmod 755 "$PLUGIN_DIR/bin/whisper-server"
 
 echo "✓ Permissions set"
 echo ""
 
 # Verify installation
 echo "Verifying installation..."
-if [ -d "$PLUGIN_DIR/lib/av" ]; then
-    echo "✓ av module installed"
+if [ -d "$PLUGIN_DIR/lib/numpy" ]; then
+    echo "✓ numpy installed"
 else
-    echo "✗ av module missing!"
+    echo "✗ numpy missing!"
 fi
 
-if [ -d "$PLUGIN_DIR/lib/faster_whisper" ]; then
-    echo "✓ faster-whisper installed"
+if [ -x "$PLUGIN_DIR/bin/whisper-server" ]; then
+    echo "✓ whisper.cpp server installed"
 else
-    echo "✗ faster-whisper missing!"
+    echo "✗ whisper-server missing; install from a built Decktation package"
 fi
 
 if [ -d "$PLUGIN_DIR/lib/sentry_sdk" ]; then

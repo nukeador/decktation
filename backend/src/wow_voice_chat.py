@@ -1,30 +1,69 @@
 #!/usr/bin/env python3
 """
 WoW Voice-to-Chat Service for Steam Deck
-Captures voice input, transcribes with faster-whisper, and sends to WoW chat
+Captures voice input, transcribes with whisper.cpp, and sends to WoW chat
 """
 
-import ctypes
-import gc
 import os
 import json
+import logging
+import shutil
+import ssl
+import sys
 import re
 import time
 import queue
 import threading
 import subprocess
+import tempfile
+import urllib.request
+import certifi
 from pathlib import Path
-from faster_whisper import WhisperModel
 import sounddevice as sd
 import numpy as np
 import wave
 from audio_runtime import ensure_audio_environment
 from clipboard_injection import temporary_clipboard
+from resident_whisper import ResidentWhisper
 
 
 def _capitalize_standalone_i(text: str) -> str:
     """Capitalize every standalone English first-person pronoun."""
     return re.sub(r"\bi\b", "I", text)
+
+
+logger = logging.getLogger(__name__)
+
+
+def _whisper_server_path():
+    """Resolve the executable in Decky's bin layout or beside this module."""
+    configured_root = os.environ.get("DECKY_PLUGIN_DIR")
+    candidates = []
+    if configured_root:
+        candidates.append(Path(configured_root) / "bin" / "whisper-server")
+    candidates.append(Path(__file__).resolve().parent / "whisper-server")
+    return next((path for path in candidates if path.is_file()), candidates[0])
+
+
+def _download_vulkan_model(url, destination):
+    # Decky's frozen Python cannot reliably locate system CA files.
+    # Decky's frozen runtime needs an explicitly bundled CA store.
+    context = ssl.create_default_context(cafile=certifi.where())
+    with urllib.request.urlopen(url, context=context, timeout=60) as response:
+        with destination.open("wb") as output:
+            shutil.copyfileobj(response, output)
+
+
+def _vulkan_environment():
+    """Use host libraries rather than Decky's frozen Python runtime."""
+    env = os.environ.copy()
+    if getattr(sys, "frozen", False) or hasattr(sys, "_MEIPASS"):
+        original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+        if original:
+            env["LD_LIBRARY_PATH"] = original
+        else:
+            env.pop("LD_LIBRARY_PATH", None)
+    return env
 
 
 def _format_casual_message(text: str) -> str:
@@ -71,7 +110,9 @@ class WoWVoiceChat:
         # Lazy model loading - only load when needed
         # Guards native model use/teardown; reentrant because nested paths call _load_model.
         self.model_lock = threading.RLock()
-        self.model = None
+        self.whisper_model = None
+        self.whisper_worker = None
+        self.inference_device = None
         self.model_loading = False
         self.model_load_error = None
 
@@ -183,16 +224,26 @@ class WoWVoiceChat:
     def _load_model(self):
         """Load the Whisper model (can be called lazily)"""
         with self.model_lock:
-            if self.model is not None:
+            if self.whisper_worker is not None:
                 return True
             if self.model_loading:
                 return False
 
             self.model_loading = True
             try:
-                print("Loading Whisper model...")
-                self.model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
-                print("Model loaded!")
+                whisper_server = _whisper_server_path()
+                if not whisper_server.is_file():
+                    raise FileNotFoundError(f"Bundled whisper-server not found: {whisper_server}")
+                model = self._ensure_whisper_model()
+
+                if self._vulkan_available():
+                    try:
+                        self._start_whisper_worker(whisper_server, model, use_gpu=True)
+                    except Exception as error:
+                        logger.warning("Resident Vulkan startup failed; using whisper.cpp CPU: %s", error)
+
+                if self.whisper_worker is None:
+                    self._start_whisper_worker(whisper_server, model, use_gpu=False)
                 self.model_load_error = None
                 return True
             except Exception as e:
@@ -204,25 +255,125 @@ class WoWVoiceChat:
                 self.model_loading = False
 
     def unload_model(self):
-        """Release Whisper and return free heap pages where the OS supports it."""
+        """Stop the resident Whisper worker and release its model."""
         with self.model_lock:
-            self.model = None
+            self._stop_whisper_worker()
             self.model_load_error = None
-            # Native allocators may keep freed pages; both steps are best-effort.
-            gc.collect()
-            try:
-                # malloc_trim is glibc-only; unsupported systems still release the model above.
-                malloc_trim = ctypes.CDLL("libc.so.6").malloc_trim
-            except (AttributeError, OSError):
-                return
-            malloc_trim.argtypes = [ctypes.c_size_t]
-            malloc_trim.restype = ctypes.c_int
-            if malloc_trim(0):
-                print("Released unused heap pages")
 
     def is_model_ready(self):
         """Check if model is loaded and ready"""
-        return self.model is not None
+        return self.whisper_worker is not None
+
+    def _stop_whisper_worker(self):
+        """Clear readiness and best-effort stop the resident worker."""
+        worker = self.whisper_worker
+        # Clear readiness before shutdown so a close failure can never leave a
+        # dead or partially stopped worker advertised as usable.
+        self.whisper_worker = None
+        self.whisper_model = None
+        self.inference_device = None
+        if worker:
+            try:
+                worker.close()
+            except Exception as error:
+                # Cleanup must not mask an inference failure or fallback.
+                logger.warning("Failed to close resident Whisper worker: %s", error)
+
+    def _vulkan_available(self):
+        """Return whether this host has the AMD render device we support."""
+        amd_gpu = False
+        for vendor in Path("/sys/class/drm").glob("card*/device/vendor"):
+            try:
+                if vendor.read_text(errors="ignore").strip().lower() == "0x1002":
+                    amd_gpu = True
+                    break
+            except OSError as error:
+                # Sandboxes and unusual DRM permissions should simply select
+                # the portable CPU engine, never prevent dictation from loading.
+                logger.warning("Cannot read GPU vendor at %s: %s", vendor, error)
+                continue
+        render_nodes = list(Path("/dev/dri").glob("renderD*"))
+        if not amd_gpu or not render_nodes:
+            logger.warning(
+                "Vulkan skipped: AMD GPU=%s, render devices=%s; using whisper.cpp CPU",
+                amd_gpu, render_nodes,
+            )
+            return False
+        return True
+
+    def _ensure_whisper_model(self):
+        """Download the selected GGML model when it is not already cached."""
+        model_names = {"base": "ggml-base.bin", "small": "ggml-small.bin", "medium": "ggml-medium.bin"}
+        filename = model_names[self.model_size]
+        cache_dir = Path(os.environ.get("DECKY_USER_HOME", Path.home())) / ".cache" / "decktation" / "whisper.cpp"
+        model = cache_dir / filename
+        if not model.exists():
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            temporary = model.with_suffix(".download")
+            logger.info("Downloading Whisper model %s to %s", self.model_size, model)
+            url = f"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{filename}"
+            _download_vulkan_model(url, temporary)
+            temporary.replace(model)
+        return model
+
+    def _start_whisper_worker(self, whisper_server, model, use_gpu):
+        """Start and record a healthy resident GPU or CPU worker."""
+        worker = ResidentWhisper(
+            whisper_server, model, _vulkan_environment(), use_gpu=use_gpu
+        )
+        self.whisper_worker = worker
+        self.whisper_model = model
+        self.inference_device = "gpu" if use_gpu else "cpu"
+        logger.info(
+            "Using resident whisper.cpp transcription: device=%s executable=%s model=%s",
+            self.inference_device, whisper_server, model,
+        )
+
+    def _transcribe_with_worker(self, audio_input, initial_prompt, hotwords):
+        """Send one recording to the active resident worker."""
+        with tempfile.TemporaryDirectory(prefix="decktation-whisper-") as directory:
+            wav_path = Path(directory) / "audio.wav"
+            self.save_audio_to_wav(audio_input, wav_path, source_rate=self.whisper_sample_rate)
+            if not self.whisper_worker:
+                raise RuntimeError("Resident worker is not loaded")
+            prompt = ". ".join(part for part in (hotwords, initial_prompt) if part)
+            started = time.monotonic()
+            text = self.whisper_worker.transcribe(
+                wav_path, self.transcription_language, prompt
+            )
+            logger.info(
+                "Resident Whisper inference: device=%s pid=%s audio=%.3fs request=%.3fs",
+                self.inference_device, self.whisper_worker.process.pid,
+                len(audio_input) / self.whisper_sample_rate,
+                time.monotonic() - started,
+            )
+            # whisper-server wraps longer output into multiple lines. Chat
+            # injection intentionally rejects control characters; convert
+            # only presentation line breaks to spaces at this boundary.
+            text = re.sub(r"[ \t]*[\r\n]+[ \t]*", " ", text).strip()
+            return _capitalize_standalone_i(text)
+
+    def _transcribe_whisper(self, audio_input, initial_prompt, hotwords):
+        """Transcribe with the active worker, retrying once on CPU after GPU failure."""
+        try:
+            return self._transcribe_with_worker(audio_input, initial_prompt, hotwords)
+        except Exception as error:
+            if self.inference_device != "gpu":
+                self._stop_whisper_worker()
+                raise
+            logger.warning("Vulkan Whisper failed; retrying with whisper.cpp CPU: %s", error)
+            model = self.whisper_model
+            self._stop_whisper_worker()
+            if model is None:
+                raise RuntimeError("Vulkan worker failed without a loaded model") from error
+            self._start_whisper_worker(
+                _whisper_server_path(), model, use_gpu=False
+            )
+            try:
+                return self._transcribe_with_worker(audio_input, initial_prompt, hotwords)
+            except Exception:
+                self._stop_whisper_worker()
+                raise
 
     def get_last_transcription(self):
         """Get the last transcription result"""
@@ -272,8 +423,8 @@ class WoWVoiceChat:
         return channel, text, False
 
     def set_transcription_options(self, language=None):
-        """Update faster-whisper transcription options without reloading the model."""
-        self.transcription_language = language or None
+        """Update whisper.cpp transcription options without reloading the model."""
+        self.transcription_language = None if language in (None, "", "auto") else language
 
     def set_model_size(self, model_size):
         """Update the selected model size and reload if a model is already active."""
@@ -284,10 +435,10 @@ class WoWVoiceChat:
             self.model_size = model_size
             self.model_load_error = None
 
-            if self.model is None:
+            if self.whisper_worker is None:
                 return True
 
-            self.model = None
+            self._stop_whisper_worker()
             return self._load_model()
 
     def _confirm_delay_for(self, text: str) -> float:
@@ -328,24 +479,14 @@ class WoWVoiceChat:
 
     def build_prompt_from_context(self):
         """Build initial_prompt and hotwords from context"""
-        # English game prompts bias non-English transcription heavily. When the
-        # user explicitly selects a non-English language, let Whisper work from
-        # the audio without English prose prompts; optional Companion names
-        # can still supply language-independent proper-noun hotwords.
-        base_prompt = self.preset.get("whisper_prompt") if self.preset else None
-
-        # Fall back to hardcoded WoW prompt when no preset is provided (direct CLI usage)
-        if base_prompt is None:
-            base_prompt = (
-                "World of Warcraft gameplay discussion. "
-                "Playing as orc warrior, tauren druid, blood elf paladin, undead warlock, troll shaman, or night elf hunter. "
-                "Discussing enhancement shaman, restoration druid, protection warrior, holy paladin, arcane mage, shadow priest, affliction warlock. "
-                "Running mythic dungeons, heroic raids, doing quests in Azeroth, Orgrimmar, Stormwind, Ironforge. "
-                "Fighting bosses like Lich King, Ragnaros, Illidan, pulling trash mobs, need tank healer and DPS. "
-                "Using abilities, cooldowns, buffs, debuffs, interrupts, dispels, cleave and AOE damage. "
-                "Chat channel prefixes: say, party, raid, guild, officer, yell, instance, whisper, reply, type. "
-                "Common short phrases: hi, gg, brb, afk, lol, omw, ty, np, wp, gz."
-            )
+        # Bundled presets intentionally use an empty prompt because English
+        # examples can bias automatic language detection. Preserve prompts
+        # supplied by user profiles for Auto Detect and explicit English, but
+        # never send an English prompt with an explicitly non-English language.
+        configured_prompt = self.preset.get("whisper_prompt") if self.preset else None
+        initial_prompt = configured_prompt or None
+        if self.transcription_language not in (None, "en"):
+            initial_prompt = None
 
         # Companion is optional and never persists its vocabulary in legacy context.
         if self.companion is not None and self.companion.enabled:
@@ -354,16 +495,14 @@ class WoWVoiceChat:
             terms = vocabulary(fresh) if fresh else []
             hotwords = ", ".join(terms) or None
             if self.transcription_language:
-                return None, hotwords
+                return initial_prompt, hotwords
             location = [fresh.get(key, "") for key in ("zone", "subzone")] if fresh else []
             location = [value for value in location if value]
-            prompt = base_prompt or ""
+            prompt = initial_prompt or ""
             if location:
                 prompt += " Current location: " + ", ".join(location) + "."
             return prompt or None, hotwords
 
-        if self.transcription_language:
-            return None, None
         # Extract preset hotwords if configured. Keep them as a list until the
         # context hotwords have also been added.
         preset_hotwords_raw = self.preset.get("hotwords") if self.preset else None
@@ -374,31 +513,13 @@ class WoWVoiceChat:
         else:
             hotwords = []
 
-        # Only append dynamic game context if this preset uses a context file (e.g. WoW addon)
+        # Keep dynamic context language-neutral: vocabulary and actual game
+        # names are useful without constructing English prose around them.
         if not self.preset.get("context_file"):
-            return base_prompt or None, ", ".join(hotwords) or None
-
+            return initial_prompt, ", ".join(hotwords) or None
         zone = self.context.get("zone", "")
-        subzone = self.context.get("subzone", "")
         boss = self.context.get("boss", "")
         target = self.context.get("target", "")
-        party = self.context.get("party", [])
-
-        # Add dynamic context to the prompt
-        dynamic_parts = []
-        if zone:
-            dynamic_parts.append(f"Currently in {zone}")
-        if subzone:
-            dynamic_parts.append(f"at {subzone}")
-        if boss:
-            dynamic_parts.append(f"fighting {boss}")
-        if party:
-            dynamic_parts.append(f"with party members {', '.join(party[:5])}")
-
-        if dynamic_parts:
-            initial_prompt = base_prompt + " " + " ".join(dynamic_parts) + "."
-        else:
-            initial_prompt = base_prompt
 
         # Preserve the context-derived hotwords used by existing presets while
         # allowing user profiles to add their own vocabulary.
@@ -476,19 +597,19 @@ class WoWVoiceChat:
 
         return np.concatenate(audio_data, axis=0)
 
-    def save_audio_to_wav(self, audio_data, filename):
+    def save_audio_to_wav(self, audio_data, filename, source_rate=None):
         """Save audio data to WAV file, resampling to 16kHz for Whisper"""
-        audio_data = self._prepare_audio(audio_data, self.sample_rate)
+        audio_data = self._prepare_audio(audio_data, self.sample_rate if source_rate is None else source_rate)
         audio_data = np.clip(audio_data * 32768, -32768, 32767).astype(np.int16)
 
-        with wave.open(filename, 'wb') as wf:
+        with wave.open(os.fspath(filename), 'wb') as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)  # 16-bit
             wf.setframerate(self.whisper_sample_rate)
             wf.writeframes(audio_data.tobytes())
 
     def _prepare_audio(self, audio_data, source_rate):
-        """Return mono 16 kHz float32 samples for faster-whisper."""
+        """Return mono 16 kHz float32 samples for Whisper."""
         audio_data = np.asarray(audio_data)
 
         if audio_data.ndim > 1:
@@ -503,7 +624,7 @@ class WoWVoiceChat:
         else:
             audio_data = audio_data.reshape(-1)
 
-        # sounddevice records int16 PCM, while faster-whisper expects float32
+        # sounddevice records int16 PCM, while Whisper expects float32
         # PCM in [-1, 1]. Normalize before interpolation: np.interp promotes
         # int16 to float64, which previously caused this integer check to be
         # skipped and sent values up to 32768 directly to Whisper.
@@ -561,33 +682,8 @@ class WoWVoiceChat:
             print("No audio samples to transcribe")
             return ""
 
-        peak = float(np.max(np.abs(audio_input)))
-        rms = float(np.sqrt(np.mean(np.square(audio_input))))
-        duration = len(audio_input) / self.whisper_sample_rate
-        print(
-            f"Prepared audio: duration={duration:.3f}s, "
-            f"peak={peak:.4f}, rms={rms:.4f}, dtype={audio_input.dtype}"
-        )
-
-        # Passing decoded samples avoids shipping PyAV and its full FFmpeg
-        # codec bundle for the WAV-only Decktation recording path.
         try:
-            segments, info = self.model.transcribe(
-                audio_input,
-                beam_size=5,
-                initial_prompt=initial_prompt,
-                hotwords=hotwords,
-                language=self.transcription_language,
-                task="transcribe",
-                vad_filter=True,
-                condition_on_previous_text=False,
-            )
-
-            # Segment generation is lazy and can fail during iteration.
-            full_text = []
-            for segment in segments:
-                full_text.append(segment.text)
-            return _capitalize_standalone_i("".join(full_text).strip())
+            return self._transcribe_whisper(audio_input, initial_prompt, hotwords)
         except Exception as e:
             self._report_diagnostic("transcription.failed", e)
             raise

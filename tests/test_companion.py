@@ -16,7 +16,7 @@ import pytest
 from companion import runtime
 from companion.protocol import ProtocolError, decode_packet, encode_context
 from wow_voice_chat import WoWVoiceChat
-from test_transcription_options import FakeAudio, FakeModel, FakeNumpy
+from test_transcription_options import resident_service
 
 CONTEXT = {"player": "Álvaro", "target": "Archivist Spearblossom", "zone": "The Waking Shores",
            "subzone": "Wingrest Embassy", "nearby": ["Мария", "Álvaro", "Archivist Spearblossom"],
@@ -70,34 +70,31 @@ def test_old_generation_cannot_repopulate_cache():
     assert c.snapshot() is None
 
 
-@pytest.mark.parametrize("language", [None, "es", "fr"])
-def test_actual_whisper_arguments_use_fresh_game_names(monkeypatch, capsys, language):
-    import wow_voice_chat
-    monkeypatch.setattr(wow_voice_chat, "np", FakeNumpy)
+@pytest.mark.parametrize("language", [None, "es", "fr", "en"])
+def test_actual_whisper_arguments_use_fresh_game_names(capsys, caplog, language):
     c, now = cache()
-    service = WoWVoiceChat(lazy_load=True, transcription_language=language,
-                          preset={"whisper_prompt": "World of Warcraft", "context_file": "legacy"})
+    service = resident_service(transcription_language=language,
+                               preset={"whisper_prompt": "World of Warcraft", "context_file": "legacy"})
     service.companion = c
     service.context = {"zone": "Old file location"}
     service.load_context = lambda: pytest.fail("legacy context must not be read")
-    service.model = FakeModel()
-    service._prepare_audio = lambda audio, rate: FakeAudio([0.0, 0.1])
     assert service.transcribe_audio([0.0, 0.1]) == "hello"
-    options = service.model.kwargs
-    assert options["hotwords"] == ", ".join(runtime.vocabulary(c.snapshot()))
+    options = service.whisper_worker.calls[-1]
+    terms = ", ".join(runtime.vocabulary(c.snapshot()))
+    assert options["prompt"].startswith(terms)
     assert options["language"] == language
-    if language:
-        assert options["initial_prompt"] is None
+    if language in ("es", "fr"):
+        assert options["prompt"] == terms
     else:
-        assert "The Waking Shores" in options["initial_prompt"]
-    assert "Old file location" not in (options["initial_prompt"] or "")
-    captured = capsys.readouterr().out
+        assert "World of Warcraft" in options["prompt"]
+    assert "Old file location" not in options["prompt"]
+    captured = capsys.readouterr().out + caplog.text
     assert "Álvaro" not in captured and "Archivist" not in captured
     assert service.context == {"zone": "Old file location"}
     now[0] = 16
     service.transcribe_audio([0.0, 0.1])
-    assert service.model.kwargs["hotwords"] is None
-    assert service.model.kwargs["initial_prompt"] == (None if language else "World of Warcraft")
+    assert service.whisper_worker.calls[-1]["prompt"] == (
+        "" if language in ("es", "fr") else "World of Warcraft")
 
 
 def test_pipe_bounds_eof_and_incomplete_reads():

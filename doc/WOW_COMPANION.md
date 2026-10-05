@@ -66,3 +66,12 @@ The complete ML/plugin release archive and integrated physical capture/recogniti
 Every five seconds Decktation checks `/proc` process ownership and the case-insensitive process name in `comm`. `WoW.exe` (Retail) and `WowB.exe` (Forever beta) are recognised, along with existing Classic executable names. Only processes owned by the resolved desktop user count; Battle.net alone does not start capture. No game memory, window title or network query is used. Executable detection does not establish addon compatibility with Classic.
 
 WoW Context Bridge 0.1.1-experimental includes Retail and `_Camelot` Forever manifests loading the same protocol v2 encoder. Forever interface `16001` and `WowB.exe` follow existing Forever projects. Actual beta loading, readable names, rendering and SteamOS capture need volunteer validation. Later beta executable/interface changes may require an update. Check the beta's addon directory and record its build in QA reports.
+
+## Current transcription engine
+
+This build follows upstream's resident whisper.cpp worker and Vulkan/CPU fallback.
+The worker has no separate `hotwords` argument: bounded fresh vocabulary is prepended
+to the request's `prompt` field. Each recording supplies its own prompt, so stale
+names are not carried into subsequent requests. Explicit non-English languages
+receive vocabulary without English prose; configured prompts follow upstream policy.
+Recognition effects on physical hardware with this engine remain unverified.
