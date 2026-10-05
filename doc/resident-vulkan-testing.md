@@ -2,15 +2,14 @@
 
 Based on upstream master 4f4caa4, not the combined feature branch.
 Uses the same pinned whisper.cpp revision and multilingual GGML model, but
-bundles whisper-server alongside whisper-cli. The plugin owns a loopback-only
+bundles only whisper-server. The plugin owns a loopback-only
 server process, confirms Vulkan initialization before declaring readiness, and
 reuses that process/model for subsequent serialized inference requests.
 Disable, model changes and plugin unloading release the worker; Linux parent-death
 signalling also stops it if the plugin crashes. Startup/inference failures close
-the worker and retain the existing faster-whisper CPU fallback.
+the Vulkan worker and retry through a resident `whisper-server --no-gpu` worker.
 
-The pinned whisper.cpp revision and model are unchanged; recognition accuracy
-is not guaranteed to match faster-whisper. The model now occupies
+The pinned whisper.cpp revision and model are unchanged. The model now occupies
 GPU/shared memory while enabled. A missing/broken server selects CPU. Initial
 loading still takes time; the intended speedup applies to later dictations.
 

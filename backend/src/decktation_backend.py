@@ -968,7 +968,7 @@ class Plugin:
             return {"success": False, "error": str(e)}
 
     async def set_transcription_options(self, language: str = "auto", translateToEnglish: bool = False):
-        """Set Faster Whisper language selection."""
+        """Set whisper.cpp language selection."""
         try:
             language = _normalize_transcription_language(language)
             config = _read_button_config()
@@ -995,7 +995,7 @@ class Plugin:
             return {"success": False, "error": str(e)}
 
     async def set_model_size(self, modelSize: str = "base"):
-        """Set the Faster Whisper model size and reload the model if needed."""
+        """Set the whisper.cpp model size and reload the model if needed."""
         try:
             model_size = _normalize_model_size(modelSize)
             config = _read_button_config()
@@ -1205,8 +1205,8 @@ class Plugin:
                 "service_ready": Plugin.voice_service is not None,
                 "model_ready": model_ready,
                 "inference_device": (
-                    "gpu" if Plugin.voice_service and Plugin.voice_service.gpu_enabled else
-                    "cpu" if Plugin.voice_service and Plugin.voice_service.model is not None else None
+                    Plugin.voice_service.inference_device
+                    if Plugin.voice_service else None
                 ),
                 "model_loading": model_loading,
                 "recording": Plugin.voice_service.is_recording if Plugin.voice_service else False,

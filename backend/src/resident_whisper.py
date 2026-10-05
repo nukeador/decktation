@@ -15,9 +15,20 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
+def server_command(binary, model, port, use_gpu):
+    command = ['/usr/bin/python3', str(Path(__file__).resolve()), str(binary)]
+    if not use_gpu:
+        command.append('--no-gpu')
+    command.extend([
+        '--model', str(model), '--host', '127.0.0.1', '--port', str(port),
+        '--language', 'auto', '--beam-size', '5'])
+    return command
+
+
 class ResidentWhisper:
-    def __init__(self, binary, model, environment, timeout=60):
+    def __init__(self, binary, model, environment, use_gpu=True, timeout=60):
         self.process = None
+        self.device = 'gpu' if use_gpu else 'cpu'
         self.directory = tempfile.TemporaryDirectory(prefix='decktation-resident-')
         self.log_path = Path(self.directory.name) / 'worker.log'
         self.log_file = self.log_path.open('wb')
@@ -29,9 +40,7 @@ class ResidentWhisper:
             self.url = f'http://127.0.0.1:{port}'
             self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
             self.process = subprocess.Popen(
-                ['/usr/bin/python3', str(Path(__file__).resolve()), str(binary),
-                 '--model', str(model), '--host', '127.0.0.1', '--port', str(port),
-                 '--language', 'auto', '--beam-size', '5'],
+                server_command(binary, model, port, use_gpu),
                 env={**environment, "DECKTATION_WHISPER_PARENT": str(os.getpid())}, stdin=subprocess.DEVNULL,
                 stdout=self.log_file, stderr=subprocess.STDOUT, start_new_session=True)
             while time.monotonic() - start < timeout:
@@ -42,18 +51,19 @@ class ResidentWhisper:
                         ready = json.loads(response.read()).get('status') == 'ok'
                     if ready:
                         evidence = self.log_path.read_text(errors='replace')
-                        if 'using Vulkan0 backend' not in evidence:
+                        if use_gpu and 'using Vulkan0 backend' not in evidence:
                             raise RuntimeError('Worker did not confirm Vulkan0: ' + self._tail())
-                        logger.info('Resident Vulkan ready: pid=%s startup=%.3fs model=%s',
-                                    self.process.pid, time.monotonic()-start, model)
-                        logger.info('Resident Vulkan worker: %s', '\n'.join(
-                            line for line in evidence.splitlines()
-                            if 'ggml_vulkan:' in line or 'using Vulkan0 backend' in line))
+                        logger.info('Resident Whisper ready: device=%s pid=%s startup=%.3fs model=%s',
+                                    self.device, self.process.pid, time.monotonic()-start, model)
+                        if use_gpu:
+                            logger.info('Resident Vulkan worker: %s', '\n'.join(
+                                line for line in evidence.splitlines()
+                                if 'ggml_vulkan:' in line or 'using Vulkan0 backend' in line))
                         return
                 except (OSError, ValueError):
                     pass
                 time.sleep(.1)
-            raise TimeoutError('Resident Vulkan startup timed out: ' + self._tail())
+            raise TimeoutError(f'Resident {self.device} startup timed out: ' + self._tail())
         except Exception:
             self.close()
             raise
@@ -63,7 +73,7 @@ class ResidentWhisper:
 
     def transcribe(self, wav_path, language, prompt):
         if self.process.poll() is not None:
-            raise RuntimeError('Resident Vulkan worker died: ' + self._tail())
+            raise RuntimeError(f'Resident {self.device} worker died: ' + self._tail())
         # Send every mutable decoding option on every request, including empty
         # prompt, so a previous recording's language/context cannot leak.
         # The pinned server creates fresh request parameters with no_context

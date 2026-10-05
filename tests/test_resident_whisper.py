@@ -7,6 +7,17 @@ import pytest
 import resident_whisper
 
 
+def test_cpu_worker_disables_gpu():
+    command = resident_whisper.server_command('/bin/whisper-server', '/model', 1234, False)
+    assert '--no-gpu' in command
+    assert command[command.index('--model') + 1] == '/model'
+
+
+def test_gpu_worker_keeps_gpu_enabled():
+    command = resident_whisper.server_command('/bin/whisper-server', '/model', 1234, True)
+    assert '--no-gpu' not in command
+
+
 def test_requests_reuse_worker_and_clear_previous_context(tmp_path):
     worker = resident_whisper.ResidentWhisper.__new__(resident_whisper.ResidentWhisper)
     worker.process = MagicMock(); worker.process.poll.return_value = None

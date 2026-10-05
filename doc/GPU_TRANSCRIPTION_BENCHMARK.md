@@ -1,6 +1,8 @@
 # GPU transcription benchmark
 
-This branch bundles a pinned whisper.cpp 1.8.5 `whisper-cli` built with Vulkan.
+This historical benchmark used a pinned whisper.cpp 1.8.5 `whisper-cli` built
+with Vulkan. Production packages now bundle only `whisper-server`; to repeat
+the benchmark, supply a separately built CLI from the same pinned revision.
 The same executable runs on Vulkan normally and on CPU with `--no-gpu`, so the
 comparison uses identical model weights and decoding code.
 
@@ -29,11 +31,11 @@ From a checkout of this repository on the Deck (the benchmark harness is kept
 in source control but is not shipped in the plugin):
 
 ```bash
-PLUGIN=/home/deck/homebrew/plugins/decktation/bin
 MODEL=/home/deck/.cache/decktation/whisper.cpp/ggml-base.bin
+WHISPER_CLI=/path/to/separately-built/whisper-cli
 
 python3 backend/scripts/benchmark_whisper_vulkan.py \
-  --whisper-cli "$PLUGIN/whisper-cli" \
+  --whisper-cli "$WHISPER_CLI" \
   --model "$MODEL" \
   --language auto \
   --repeat 10 \

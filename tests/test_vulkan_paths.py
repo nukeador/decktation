@@ -4,33 +4,34 @@ import ssl
 import wave
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+import pytest
 
 
-def test_packaged_cli_without_decky_environment(monkeypatch, tmp_path):
+def test_packaged_server_without_decky_environment(monkeypatch, tmp_path):
     backend = tmp_path / "bin"
     backend.mkdir()
-    cli = backend / "whisper-cli"
-    cli.touch()
+    server = backend / "whisper-server"
+    server.touch()
     monkeypatch.delenv("DECKY_PLUGIN_DIR", raising=False)
     monkeypatch.setattr(wow_voice_chat, "__file__", str(backend / "wow_voice_chat.py"))
-    assert wow_voice_chat._whisper_cli_path() == cli
+    assert wow_voice_chat._whisper_server_path() == server
 
 
-def test_stale_decky_path_uses_packaged_cli(monkeypatch, tmp_path):
-    cli = tmp_path / "whisper-cli"
-    cli.touch()
+def test_stale_decky_path_uses_packaged_server(monkeypatch, tmp_path):
+    server = tmp_path / "whisper-server"
+    server.touch()
     monkeypatch.setenv("DECKY_PLUGIN_DIR", str(tmp_path / "missing"))
     monkeypatch.setattr(wow_voice_chat, "__file__", str(tmp_path / "wow_voice_chat.py"))
-    assert wow_voice_chat._whisper_cli_path() == cli
+    assert wow_voice_chat._whisper_server_path() == server
 
 
 def test_decky_plugin_root(monkeypatch, tmp_path):
     backend = tmp_path / "bin"
     backend.mkdir()
-    cli = backend / "whisper-cli"
-    cli.touch()
+    server = backend / "whisper-server"
+    server.touch()
     monkeypatch.setenv("DECKY_PLUGIN_DIR", str(tmp_path))
-    assert wow_voice_chat._whisper_cli_path() == cli
+    assert wow_voice_chat._whisper_server_path() == server
 
 
 def test_model_download_uses_bundled_ca_and_verifies_tls(monkeypatch, tmp_path):
@@ -59,8 +60,8 @@ def test_model_download_uses_bundled_ca_and_verifies_tls(monkeypatch, tmp_path):
 
 def test_vulkan_writes_wav_and_keeps_prepared_sample_rate(monkeypatch, tmp_path):
     service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
-    service.gpu_enabled = True
-    service.gpu_model = tmp_path / "model.bin"
+    service.inference_device = "gpu"
+    service.whisper_model = tmp_path / "model.bin"
     rates = []
     audio = MagicMock()
     service._prepare_audio = lambda data, rate: rates.append(rate) or audio
@@ -74,61 +75,91 @@ def test_vulkan_writes_wav_and_keeps_prepared_sample_rate(monkeypatch, tmp_path)
         assert language is None and prompt == "Azeroth, Illidan. Game chat"
         return 'hello'
     worker.transcribe.side_effect = transcribe
-    service.gpu_worker = worker
-    assert service._transcribe_vulkan(audio, "Game chat", "Azeroth, Illidan") == 'hello'
+    service.whisper_worker = worker
+    assert service._transcribe_with_worker(audio, "Game chat", "Azeroth, Illidan") == 'hello'
     assert rates == [16000]
-    assert service.gpu_enabled
+    assert service.inference_device == "gpu"
 
 
 def test_vulkan_passes_explicit_language(monkeypatch, tmp_path):
     service = wow_voice_chat.WoWVoiceChat(lazy_load=True, transcription_language='es')
     service.save_audio_to_wav = MagicMock()
-    service.gpu_worker = MagicMock()
-    service.gpu_worker.transcribe.return_value = 'hola'
-    assert service._transcribe_vulkan(MagicMock(), None, 'Azeroth') == 'hola'
-    assert service.gpu_worker.transcribe.call_args.args[1:] == ('es', 'Azeroth')
+    service.whisper_worker = MagicMock()
+    service.whisper_worker.transcribe.return_value = 'hola'
+    assert service._transcribe_with_worker(MagicMock(), None, 'Azeroth') == 'hola'
+    assert service.whisper_worker.transcribe.call_args.args[1:] == ('es', 'Azeroth')
 
 
-def test_resident_failure_closes_worker_and_selects_fallback():
+def test_resident_failure_closes_worker_and_retries_on_cpu(monkeypatch, tmp_path):
     service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
-    service.gpu_enabled = True
-    service.gpu_worker = worker = MagicMock()
+    service.inference_device = "gpu"
+    service.whisper_model = tmp_path / "model.bin"
+    service.whisper_worker = worker = MagicMock()
     worker.transcribe.side_effect = RuntimeError('driver failure')
     service.save_audio_to_wav = MagicMock()
-    assert service._transcribe_vulkan(MagicMock(), None, None) is None
+    cpu_worker = MagicMock()
+    cpu_worker.transcribe.return_value = 'recovered'
+    def start(binary, model, use_gpu):
+        assert not use_gpu and model == tmp_path / "model.bin"
+        service.whisper_worker = cpu_worker
+        service.whisper_model = model
+        service.inference_device = "cpu"
+    monkeypatch.setattr(service, "_start_whisper_worker", start)
+    assert service._transcribe_whisper(MagicMock(), None, None) == 'recovered'
     worker.close.assert_called_once()
-    assert not service.gpu_enabled and service.gpu_worker is None
+    assert service.inference_device == "cpu" and service.whisper_worker is cpu_worker
 
 
-def test_resident_close_failure_still_selects_cpu_fallback():
+def test_resident_close_failure_still_selects_cpu_fallback(monkeypatch, tmp_path):
     service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
-    service.gpu_enabled = True
-    service.gpu_model = MagicMock()
-    service.gpu_worker = worker = MagicMock()
+    service.inference_device = "gpu"
+    service.whisper_model = tmp_path / "model.bin"
+    service.whisper_worker = worker = MagicMock()
     worker.transcribe.side_effect = RuntimeError('driver failure')
     worker.close.side_effect = RuntimeError('worker would not close')
     service.save_audio_to_wav = MagicMock()
 
-    assert service._transcribe_vulkan(MagicMock(), None, None) is None
+    cpu_worker = MagicMock()
+    cpu_worker.transcribe.return_value = 'recovered'
+    def start(binary, model, use_gpu):
+        service.whisper_worker = cpu_worker
+        service.whisper_model = model
+        service.inference_device = "cpu"
+    monkeypatch.setattr(service, "_start_whisper_worker", start)
+
+    assert service._transcribe_whisper(MagicMock(), None, None) == 'recovered'
     worker.close.assert_called_once()
-    assert service.gpu_worker is None
-    assert service.gpu_model is None
-    assert not service.gpu_enabled
+    assert service.whisper_worker is cpu_worker
+    assert service.inference_device == "cpu"
+
+
+def test_cpu_failure_clears_dead_worker():
+    service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
+    service.inference_device = "cpu"
+    service.whisper_worker = worker = MagicMock()
+    worker.transcribe.side_effect = RuntimeError('cpu worker failed')
+    service.save_audio_to_wav = MagicMock()
+
+    with pytest.raises(RuntimeError, match='cpu worker failed'):
+        service._transcribe_whisper(MagicMock(), None, None)
+    worker.close.assert_called_once()
+    assert service.whisper_worker is None
+    assert service.inference_device is None
 
 
 def test_unload_releases_resident_worker():
     service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
-    service.gpu_enabled = True
-    service.gpu_worker = worker = MagicMock()
+    service.inference_device = "gpu"
+    service.whisper_worker = worker = MagicMock()
     service.unload_model()
     worker.close.assert_called_once()
-    assert not service.gpu_enabled and service.gpu_worker is None
+    assert service.inference_device is None and service.whisper_worker is None
 
 
 def test_model_change_reloads_resident_worker():
     service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
-    service.gpu_enabled = True
-    service.gpu_worker = worker = MagicMock()
+    service.inference_device = "gpu"
+    service.whisper_worker = worker = MagicMock()
     service._load_model = MagicMock(return_value=True)
     assert service.set_model_size('small')
     worker.close.assert_called_once()
@@ -152,9 +183,9 @@ def test_vulkan_removes_frozen_library_path_without_original(monkeypatch):
 def test_resident_wrapped_text_becomes_single_chat_line():
     service = wow_voice_chat.WoWVoiceChat(lazy_load=True)
     service.save_audio_to_wav = MagicMock()
-    service.gpu_worker = MagicMock()
-    service.gpu_worker.transcribe.return_value = "So it works in English\n perfectly.\r\n Mañana también.\n"
-    assert service._transcribe_vulkan(MagicMock(), None, None) == "So it works in English perfectly. Mañana también."
+    service.whisper_worker = MagicMock()
+    service.whisper_worker.transcribe.return_value = "So it works in English\n perfectly.\r\n Mañana también.\n"
+    assert service._transcribe_with_worker(MagicMock(), None, None) == "So it works in English perfectly. Mañana también."
     # Other control characters remain visible to the insertion validator.
-    service.gpu_worker.transcribe.return_value = "hello\x00world\nnext"
-    assert service._transcribe_vulkan(MagicMock(), None, None) == "hello\x00world next"
+    service.whisper_worker.transcribe.return_value = "hello\x00world\nnext"
+    assert service._transcribe_with_worker(MagicMock(), None, None) == "hello\x00world next"

@@ -593,8 +593,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						{modelReady && !modelLoading && inferenceDevice && (
 							<PanelSectionRow><div>
 								{inferenceDevice === "gpu"
-									? "Transcription runs on the GPU via Vulkan."
-									: "Transcription runs on the CPU."}
+									? "whisper.cpp runs on the GPU via Vulkan."
+									: "whisper.cpp runs on the CPU."}
 							</div></PanelSectionRow>
 						)}
 						<PanelSectionRow><div style={{ fontSize: '12px' }}>Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use.</div></PanelSectionRow>

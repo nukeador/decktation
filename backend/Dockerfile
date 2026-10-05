@@ -72,6 +72,6 @@ RUN git init /whisper.cpp \
         -DGGML_VULKAN=ON \
         -DWHISPER_BUILD_TESTS=OFF \
         -DWHISPER_BUILD_SERVER=ON \
-    && cmake --build /whisper.cpp/build --config Release --target whisper-cli whisper-server -j2
+    && cmake --build /whisper.cpp/build --config Release --target whisper-server -j2
 
 ENTRYPOINT ["/backend/entrypoint.sh"]

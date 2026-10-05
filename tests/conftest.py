@@ -1,7 +1,7 @@
 """
 Shared pytest fixtures and mocks for Decktation tests.
 
-Heavy dependencies (faster_whisper, sounddevice) are mocked at the module level
+Heavy dependencies (NumPy and sounddevice) are mocked at the module level
 so tests can import wow_voice_chat without requiring ML/audio hardware.
 """
 
@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend", "src
 # numpy's C-extensions require the right libstdc++ which may not be present in the
 # test venv; mock it since no test here exercises audio processing code.
 sys.modules.setdefault("numpy", MagicMock())
-sys.modules.setdefault("faster_whisper", MagicMock())
 sys.modules.setdefault("sounddevice", MagicMock())
 sys.modules.setdefault("decky", MagicMock())
 os.environ.setdefault("DECKY_PLUGIN_DIR", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))

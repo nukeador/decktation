@@ -105,3 +105,21 @@ def test_model_size_rpc_reports_resident_vulkan_reload(tmp_path, monkeypatch):
 
     assert result == {"success": True, "modelSize": "small", "reloaded": True}
     service.set_model_size.assert_called_once_with("small")
+
+
+def test_status_reports_active_whisper_cpp_device(monkeypatch):
+    service = MagicMock()
+    service.is_model_ready.return_value = True
+    service.model_loading = False
+    service.inference_device = "cpu"
+    service.is_recording = False
+    service.pending_text = None
+    service.confirm_delay = 0
+    monkeypatch.setattr(decktation_backend.Plugin, "voice_service", service)
+    monkeypatch.setattr(decktation_backend.Plugin, "listener_process", None)
+
+    result = asyncio.run(decktation_backend.Plugin().get_status())
+
+    assert result["success"] is True, result
+    assert result["model_ready"] is True
+    assert result["inference_device"] == "cpu"

@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
 WoW Voice-to-Chat Service for Steam Deck
-Captures voice input, transcribes with faster-whisper, and sends to WoW chat
+Captures voice input, transcribes with whisper.cpp, and sends to WoW chat
 """
 
-import ctypes
-import gc
 import os
 import json
 import logging
@@ -21,7 +19,6 @@ import tempfile
 import urllib.request
 import certifi
 from pathlib import Path
-from faster_whisper import WhisperModel
 import sounddevice as sd
 import numpy as np
 import wave
@@ -38,19 +35,19 @@ def _capitalize_standalone_i(text: str) -> str:
 logger = logging.getLogger(__name__)
 
 
-def _whisper_cli_path():
+def _whisper_server_path():
     """Resolve the executable in Decky's bin layout or beside this module."""
     configured_root = os.environ.get("DECKY_PLUGIN_DIR")
     candidates = []
     if configured_root:
-        candidates.append(Path(configured_root) / "bin" / "whisper-cli")
-    candidates.append(Path(__file__).resolve().parent / "whisper-cli")
+        candidates.append(Path(configured_root) / "bin" / "whisper-server")
+    candidates.append(Path(__file__).resolve().parent / "whisper-server")
     return next((path for path in candidates if path.is_file()), candidates[0])
 
 
 def _download_vulkan_model(url, destination):
     # Decky's frozen Python cannot reliably locate system CA files.
-    # certifi is bundled with the faster-whisper HTTP dependencies.
+    # Decky's frozen runtime needs an explicitly bundled CA store.
     context = ssl.create_default_context(cafile=certifi.where())
     with urllib.request.urlopen(url, context=context, timeout=60) as response:
         with destination.open("wb") as output:
@@ -113,10 +110,9 @@ class WoWVoiceChat:
         # Lazy model loading - only load when needed
         # Guards native model use/teardown; reentrant because nested paths call _load_model.
         self.model_lock = threading.RLock()
-        self.model = None
-        self.gpu_model = None
-        self.gpu_enabled = False
-        self.gpu_worker = None
+        self.whisper_model = None
+        self.whisper_worker = None
+        self.inference_device = None
         self.model_loading = False
         self.model_load_error = None
 
@@ -227,22 +223,26 @@ class WoWVoiceChat:
     def _load_model(self):
         """Load the Whisper model (can be called lazily)"""
         with self.model_lock:
-            if self.model is not None or self.gpu_enabled:
+            if self.whisper_worker is not None:
                 return True
             if self.model_loading:
                 return False
 
             self.model_loading = True
             try:
-                # Vulkan is deliberately AMD-only for now.  That covers Steam
-                # Deck, Steam Machine, and AMD-based SteamOS handhelds, while
-                # retaining the known-good CPU path everywhere else.
-                if self._load_vulkan_model():
-                    self.model_load_error = None
-                    return True
-                print("Loading Whisper model...")
-                self.model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
-                print("Model loaded!")
+                whisper_server = _whisper_server_path()
+                if not whisper_server.is_file():
+                    raise FileNotFoundError(f"Bundled whisper-server not found: {whisper_server}")
+                model = self._ensure_whisper_model()
+
+                if self._vulkan_available():
+                    try:
+                        self._start_whisper_worker(whisper_server, model, use_gpu=True)
+                    except Exception as error:
+                        logger.warning("Resident Vulkan startup failed; using whisper.cpp CPU: %s", error)
+
+                if self.whisper_worker is None:
+                    self._start_whisper_worker(whisper_server, model, use_gpu=False)
                 self.model_load_error = None
                 return True
             except Exception as e:
@@ -254,50 +254,32 @@ class WoWVoiceChat:
                 self.model_loading = False
 
     def unload_model(self):
-        """Release Whisper and return free heap pages where the OS supports it."""
+        """Stop the resident Whisper worker and release its model."""
         with self.model_lock:
-            self.model = None
-            self._disable_vulkan_worker()
+            self._stop_whisper_worker()
             self.model_load_error = None
-            # Native allocators may keep freed pages; both steps are best-effort.
-            gc.collect()
-            try:
-                # malloc_trim is glibc-only; unsupported systems still release the model above.
-                malloc_trim = ctypes.CDLL("libc.so.6").malloc_trim
-            except (AttributeError, OSError):
-                return
-            malloc_trim.argtypes = [ctypes.c_size_t]
-            malloc_trim.restype = ctypes.c_int
-            if malloc_trim(0):
-                print("Released unused heap pages")
 
     def is_model_ready(self):
         """Check if model is loaded and ready"""
-        return self.model is not None or self.gpu_enabled
+        return self.whisper_worker is not None
 
-    def _disable_vulkan_worker(self):
-        """Clear Vulkan state and best-effort stop its resident worker."""
-        worker = self.gpu_worker
+    def _stop_whisper_worker(self):
+        """Clear readiness and best-effort stop the resident worker."""
+        worker = self.whisper_worker
         # Clear readiness before shutdown so a close failure can never leave a
         # dead or partially stopped worker advertised as usable.
-        self.gpu_worker = None
-        self.gpu_model = None
-        self.gpu_enabled = False
+        self.whisper_worker = None
+        self.whisper_model = None
+        self.inference_device = None
         if worker:
             try:
                 worker.close()
             except Exception as error:
-                # Cleanup must not mask an inference failure or prevent the
-                # caller from continuing with the portable CPU implementation.
-                logger.warning("Failed to close resident Vulkan worker: %s", error)
+                # Cleanup must not mask an inference failure or fallback.
+                logger.warning("Failed to close resident Whisper worker: %s", error)
 
-    def _load_vulkan_model(self):
-        """Prepare bundled whisper.cpp on supported AMD Vulkan hardware.
-
-        Returning false is expected on non-AMD systems or when Vulkan is not
-        usable.  The caller then loads faster-whisper's CPU implementation.
-        """
-        whisper_cli = _whisper_cli_path()
+    def _vulkan_available(self):
+        """Return whether this host has the AMD render device we support."""
         amd_gpu = False
         for vendor in Path("/sys/class/drm").glob("card*/device/vendor"):
             try:
@@ -310,66 +292,87 @@ class WoWVoiceChat:
                 logger.warning("Cannot read GPU vendor at %s: %s", vendor, error)
                 continue
         render_nodes = list(Path("/dev/dri").glob("renderD*"))
-        if not amd_gpu or not render_nodes or not whisper_cli.is_file():
+        if not amd_gpu or not render_nodes:
             logger.warning(
-                "Vulkan skipped: AMD GPU=%s, render devices=%s, whisper-cli=%s (exists=%s)",
-                amd_gpu, render_nodes, whisper_cli, whisper_cli.is_file(),
+                "Vulkan skipped: AMD GPU=%s, render devices=%s; using whisper.cpp CPU",
+                amd_gpu, render_nodes,
             )
             return False
+        return True
 
+    def _ensure_whisper_model(self):
+        """Download the selected GGML model when it is not already cached."""
         model_names = {"base": "ggml-base.bin", "small": "ggml-small.bin", "medium": "ggml-medium.bin"}
         filename = model_names[self.model_size]
         cache_dir = Path(os.environ.get("DECKY_USER_HOME", Path.home())) / ".cache" / "decktation" / "whisper.cpp"
         model = cache_dir / filename
-        try:
-            if not model.exists():
-                cache_dir.mkdir(parents=True, exist_ok=True)
-                temporary = model.with_suffix(".download")
-                logger.info("Downloading Vulkan Whisper model %s to %s", self.model_size, model)
-                url = f"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{filename}"
-                _download_vulkan_model(url, temporary)
-                temporary.replace(model)
-        except Exception as error:
-            logger.warning("Vulkan Whisper unavailable; using CPU fallback: %s", error)
-            return False
+        if not model.exists():
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            temporary = model.with_suffix(".download")
+            logger.info("Downloading Whisper model %s to %s", self.model_size, model)
+            url = f"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{filename}"
+            _download_vulkan_model(url, temporary)
+            temporary.replace(model)
+        return model
 
-        try:
-            self.gpu_worker = ResidentWhisper(whisper_cli.with_name('whisper-server'), model, _vulkan_environment())
-        except Exception as error:
-            logger.warning('Resident Vulkan startup failed; using CPU fallback: %s', error)
-            return False
-        self.gpu_model = model
-        self.gpu_enabled = True
-        logger.info("Using AMD Vulkan Whisper transcription: executable=%s model=%s", whisper_cli.with_name("whisper-server"), model)
-        return True
+    def _start_whisper_worker(self, whisper_server, model, use_gpu):
+        """Start and record a healthy resident GPU or CPU worker."""
+        worker = ResidentWhisper(
+            whisper_server, model, _vulkan_environment(), use_gpu=use_gpu
+        )
+        self.whisper_worker = worker
+        self.whisper_model = model
+        self.inference_device = "gpu" if use_gpu else "cpu"
+        logger.info(
+            "Using resident whisper.cpp transcription: device=%s executable=%s model=%s",
+            self.inference_device, whisper_server, model,
+        )
 
-    def _transcribe_vulkan(self, audio_input, initial_prompt, hotwords):
-        """Reuse the Vulkan worker; return None when CPU fallback should be used."""
+    def _transcribe_with_worker(self, audio_input, initial_prompt, hotwords):
+        """Send one recording to the active resident worker."""
+        with tempfile.TemporaryDirectory(prefix="decktation-whisper-") as directory:
+            wav_path = Path(directory) / "audio.wav"
+            self.save_audio_to_wav(audio_input, wav_path, source_rate=self.whisper_sample_rate)
+            if not self.whisper_worker:
+                raise RuntimeError("Resident worker is not loaded")
+            prompt = ". ".join(part for part in (hotwords, initial_prompt) if part)
+            started = time.monotonic()
+            text = self.whisper_worker.transcribe(
+                wav_path, self.transcription_language, prompt
+            )
+            logger.info(
+                "Resident Whisper inference: device=%s pid=%s audio=%.3fs request=%.3fs text=%r",
+                self.inference_device, self.whisper_worker.process.pid,
+                len(audio_input) / self.whisper_sample_rate,
+                time.monotonic() - started, text.strip(),
+            )
+            # whisper-server wraps longer output into multiple lines. Chat
+            # injection intentionally rejects control characters; convert
+            # only presentation line breaks to spaces at this boundary.
+            text = re.sub(r"[ \t]*[\r\n]+[ \t]*", " ", text).strip()
+            return _capitalize_standalone_i(text)
+
+    def _transcribe_whisper(self, audio_input, initial_prompt, hotwords):
+        """Transcribe with the active worker, retrying once on CPU after GPU failure."""
         try:
-            with tempfile.TemporaryDirectory(prefix="decktation-whisper-") as directory:
-                directory = Path(directory)
-                wav_path = directory / "audio.wav"
-                self.save_audio_to_wav(audio_input, wav_path, source_rate=self.whisper_sample_rate)
-                if not self.gpu_worker:
-                    raise RuntimeError('Resident worker is not loaded')
-                prompt = '. '.join(part for part in (hotwords, initial_prompt) if part)
-                started = time.monotonic()
-                text = self.gpu_worker.transcribe(wav_path, self.transcription_language, prompt)
-                logger.info('Resident Vulkan inference: pid=%s audio=%.3fs request=%.3fs text=%r',
-                            self.gpu_worker.process.pid, len(audio_input)/self.whisper_sample_rate,
-                            time.monotonic()-started, text.strip())
-                # whisper-server wraps longer output into multiple lines. Chat
-                # injection intentionally rejects control characters; convert
-                # only presentation line breaks to spaces at this boundary.
-                text = re.sub(r"[ \t]*[\r\n]+[ \t]*", " ", text).strip()
-                return _capitalize_standalone_i(text)
+            return self._transcribe_with_worker(audio_input, initial_prompt, hotwords)
         except Exception as error:
-            # Do not make dictation fail because a Vulkan driver resets or a
-            # future AMD device lacks a required extension.  Disable this path
-            # for the remainder of the process and immediately use CPU.
-            logger.warning("Vulkan Whisper failed; falling back to CPU: %s", error)
-            self._disable_vulkan_worker()
-            return None
+            if self.inference_device != "gpu":
+                self._stop_whisper_worker()
+                raise
+            logger.warning("Vulkan Whisper failed; retrying with whisper.cpp CPU: %s", error)
+            model = self.whisper_model
+            self._stop_whisper_worker()
+            if model is None:
+                raise RuntimeError("Vulkan worker failed without a loaded model") from error
+            self._start_whisper_worker(
+                _whisper_server_path(), model, use_gpu=False
+            )
+            try:
+                return self._transcribe_with_worker(audio_input, initial_prompt, hotwords)
+            except Exception:
+                self._stop_whisper_worker()
+                raise
 
     def get_last_transcription(self):
         """Get the last transcription result"""
@@ -419,7 +422,7 @@ class WoWVoiceChat:
         return channel, text, False
 
     def set_transcription_options(self, language=None):
-        """Update faster-whisper transcription options without reloading the model."""
+        """Update whisper.cpp transcription options without reloading the model."""
         self.transcription_language = None if language in (None, "", "auto") else language
 
     def set_model_size(self, model_size):
@@ -431,11 +434,10 @@ class WoWVoiceChat:
             self.model_size = model_size
             self.model_load_error = None
 
-            if self.model is None and not self.gpu_enabled:
+            if self.whisper_worker is None:
                 return True
 
-            self.model = None
-            self._disable_vulkan_worker()
+            self._stop_whisper_worker()
             return self._load_model()
 
     def _confirm_delay_for(self, text: str) -> float:
@@ -591,7 +593,7 @@ class WoWVoiceChat:
             wf.writeframes(audio_data.tobytes())
 
     def _prepare_audio(self, audio_data, source_rate):
-        """Return mono 16 kHz float32 samples for faster-whisper."""
+        """Return mono 16 kHz float32 samples for Whisper."""
         audio_data = np.asarray(audio_data)
 
         if audio_data.ndim > 1:
@@ -606,7 +608,7 @@ class WoWVoiceChat:
         else:
             audio_data = audio_data.reshape(-1)
 
-        # sounddevice records int16 PCM, while faster-whisper expects float32
+        # sounddevice records int16 PCM, while Whisper expects float32
         # PCM in [-1, 1]. Normalize before interpolation: np.interp promotes
         # int16 to float64, which previously caused this integer check to be
         # skipped and sent values up to 32768 directly to Whisper.
@@ -664,46 +666,8 @@ class WoWVoiceChat:
             print("No audio samples to transcribe")
             return ""
 
-        if self.gpu_enabled:
-            transcript = self._transcribe_vulkan(audio_input, initial_prompt, hotwords)
-            if transcript is not None:
-                return transcript
-            # A GPU failure after loading is handled as a normal CPU fallback.
-            try:
-                print("Loading CPU Whisper fallback...")
-                self.model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
-            except Exception as error:
-                self.model_load_error = str(error)
-                self._report_diagnostic("model.load_failed", error)
-                return ""
-
-        peak = float(np.max(np.abs(audio_input)))
-        rms = float(np.sqrt(np.mean(np.square(audio_input))))
-        duration = len(audio_input) / self.whisper_sample_rate
-        print(
-            f"Prepared audio: duration={duration:.3f}s, "
-            f"peak={peak:.4f}, rms={rms:.4f}, dtype={audio_input.dtype}"
-        )
-
-        # Passing decoded samples avoids shipping PyAV and its full FFmpeg
-        # codec bundle for the WAV-only Decktation recording path.
         try:
-            segments, info = self.model.transcribe(
-                audio_input,
-                beam_size=5,
-                initial_prompt=initial_prompt,
-                hotwords=hotwords,
-                language=self.transcription_language,
-                task="transcribe",
-                vad_filter=True,
-                condition_on_previous_text=False,
-            )
-
-            # Segment generation is lazy and can fail during iteration.
-            full_text = []
-            for segment in segments:
-                full_text.append(segment.text)
-            return _capitalize_standalone_i("".join(full_text).strip())
+            return self._transcribe_whisper(audio_input, initial_prompt, hotwords)
         except Exception as e:
             self._report_diagnostic("transcription.failed", e)
             raise
