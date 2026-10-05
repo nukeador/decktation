@@ -17,8 +17,11 @@ language. Missing entries safely fall back to English. Dictation languages use f
 of the interface language. Keep these separate from UI catalogs.
 
 Settings, help, frontend status/fallback messages and frontend notifications are
-covered. Raw backend error details, controller diagnostic payloads, custom user
-preset names and the separate native recording overlay remain untranslated.
+covered. The native overlay receives the translated transcribing label from the
+frontend on initialization and when the interface language changes; Pango renders
+Unicode text with font fallback and truncates long labels within the pill. Raw
+backend error details, controller diagnostic payloads and custom user preset
+names remain untranslated.
 
 Physical test: switch to Español, navigate all pages with the D-pad, confirm
 labels fit and Back works, select a transcription language and model, inspect
