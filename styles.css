@@ -255,3 +255,10 @@ html[data-theme="dark"] .skip{background:var(--alt)}
 html[data-theme="dark"] .brand-art{isolation:auto;mix-blend-mode:screen}
 html[data-theme="dark"] .brand-logo,html[data-theme="dark"] .brand-wave{mix-blend-mode:normal}
 html[data-theme="dark"] .brand-wave-cover,html[data-theme="dark"] footer .brand-wave-cover{background:#000}
+
+.theme-picker{justify-content:flex-end;align-items:center}
+.theme-toggle{width:46px;height:46px;padding:0!important;border-radius:50%;font-size:19px!important}
+.theme-toggle .theme-auto-icon,.theme-toggle .theme-light-icon,.theme-toggle .theme-dark-icon{display:none}
+.theme-toggle[data-mode="auto"] .theme-auto-icon{display:inline-flex;align-items:center;gap:2px;font-size:14px}
+.theme-toggle[data-mode="light"] .theme-light-icon,.theme-toggle[data-mode="dark"] .theme-dark-icon{display:inline-block}
+@media(max-width:480px){.theme-picker{flex-direction:row;justify-content:flex-end}}

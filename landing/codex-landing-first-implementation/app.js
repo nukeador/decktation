@@ -150,14 +150,21 @@ const systemTheme = matchMedia('(prefers-color-scheme: dark)');
 let themeChoice = 'auto';
 try { themeChoice = localStorage.getItem('decktation-theme') || 'auto'; } catch {}
 if (!['auto', 'light', 'dark'].includes(themeChoice)) themeChoice = 'auto';
+const themeToggle = document.getElementById('theme-toggle');
+const themeModes = ['auto', 'light', 'dark'];
 function applyTheme() {
   document.documentElement.dataset.theme = themeChoice === 'auto' ? (systemTheme.matches ? 'dark' : 'light') : themeChoice;
-  document.querySelectorAll('[data-theme-choice]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.themeChoice === themeChoice)));
+  themeToggle.dataset.mode = themeChoice;
+  const current = document.getElementById(`theme-${themeChoice}`).textContent;
+  const next = document.getElementById(`theme-${themeModes[(themeModes.indexOf(themeChoice) + 1) % 3]}`).textContent;
+  const label = `${document.getElementById('theme-label').textContent}: ${current} → ${next}`;
+  document.getElementById('theme-description').textContent = label;
+  themeToggle.title = label;
 }
-document.querySelectorAll('[data-theme-choice]').forEach(button => button.addEventListener('click', () => {
-  themeChoice = button.dataset.themeChoice;
+themeToggle.addEventListener('click', () => {
+  themeChoice = themeModes[(themeModes.indexOf(themeChoice) + 1) % 3];
   try { localStorage.setItem('decktation-theme', themeChoice); } catch {}
   applyTheme();
-}));
+});
 systemTheme.addEventListener('change', applyTheme);
 applyTheme();
