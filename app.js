@@ -113,3 +113,57 @@ document.addEventListener('visibilitychange', syncDemo);
 renderDemo();
 
 });
+
+// Installation paths are selected explicitly; never infer whether Decky is installed.
+const installSection = document.getElementById('install');
+const installChoices = document.getElementById('install-choices');
+const installChange = document.getElementById('install-change');
+function showInstallPath(path) {
+  installChoices.hidden = !!path;
+  installChange.hidden = !path;
+  installSection.querySelectorAll('.install-path').forEach(panel => {
+    panel.hidden = panel.id !== `install-${path}`;
+  });
+  const heading = path ? document.querySelector(`#install-${path} h3`) : document.getElementById('install-question');
+  heading.focus({ preventScroll: true });
+}
+installSection.querySelectorAll('[data-install-path]').forEach(button => {
+  button.addEventListener('click', () => showInstallPath(button.dataset.installPath));
+});
+installChange.addEventListener('click', () => showInstallPath(''));
+document.getElementById('decky-finished').addEventListener('click', () => showInstallPath('ready'));
+const transfer = document.getElementById('install-transfer');
+const deviceDownload = document.getElementById('install-device-download');
+document.getElementById('confirm-steamos').addEventListener('click', () => {
+  transfer.hidden = true;
+  deviceDownload.hidden = false;
+  deviceDownload.querySelector('a').focus({ preventScroll: true });
+});
+document.getElementById('other-device').addEventListener('click', () => {
+  transfer.hidden = false;
+  deviceDownload.hidden = true;
+  document.getElementById('copy-address').focus({ preventScroll: true });
+});
+const siteAddress = document.getElementById('site-address');
+const address = new URL(window.location.href);
+address.hash = 'install';
+siteAddress.textContent = address.href;
+const copyAddress = document.getElementById('copy-address');
+copyAddress.addEventListener('click', async () => {
+  const feedback = document.getElementById('address-status');
+  try {
+    await navigator.clipboard.writeText(siteAddress.textContent);
+    feedback.textContent = document.getElementById('address-copied').textContent;
+    const original = copyAddress.textContent;
+    copyAddress.textContent = feedback.textContent;
+    copyAddress.disabled = true;
+    setTimeout(() => { copyAddress.textContent = original; copyAddress.disabled = false; }, 1600);
+  } catch {
+    const range = document.createRange();
+    range.selectNodeContents(siteAddress);
+    const selection = window.getSelection();
+    selection.removeAllRanges(); selection.addRange(range);
+    siteAddress.focus();
+    feedback.textContent = document.getElementById('address-copy-error').textContent;
+  }
+});

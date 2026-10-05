@@ -206,3 +206,27 @@ header{background:#fefefe;backdrop-filter:none}
 .wow-gameplay>img{transform-origin:0% 100%;transition:transform 1700ms cubic-bezier(.22,.61,.36,1)}
 .wow-gameplay[data-phase="transcribing"]>img,.wow-gameplay[data-phase="typing"]>img,.wow-gameplay[data-phase="done"]>img{transform:scale(2.2)}
 @media(prefers-reduced-motion:reduce){.wow-gameplay>img{transition:none;transform:none!important}}
+
+/* Installation wizard: all presentation overrides are scoped to this section. */
+#install [hidden]{display:none!important}
+#install h2{max-width:24ch}
+#install .install-choices{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px}
+#install .install-choices .btn{white-space:normal;text-align:left;justify-content:flex-start;line-height:1.45;padding:20px}
+#install .install-path{margin-top:24px}
+#install .install-path h3{margin:0 0 20px}
+#install .install-wizard{list-style:none;counter-reset:install;display:grid;gap:0;padding:0;margin:24px 0}
+#install .install-wizard>li{counter-increment:install;position:relative;padding:24px 0 24px 42px;border-top:1px solid #cddbf0;min-width:0}
+#install .install-wizard>li::before{content:counter(install) ".";position:absolute;left:0;top:24px;font-weight:700;color:var(--blue)}
+#install .install-wizard h4{margin:0;font-size:18px;line-height:1.5}
+#install .install-wizard p{margin:10px 0 16px}
+#install details{margin-top:16px}
+#install summary{font-size:15px;font-weight:600;cursor:pointer;min-height:44px}
+#install details p{font-size:15px;line-height:1.6}
+#install .install-emphasis{font-weight:600}
+#install button.text-link{border:0;background:none;padding:8px 0;cursor:pointer;font:inherit;color:var(--blue);min-height:44px;text-align:left}
+#install .code{margin:16px 0;flex-wrap:wrap;gap:12px}
+#install .code code{overflow-wrap:anywhere;white-space:normal;min-width:0;flex:1 1 240px}
+#install #install-device-download>.text-link{display:block;margin-top:12px}
+#install #install-ready{padding:24px 0;border-top:1px solid #cddbf0}
+@media(max-width:767px){#install .install-choices{grid-template-columns:1fr}#install .btn{width:100%;white-space:normal}#install .install-wizard>li{padding-left:28px}#install .code{padding:12px}#install .install-choices .btn{text-align:left}#install .install-wizard h4{font-size:17px}}
+@media(max-width:767px){#install .code code{flex:0 1 auto}}
