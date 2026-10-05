@@ -5,7 +5,7 @@
 
     var React__default = /*#__PURE__*/_interopDefaultLegacy(React);
 
-    var _manifest = {"name":"Decktation","version":"0.3.19-dev.resident.4","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.20-dev.i18n.1","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -119,6 +119,325 @@
       return GenIcon({"tag":"svg","attr":{"viewBox":"0 0 448 512"},"child":[{"tag":"path","attr":{"d":"M432 32H312l-9.4-18.7A24 24 0 0 0 281.1 0H166.8a23.72 23.72 0 0 0-21.4 13.3L136 32H16A16 16 0 0 0 0 48v32a16 16 0 0 0 16 16h416a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16zM53.2 467a48 48 0 0 0 47.9 45h245.8a48 48 0 0 0 47.9-45L416 128H32z"}}]})(props);
     }
 
+    var Back$1 = "Back";
+    var Enable$1 = "Enable";
+    var Game$1 = "Game";
+    var Language$1 = "Language";
+    var Binding$1 = "Binding";
+    var Result$1 = "Result";
+    var Model$1 = "Model";
+    var Sending$1 = "Sending";
+    var Confirm$1 = "Confirm";
+    var Manual$1 = "Manual";
+    var Feedback$1 = "Feedback";
+    var Toast$1 = "Toast";
+    var Overlay$1 = "Overlay";
+    var None$1 = "None";
+    var Diagnostics$1 = "Diagnostics";
+    var Controller$1 = "Controller";
+    var Yes$1 = "Yes";
+    var No$1 = "No";
+    var Backend$1 = "Backend";
+    var Ready$1 = "Ready";
+    var Unavailable$1 = "Unavailable";
+    var Loading$1 = "Loading";
+    var Share$1 = "Share";
+    var Permissions$1 = "Permissions";
+    var Recording$1 = "Recording";
+    var Generic$1 = "Generic";
+    var en = {
+      Back: Back$1,
+      Enable: Enable$1,
+      "Quick settings": "Quick settings",
+      Game: Game$1,
+      Language: Language$1,
+      Binding: Binding$1,
+      "Edit Bindings": "Edit Bindings",
+      "Try it": "Try it",
+      "Recording...": "Recording...",
+      "Transcribing...": "Transcribing...",
+      "Test Dictation (3s)": "Test Dictation (3s)",
+      "Shows a transcription here without sending text to your game.": "Shows a transcription here without sending text to your game.",
+      Result: Result$1,
+      "No speech detected": "No speech detected",
+      "Advanced settings": "Advanced settings",
+      "Transcription model": "Transcription model",
+      Model: Model$1,
+      "Recording binding": "Recording binding",
+      Sending: Sending$1,
+      Confirm: Confirm$1,
+      "Delay before send": "Delay before send",
+      Manual: Manual$1,
+      "You press Enter": "You press Enter",
+      "Remember channel": "Remember channel",
+      "Reuse the last spoken channel": "Reuse the last spoken channel",
+      Feedback: Feedback$1,
+      "Recording cue": "Recording cue",
+      Toast: Toast$1,
+      Overlay: Overlay$1,
+      None: None$1,
+      "Haptic feedback": "Haptic feedback",
+      "Cues on the controller when recording starts and stops": "Cues on the controller when recording starts and stops",
+      Diagnostics: Diagnostics$1,
+      "Help & permissions": "Help & permissions",
+      "Input and service": "Input and service",
+      Controller: Controller$1,
+      "Binding supported": "Binding supported",
+      Yes: Yes$1,
+      No: No$1,
+      "Held buttons": "Held buttons",
+      "Keyboard helper": "Keyboard helper",
+      Backend: Backend$1,
+      Ready: Ready$1,
+      Unavailable: Unavailable$1,
+      Loading: Loading$1,
+      "Diagnostics sharing": "Diagnostics sharing",
+      Share: Share$1,
+      "Optional scrubbed diagnostics sent to Sentry": "Optional scrubbed diagnostics sent to Sentry",
+      "How to use": "How to use",
+      Permissions: Permissions$1,
+      "Auto Detect": "Auto Detect",
+      "Popular Steam languages": "Popular Steam languages",
+      "Other languages": "Other languages",
+      "Add Button": "Add Button",
+      "Button {number}": "Button {number}",
+      "Remove button {number}": "Remove button {number}",
+      "Hold {binding} to record": "Hold {binding} to record",
+      "Hold {binding} {together}to record. Release to transcribe and type into the active game or app. Keep it in the foreground.": "Hold {binding} {together}to record. Release to transcribe and type into the active game or app. Keep it in the foreground.",
+      "together ": "together ",
+      "Decktation uses Decky root access only to read raw Steam Deck controller input and to create virtual keyboard events for dictated text. Your transcription is passed to the bundled keyboard helper as data, never as a shell command.": "Decktation uses Decky root access only to read raw Steam Deck controller input and to create virtual keyboard events for dictated text. Your transcription is passed to the bundled keyboard helper as data, never as a shell command.",
+      "Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use.": "Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use.",
+      "whisper.cpp runs on the GPU via Vulkan.": "whisper.cpp runs on the GPU via Vulkan.",
+      "whisper.cpp runs on the CPU.": "whisper.cpp runs on the CPU.",
+      "Connecting to Decktation...": "Connecting to Decktation...",
+      "Keyboard helper unavailable. Reload or reinstall Decktation.": "Keyboard helper unavailable. Reload or reinstall Decktation.",
+      "Loading transcription model...": "Loading transcription model...",
+      "Decktation is off": "Decktation is off",
+      "Model not ready": "Model not ready",
+      "Controller unavailable": "Controller unavailable",
+      "Backend unavailable: {error}": "Backend unavailable: {error}",
+      "Recording for 3 seconds...": "Recording for 3 seconds...",
+      Recording: Recording$1,
+      "Sending in {seconds}s": "Sending in {seconds}s",
+      "\"{text}\" — hold PTT to cancel": "\"{text}\" — hold PTT to cancel",
+      "Interface language": "Interface language",
+      "Automatic (system)": "Automatic (system)",
+      "Only changes the menu language, not the dictation language.": "Only changes the menu language, not the dictation language.",
+      Generic: Generic$1,
+      "Base · Fast": "Base · Fast",
+      "Small · Balanced": "Small · Balanced",
+      "Medium · More accurate": "Medium · More accurate",
+      "Could not start test recording": "Could not start test recording",
+      "Could not transcribe test recording": "Could not transcribe test recording",
+      "Could not read test transcription": "Could not read test transcription",
+      "Could not update enabled state": "Could not update enabled state",
+      "Could not load Whisper model": "Could not load Whisper model",
+      "Could not remove button": "Could not remove button",
+      "Could not update channel setting": "Could not update channel setting",
+      "Could not update recording cue": "Could not update recording cue",
+      "Could not update haptic feedback": "Could not update haptic feedback",
+      "Could not update diagnostics setting": "Could not update diagnostics setting",
+      "Could not update game": "Could not update game",
+      "Could not update model size": "Could not update model size",
+      "Could not update binding": "Could not update binding",
+      "Could not update language": "Could not update language",
+      "L1 Bumper": "L1 Bumper",
+      "R1 Bumper": "R1 Bumper",
+      "L2 Trigger": "L2 Trigger",
+      "R2 Trigger": "R2 Trigger",
+      "L4 Grip": "L4 Grip",
+      "R4 Grip": "R4 Grip",
+      "L5 Grip": "L5 Grip",
+      "R5 Grip": "R5 Grip",
+      "Waiting for input": "Waiting for input",
+      "Status unavailable": "Status unavailable",
+      "Backend status request failed": "Backend status request failed",
+      "Could not update language setting": "Could not update language setting"
+    };
+
+    var Back = "Volver";
+    var Enable = "Activar";
+    var Game = "Juego";
+    var Language = "Idioma del dictado";
+    var Binding = "Combinación";
+    var Result = "Resultado";
+    var Model = "Modelo";
+    var Sending = "Envío";
+    var Confirm = "Confirmar";
+    var Manual = "Envío manual";
+    var Feedback = "Indicadores";
+    var Toast = "Notificación";
+    var Overlay = "Indicador en pantalla";
+    var None = "Ninguno";
+    var Diagnostics = "Diagnóstico";
+    var Controller = "Mando";
+    var Yes = "Sí";
+    var No = "No";
+    var Backend = "Servicio del plugin";
+    var Ready = "Listo";
+    var Unavailable = "No disponible";
+    var Loading = "Cargando";
+    var Share = "Compartir";
+    var Permissions = "Permisos";
+    var Recording = "Grabación";
+    var Generic = "Texto general";
+    var es = {
+      Back: Back,
+      Enable: Enable,
+      "Quick settings": "Ajustes rápidos",
+      Game: Game,
+      Language: Language,
+      Binding: Binding,
+      "Edit Bindings": "Editar combinación",
+      "Try it": "Prueba de dictado",
+      "Recording...": "Grabando...",
+      "Transcribing...": "Transcribiendo...",
+      "Test Dictation (3s)": "Probar dictado (3 s)",
+      "Shows a transcription here without sending text to your game.": "Muestra el texto aquí sin enviarlo al juego.",
+      Result: Result,
+      "No speech detected": "No se detectó voz",
+      "Advanced settings": "Ajustes avanzados",
+      "Transcription model": "Modelo de transcripción",
+      Model: Model,
+      "Recording binding": "Combinación para grabar",
+      Sending: Sending,
+      Confirm: Confirm,
+      "Delay before send": "Esperar antes de enviar",
+      Manual: Manual,
+      "You press Enter": "Pulsa Intro para enviar",
+      "Remember channel": "Recordar canal",
+      "Reuse the last spoken channel": "Reutilizar el último canal indicado",
+      Feedback: Feedback,
+      "Recording cue": "Indicador de grabación",
+      Toast: Toast,
+      Overlay: Overlay,
+      None: None,
+      "Haptic feedback": "Vibración al grabar",
+      "Cues on the controller when recording starts and stops": "Vibración en el mando al iniciar y terminar la grabación",
+      Diagnostics: Diagnostics,
+      "Help & permissions": "Ayuda y permisos",
+      "Input and service": "Entrada y servicio",
+      Controller: Controller,
+      "Binding supported": "Combinación compatible",
+      Yes: Yes,
+      No: No,
+      "Held buttons": "Botones pulsados",
+      "Keyboard helper": "Servicio de teclado",
+      Backend: Backend,
+      Ready: Ready,
+      Unavailable: Unavailable,
+      Loading: Loading,
+      "Diagnostics sharing": "Compartir diagnóstico",
+      Share: Share,
+      "Optional scrubbed diagnostics sent to Sentry": "Envía datos de diagnóstico depurados a Sentry (opcional)",
+      "How to use": "Cómo usarlo",
+      Permissions: Permissions,
+      "Auto Detect": "Detección automática",
+      "Popular Steam languages": "Idiomas habituales de Steam",
+      "Other languages": "Otros idiomas",
+      "Add Button": "Añadir botón",
+      "Button {number}": "Botón {number}",
+      "Remove button {number}": "Eliminar botón {number}",
+      "Hold {binding} to record": "Mantén {binding} para grabar",
+      "Hold {binding} {together}to record. Release to transcribe and type into the active game or app. Keep it in the foreground.": "Mantén {binding} {together}para grabar. Suelta para transcribir y escribir en el juego o aplicación que esté en primer plano.",
+      "together ": "a la vez ",
+      "Decktation uses Decky root access only to read raw Steam Deck controller input and to create virtual keyboard events for dictated text. Your transcription is passed to the bundled keyboard helper as data, never as a shell command.": "Decktation usa el acceso root de Decky para leer los botones del mando y generar eventos de teclado con el dictado. La transcripción se transmite como texto, nunca como un comando de consola.",
+      "Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use.": "Base es el más rápido. Small equilibra rapidez y precisión. Medium ofrece más precisión, pero es más lento y puede descargarse al usarlo por primera vez.",
+      "whisper.cpp runs on the GPU via Vulkan.": "whisper.cpp usa la GPU mediante Vulkan.",
+      "whisper.cpp runs on the CPU.": "whisper.cpp usa la CPU.",
+      "Connecting to Decktation...": "Conectando con Decktation...",
+      "Keyboard helper unavailable. Reload or reinstall Decktation.": "El servicio de teclado no está disponible. Recarga o reinstala Decktation.",
+      "Loading transcription model...": "Cargando el modelo de transcripción...",
+      "Decktation is off": "Decktation está desactivado",
+      "Model not ready": "El modelo no está listo",
+      "Controller unavailable": "Mando no disponible",
+      "Backend unavailable: {error}": "Servicio no disponible: {error}",
+      "Recording for 3 seconds...": "Grabando durante 3 segundos...",
+      Recording: Recording,
+      "Sending in {seconds}s": "Envío en {seconds} s",
+      "\"{text}\" — hold PTT to cancel": "«{text}» — mantén la combinación de grabación para cancelar",
+      "Interface language": "Idioma de la interfaz",
+      "Automatic (system)": "Automático (sistema)",
+      "Only changes the menu language, not the dictation language.": "Solo cambia el idioma del menú, no el del dictado.",
+      Generic: Generic,
+      "Base · Fast": "Base · Rápido",
+      "Small · Balanced": "Small · Equilibrado",
+      "Medium · More accurate": "Medium · Más preciso",
+      "Could not start test recording": "No se pudo iniciar la prueba",
+      "Could not transcribe test recording": "No se pudo transcribir la prueba",
+      "Could not read test transcription": "No se pudo leer el resultado de la prueba",
+      "Could not update enabled state": "No se pudo activar o desactivar Decktation",
+      "Could not load Whisper model": "No se pudo cargar el modelo Whisper",
+      "Could not remove button": "No se pudo eliminar el botón",
+      "Could not update channel setting": "No se pudo cambiar el ajuste del canal",
+      "Could not update recording cue": "No se pudo cambiar el indicador de grabación",
+      "Could not update haptic feedback": "No se pudo cambiar la vibración",
+      "Could not update diagnostics setting": "No se pudo cambiar el ajuste de diagnóstico",
+      "Could not update game": "No se pudo cambiar el juego",
+      "Could not update model size": "No se pudo cambiar el modelo",
+      "Could not update binding": "No se pudo cambiar la combinación",
+      "Could not update language": "No se pudo cambiar el idioma",
+      "L1 Bumper": "L1 (superior)",
+      "R1 Bumper": "R1 (superior)",
+      "L2 Trigger": "L2 (gatillo)",
+      "R2 Trigger": "R2 (gatillo)",
+      "L4 Grip": "L4 (trasero)",
+      "R4 Grip": "R4 (trasero)",
+      "L5 Grip": "L5 (trasero)",
+      "R5 Grip": "R5 (trasero)",
+      "Waiting for input": "Esperando entrada",
+      "Status unavailable": "Estado no disponible",
+      "Backend status request failed": "No se pudo consultar el estado del servicio",
+      "Could not update language setting": "No se pudo cambiar el idioma del dictado"
+    };
+
+    const STORAGE_KEY = "decktation.interfaceLanguage";
+    let preference = "auto";
+    try {
+        const saved = window.localStorage.getItem(STORAGE_KEY);
+        if (saved === "en" || saved === "es")
+            preference = saved;
+    }
+    catch (_) { /* Storage may be unavailable in the Steam renderer. */ }
+    function getInterfacePreference() { return preference; }
+    function setInterfacePreference(value) {
+        if (!["auto", "en", "es"].includes(value))
+            return;
+        preference = value;
+        try {
+            window.localStorage.setItem(STORAGE_KEY, value);
+        }
+        catch (_) { }
+    }
+    function resolveLocale(value, systemLanguage) {
+        if (value !== "auto")
+            return value;
+        return /^es(?:[-_]|$)/i.test(systemLanguage) ? "es" : "en";
+    }
+    function locale() {
+        return resolveLocale(preference, typeof navigator === "undefined" ? "en" : navigator.language);
+    }
+    function t(key, values = {}) {
+        const english = en;
+        const translated = es;
+        const text = (locale() === "es" ? translated[key] : undefined) || english[key] || key;
+        return text.replace(/\{(\w+)\}/g, (match, name) => values[name] === undefined ? match : String(values[name]));
+    }
+    function languageName(code, fallback) {
+        if (code === "auto")
+            return t("Auto Detect");
+        // Intl supplies localized names; original labels are the safe fallback for
+        // Whisper codes not recognised by the renderer. No codes are rewritten.
+        try {
+            const names = new Intl.DisplayNames([locale()], { type: "language" });
+            const name = names.of(code);
+            return name && name !== code ? name : fallback;
+        }
+        catch (_) {
+            return fallback;
+        }
+    }
+
     const getStatus = callable("get_status");
     const getButtonConfig = callable("get_button_config");
     const getPresets = callable("get_presets");
@@ -214,22 +533,22 @@
                 onPhase("recording");
                 try {
                     if (this.recordingIndicator === "toast")
-                        this.notify("Decktation", 1000, "Recording for 3 seconds...");
+                        this.notify("Decktation", 1000, t("Recording for 3 seconds..."));
                     const started = await startRecording();
                     if (!started.success)
-                        throw new Error(started.error || "Could not start test recording");
+                        throw new Error(started.error || t("Could not start test recording"));
                     await new Promise(resolve => setTimeout(resolve, 3000));
                     // Keep the no-send argument: test text must never reach the active game.
                     onPhase("transcribing");
                     const transcription = stopRecording(false);
                     if (this.recordingIndicator === "toast")
-                        this.notify("Decktation", 1500, "Transcribing...");
+                        this.notify("Decktation", 1500, t("Transcribing..."));
                     const stopped = await transcription;
                     if (!stopped.success)
-                        throw new Error(stopped.error || "Could not transcribe test recording");
+                        throw new Error(stopped.error || t("Could not transcribe test recording"));
                     const result = await getLastTranscription();
                     if (!result.success)
-                        throw new Error(result.error || "Could not read test transcription");
+                        throw new Error(result.error || t("Could not read test transcription"));
                     const data = result.transcription;
                     onComplete(data?.text || "", data?.timestamp ? new Date(data.timestamp * 1000).toLocaleTimeString() : "");
                 }
@@ -372,6 +691,7 @@
         generic: "Generic",
     };
     const DecktationPanel = ({ logic }) => {
+        const [interfaceLanguage, updateInterfaceLanguage] = React.useState(getInterfacePreference);
         const [page, setPage] = React.useState("main");
         const panelRef = React.useRef(null);
         const languageMenuAnchorRef = React.useRef(null);
@@ -493,7 +813,7 @@
                     else {
                         setControllerReady(false);
                         setControllerStatus("Status unavailable");
-                        setStatusError(result.error || "Backend status request failed");
+                        setStatusError(result.error || t("Backend status request failed"));
                     }
                 }
                 catch (error) {
@@ -540,7 +860,7 @@
                 setRpcError("");
             }
             else {
-                setRpcError(result.error || "Could not update language setting");
+                setRpcError(result.error || t("Could not update language setting"));
             }
         };
         const runTest = async () => {
@@ -559,29 +879,29 @@
                 setRpcError(String(error));
             }
         };
-        const statusMessage = statusError ? `Backend unavailable: ${statusError}`
+        const statusMessage = statusError ? t("Backend unavailable: {error}", { error: statusError })
             : rpcError ? rpcError
-                : !serviceReady ? "Connecting to Decktation..."
-                    : !inputReady ? "Keyboard helper unavailable. Reload or reinstall Decktation."
-                        : recording ? "Recording..."
-                            : modelLoading ? "Loading transcription model..."
-                                : !enabled ? "Decktation is off"
-                                    : !modelReady ? "Model not ready"
-                                        : !controllerReady ? "Controller unavailable"
-                                            : "Ready";
+                : !serviceReady ? t("Connecting to Decktation...")
+                    : !inputReady ? t("Keyboard helper unavailable. Reload or reinstall Decktation.")
+                        : recording ? t("Recording...")
+                            : modelLoading ? t("Loading transcription model...")
+                                : !enabled ? t("Decktation is off")
+                                    : !modelReady ? t("Model not ready")
+                                        : !controllerReady ? t("Controller unavailable")
+                                            : t("Ready");
         const statusProblem = !!(statusError || rpcError || (serviceReady && !inputReady) || (enabled && serviceReady && !controllerReady));
         return (React__default["default"].createElement(deckyFrontendLib.Focusable, { onCancel: page === "main" ? undefined : (event) => {
                 event.stopPropagation();
                 goBack();
-            }, onCancelActionDescription: page === "main" ? undefined : "Back" },
+            }, onCancelActionDescription: page === "main" ? undefined : t("Back") },
             React__default["default"].createElement("div", { ref: panelRef },
                 React__default["default"].createElement("style", null, `.decktation-trash-focused { outline: 3px solid #66c0f4 !important; outline-offset: 2px; background-color: #456b90 !important; box-shadow: 0 0 0 2px rgba(102, 192, 244, 0.38) !important; }`),
                 page !== "main" && (React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                    React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: goBack }, "Back"))),
+                    React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: goBack }, t("Back")))),
                 page === "main" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Decktation" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Enable", checked: enabled, disabled: !serviceReady || modelLoading || isToggling, onChange: async (next) => {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: t("Enable"), checked: enabled, disabled: !serviceReady || modelLoading || isToggling, onChange: async (next) => {
                                     if (isToggling)
                                         return;
                                     setIsToggling(true);
@@ -597,14 +917,14 @@
                                         if (!result.success) {
                                             setEnabled(!next);
                                             logic.enabled = !next;
-                                            setRpcError(result.error || "Could not update enabled state");
+                                            setRpcError(result.error || t("Could not update enabled state"));
                                             return;
                                         }
                                         if (next && logic.enabled) {
                                             setModelLoading(true);
                                             const modelResult = await loadModel();
                                             if (!modelResult.success) {
-                                                setRpcError(modelResult.error || "Could not load Whisper model");
+                                                setRpcError(modelResult.error || t("Could not load Whisper model"));
                                             }
                                         }
                                     }
@@ -619,81 +939,81 @@
                                 } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { role: "status", style: { padding: statusProblem ? '10px' : '4px 0', borderRadius: '6px', backgroundColor: statusProblem ? '#713030' : undefined } }, statusMessage))),
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Quick settings" },
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Quick settings") },
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: t("Interface language"), description: t("Only changes the menu language, not the dictation language."), rgOptions: [{ data: "auto", label: t("Automatic (system)") }, { data: "en", label: "English" }, { data: "es", label: "Español" }], selectedOption: interfaceLanguage, onChange: option => { const next = String(option.data); setInterfacePreference(next); updateInterfaceLanguage(next); } })),
                         presets.length > 0 && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("game") },
                                 "Game: ",
-                                presets.find(option => option.data === activePreset)?.label || activePreset)),
+                                t(String(presets.find(option => option.data === activePreset)?.label || activePreset)))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { style: { position: 'relative', width: '100%' } },
                                 React__default["default"].createElement("span", { ref: languageMenuAnchorRef, "aria-hidden": "true", style: { position: 'absolute', left: 0, top: 0, width: '1px', height: '1px', pointerEvents: 'none' } }),
                                 React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: (event) => {
-                                        deckyFrontendLib.showContextMenu(React__default["default"].createElement(deckyFrontendLib.Menu, { label: "Language" },
-                                            React__default["default"].createElement(deckyFrontendLib.MenuItem, { selected: transcriptionLanguage === "auto", onSelected: () => { void chooseLanguage("auto"); } }, "Auto Detect"),
+                                        deckyFrontendLib.showContextMenu(React__default["default"].createElement(deckyFrontendLib.Menu, { label: t("Language") },
+                                            React__default["default"].createElement(deckyFrontendLib.MenuItem, { selected: transcriptionLanguage === "auto", onSelected: () => { void chooseLanguage("auto"); } }, t("Auto Detect")),
                                             React__default["default"].createElement("div", { className: deckyFrontendLib.gamepadContextMenuClasses.ContextMenuSeparator }),
-                                            React__default["default"].createElement("div", { className: deckyFrontendLib.gamepadContextMenuClasses.MenuSectionHeader }, "Popular Steam languages"),
-                                            POPULAR_LANGUAGE_OPTIONS.map(option => React__default["default"].createElement(deckyFrontendLib.MenuItem, { key: String(option.data), selected: option.data === transcriptionLanguage, onSelected: () => { void chooseLanguage(String(option.data)); } }, option.label)),
+                                            React__default["default"].createElement("div", { className: deckyFrontendLib.gamepadContextMenuClasses.MenuSectionHeader }, t("Popular Steam languages")),
+                                            POPULAR_LANGUAGE_OPTIONS.map(option => React__default["default"].createElement(deckyFrontendLib.MenuItem, { key: String(option.data), selected: option.data === transcriptionLanguage, onSelected: () => { void chooseLanguage(String(option.data)); } }, languageName(String(option.data), String(option.label)))),
                                             React__default["default"].createElement("div", { className: deckyFrontendLib.gamepadContextMenuClasses.ContextMenuSeparator }),
-                                            React__default["default"].createElement("div", { className: deckyFrontendLib.gamepadContextMenuClasses.MenuSectionHeader }, "Other languages"),
-                                            OTHER_LANGUAGE_OPTIONS.map(option => React__default["default"].createElement(deckyFrontendLib.MenuItem, { key: String(option.data), selected: option.data === transcriptionLanguage, onSelected: () => { void chooseLanguage(String(option.data)); } }, option.label))), languageMenuAnchorRef.current || event.currentTarget);
+                                            React__default["default"].createElement("div", { className: deckyFrontendLib.gamepadContextMenuClasses.MenuSectionHeader }, t("Other languages")),
+                                            OTHER_LANGUAGE_OPTIONS.map(option => React__default["default"].createElement(deckyFrontendLib.MenuItem, { key: String(option.data), selected: option.data === transcriptionLanguage, onSelected: () => { void chooseLanguage(String(option.data)); } }, languageName(String(option.data), String(option.label))))), languageMenuAnchorRef.current || event.currentTarget);
                                     } },
-                                    "Language: ",
-                                    WHISPER_LANGUAGE_OPTIONS.find(option => option.data === transcriptionLanguage)?.label || transcriptionLanguage))),
+                                    t("Language"),
+                                    ": ",
+                                    languageName(transcriptionLanguage, String(WHISPER_LANGUAGE_OPTIONS.find(option => option.data === transcriptionLanguage)?.label || transcriptionLanguage))))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
-                                "Binding: ",
+                                t("Binding"),
+                                ": ",
                                 React__default["default"].createElement("strong", null, buttons.join(' + ')))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") }, "Edit Bindings"))),
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Try it" },
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") }, t("Edit Bindings")))),
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Try it") },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: runTest, disabled: !enabled || !modelReady || modelLoading || recording || testPhase !== "idle" },
                                 React__default["default"].createElement(FaMicrophone, { size: 14 }),
                                 " ",
-                                testPhase === "recording" ? "Recording..." : testPhase === "transcribing" ? "Transcribing..." : "Test Dictation (3s)")),
+                                testPhase === "recording" ? t("Recording...") : testPhase === "transcribing" ? t("Transcribing...") : t("Test Dictation (3s)"))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement("div", { style: { fontSize: '12px', opacity: 0.85 } }, "Shows a transcription here without sending text to your game.")),
+                            React__default["default"].createElement("div", { style: { fontSize: '12px', opacity: 0.85 } }, t("Shows a transcription here without sending text to your game."))),
                         hasTestResult && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { role: "status", style: { padding: '10px', backgroundColor: '#233829', borderRadius: '6px', overflowWrap: 'anywhere' } },
-                                React__default["default"].createElement("strong", null, "Result"),
-                                React__default["default"].createElement("div", null, lastTranscription || "No speech detected"),
+                                React__default["default"].createElement("strong", null, t("Result")),
+                                React__default["default"].createElement("div", null, lastTranscription || t("No speech detected")),
                                 React__default["default"].createElement("small", null, lastTranscriptionTime)))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") }, "Advanced settings"))),
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") }, t("Advanced settings")))),
                 page === "advanced" && React__default["default"].createElement(React__default["default"].Fragment, null,
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Transcription model" },
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Transcription model") },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { ref: advancedModelRowRef },
                                 React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("model") },
                                     "Model: ",
-                                    MODEL_SIZE_OPTIONS.find(option => option.data === modelSize)?.label || modelSize))),
+                                    t(String(MODEL_SIZE_OPTIONS.find(option => option.data === modelSize)?.label || modelSize))))),
                         modelReady && !modelLoading && inferenceDevice && (React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null, inferenceDevice === "gpu"
-                                ? "whisper.cpp runs on the GPU via Vulkan."
-                                : "whisper.cpp runs on the CPU."))),
+                                ? t("whisper.cpp runs on the GPU via Vulkan.")
+                                : t("whisper.cpp runs on the CPU.")))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement("div", { style: { fontSize: '12px' } }, "Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use."))),
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Recording binding" },
+                            React__default["default"].createElement("div", { style: { fontSize: '12px' } }, t("Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use.")))),
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Recording binding") },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement("div", null,
-                                "Hold ",
-                                React__default["default"].createElement("strong", null, buttons.join('+')),
-                                " to record")),
+                            React__default["default"].createElement("div", null, t("Hold {binding} to record", { binding: buttons.join("+") }))),
                         buttons.map((button, index) => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: index },
                             React__default["default"].createElement(deckyFrontendLib.Focusable, { "flow-children": "row", style: { display: 'flex', alignItems: 'center', gap: '4px', width: '100%', minWidth: 0, boxSizing: 'border-box' } },
                                 React__default["default"].createElement("div", { style: { flex: '1 1 0', minWidth: 0, overflow: 'hidden' } },
                                     React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => { setBindingButtonIndex(index); setPage("binding-button"); } },
-                                        "Button ",
-                                        index + 1,
+                                        t("Button {number}", { number: index + 1 }),
                                         ": ",
                                         button)),
-                                buttons.length > 1 && React__default["default"].createElement(deckyFrontendLib.Focusable, { role: "button", tabIndex: 0, focusClassName: "decktation-trash-focused", "aria-label": `Remove button ${index + 1}`, onActivate: async () => {
+                                buttons.length > 1 && React__default["default"].createElement(deckyFrontendLib.Focusable, { role: "button", tabIndex: 0, focusClassName: "decktation-trash-focused", "aria-label": t("Remove button {number}", { number: index + 1 }), onActivate: async () => {
                                         const next = buttons.filter((_, i) => i !== index);
                                         const result = await setButtonConfig(next);
                                         if (result.success)
                                             setButtons(next);
                                         else
-                                            setRpcError(result.error || "Could not remove button");
+                                            setRpcError(result.error || t("Could not remove button"));
                                     }, style: { flex: '0 0 36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', backgroundColor: '#3b4252' } },
                                     React__default["default"].createElement(FaTrash, { size: 14, "aria-hidden": "true" }))))),
                         buttons.length < 5 && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
@@ -704,76 +1024,82 @@
                                         setButtons(next);
                                         await setButtonConfig(next);
                                     }
-                                } }, "Add Button"))),
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Sending" },
+                                } }, t("Add Button")))),
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Sending") },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Confirm", description: "Delay before send", checked: confirmMode, onChange: async (next) => { setConfirmMode(next); await setConfirmModeRpc(next); } })),
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: t("Confirm"), description: t("Delay before send"), checked: confirmMode, onChange: async (next) => { setConfirmMode(next); await setConfirmModeRpc(next); } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Manual", description: "You press Enter", checked: manualSend, onChange: async (next) => { setManualSend(next); await setManualSendRpc(next); } })),
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: t("Manual"), description: t("You press Enter"), checked: manualSend, onChange: async (next) => { setManualSend(next); await setManualSendRpc(next); } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Remember channel", description: "Reuse the last spoken channel", checked: rememberLastChannel, onChange: async (next) => {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: t("Remember channel"), description: t("Reuse the last spoken channel"), checked: rememberLastChannel, onChange: async (next) => {
                                     setRememberLastChannel(next);
                                     const result = await setRememberLastChannelRpc(next);
                                     if (!result.success) {
                                         setRememberLastChannel(!next);
-                                        setRpcError(result.error || "Could not update channel setting");
+                                        setRpcError(result.error || t("Could not update channel setting"));
                                     }
                                 } }))),
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Feedback" },
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Feedback") },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: "Recording cue", menuLabel: "Recording cue", rgOptions: [{ data: "toast", label: "Toast" }, { data: "overlay", label: "Overlay" }, { data: "none", label: "None" }], selectedOption: recordingIndicator, onChange: async (option) => { const mode = option.data; setRecordingIndicator(mode); logic.recordingIndicator = mode; const result = await setRecordingIndicatorRpc(mode); if (!result.success)
-                                    setRpcError(result.error || "Could not update recording cue"); } })),
+                            React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: t("Recording cue"), menuLabel: t("Recording cue"), rgOptions: [{ data: "toast", label: t("Toast") }, { data: "overlay", label: t("Overlay") }, { data: "none", label: t("None") }], selectedOption: recordingIndicator, onChange: async (option) => { const mode = option.data; setRecordingIndicator(mode); logic.recordingIndicator = mode; const result = await setRecordingIndicatorRpc(mode); if (!result.success)
+                                    setRpcError(result.error || t("Could not update recording cue")); } })),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Haptic feedback", description: "Cues on the controller when recording starts and stops", checked: hapticFeedback, onChange: async (next) => {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: t("Haptic feedback"), description: t("Cues on the controller when recording starts and stops"), checked: hapticFeedback, onChange: async (next) => {
                                     const result = await setHapticFeedbackRpc(next);
                                     if (result.success)
                                         setHapticFeedback(next);
                                     else
-                                        setRpcError(result.error || "Could not update haptic feedback");
+                                        setRpcError(result.error || t("Could not update haptic feedback"));
                                 } }))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("diagnostics") }, "Diagnostics")),
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("diagnostics") }, t("Diagnostics"))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("help") }, "Help & permissions"))),
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("help") }, t("Help & permissions")))),
                 page === "diagnostics" && React__default["default"].createElement(React__default["default"].Fragment, null,
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Input and service" },
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Input and service") },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
-                                "Controller: ",
-                                controllerStatus)),
+                                t("Controller"),
+                                ": ",
+                                t(controllerStatus))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
-                                "Binding supported: ",
-                                controllerComboSupported ? "Yes" : "No")),
+                                t("Binding supported"),
+                                ": ",
+                                controllerComboSupported ? t("Yes") : t("No"))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
-                                "Held buttons: ",
-                                React__default["default"].createElement("strong", null, buttonState))),
+                                t("Held buttons"),
+                                ": ",
+                                React__default["default"].createElement("strong", null, t(buttonState)))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
-                                "Keyboard helper: ",
-                                inputReady ? "Ready" : "Unavailable")),
+                                t("Keyboard helper"),
+                                ": ",
+                                inputReady ? t("Ready") : t("Unavailable"))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
-                                "Backend: ",
-                                serviceReady ? "Ready" : "Unavailable")),
+                                t("Backend"),
+                                ": ",
+                                serviceReady ? t("Ready") : t("Unavailable"))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
-                                "Model: ",
-                                modelLoading ? "Loading" : modelReady ? "Ready" : "Unavailable")),
+                                t("Model"),
+                                ": ",
+                                modelLoading ? t("Loading") : modelReady ? t("Ready") : t("Unavailable"))),
                         (statusError || rpcError) && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { role: "alert" }, statusError || rpcError))),
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Diagnostics sharing" },
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Diagnostics sharing") },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Share", description: "Optional scrubbed diagnostics sent to Sentry", checked: shareDiagnostics, onChange: async (next) => {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: t("Share"), description: t("Optional scrubbed diagnostics sent to Sentry"), checked: shareDiagnostics, onChange: async (next) => {
                                     setShareDiagnostics(next);
                                     const result = await setShareDiagnosticsRpc(next);
                                     if (!result.success) {
                                         setShareDiagnostics(!next);
-                                        setRpcError(result.error || "Could not update diagnostics setting");
+                                        setRpcError(result.error || t("Could not update diagnostics setting"));
                                     }
                                 } })))),
-                page === "game" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Game" },
+                page === "game" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Game") },
                     rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                         React__default["default"].createElement("div", { role: "alert" }, rpcError)),
                     presets.map(option => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: String(option.data) },
@@ -786,11 +1112,11 @@
                                     setPage("main");
                                 }
                                 else
-                                    setRpcError(result.error || "Could not update game");
+                                    setRpcError(result.error || t("Could not update game"));
                             } },
                             option.data === activePreset ? "✓ " : "",
-                            option.label)))),
-                page === "model" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Model" },
+                            t(String(option.label)))))),
+                page === "model" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Model") },
                     rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                         React__default["default"].createElement("div", { role: "alert" }, rpcError)),
                     MODEL_SIZE_OPTIONS.map(option => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: String(option.data) },
@@ -806,12 +1132,12 @@
                                 }
                                 else {
                                     setModelLoading(false);
-                                    setRpcError(result.error || "Could not update model size");
+                                    setRpcError(result.error || t("Could not update model size"));
                                 }
                             } },
                             option.data === modelSize ? "✓ " : "",
-                            option.label)))),
-                page === "binding-button" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: `Button ${bindingButtonIndex + 1}` },
+                            t(String(option.label)))))),
+                page === "binding-button" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Button {number}", { number: bindingButtonIndex + 1 }) },
                     rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                         React__default["default"].createElement("div", { role: "alert" }, rpcError)),
                     BUTTON_OPTIONS.map(option => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: String(option.data) },
@@ -825,22 +1151,17 @@
                                     setPage("advanced");
                                 }
                                 else
-                                    setRpcError(result.error || "Could not update binding");
+                                    setRpcError(result.error || t("Could not update binding"));
                             } },
                             option.data === buttons[bindingButtonIndex] ? "✓ " : "",
-                            option.label)))),
+                            t(String(option.label)))))),
                 page === "help" && React__default["default"].createElement(React__default["default"].Fragment, null,
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "How to use" },
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("How to use") },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement("div", { style: { fontSize: '13px', lineHeight: '1.6' } },
-                                "Hold ",
-                                React__default["default"].createElement("strong", null, buttons.join('+')),
-                                " ",
-                                buttons.length > 1 ? "together " : "",
-                                "to record. Release to transcribe and type into the active game or app. Keep it in the foreground."))),
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Permissions" },
+                            React__default["default"].createElement("div", { style: { fontSize: '13px', lineHeight: '1.6' } }, t("Hold {binding} {together}to record. Release to transcribe and type into the active game or app. Keep it in the foreground.", { binding: buttons.join("+"), together: buttons.length > 1 ? t("together ") : "" })))),
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: t("Permissions") },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement("div", { style: { fontSize: '13px', lineHeight: '1.5' } }, "Decktation uses Decky root access only to read raw Steam Deck controller input and to create virtual keyboard events for dictated text. Your transcription is passed to the bundled keyboard helper as data, never as a shell command.")))))));
+                            React__default["default"].createElement("div", { style: { fontSize: '13px', lineHeight: '1.5' } }, t("Decktation uses Decky root access only to read raw Steam Deck controller input and to create virtual keyboard events for dictated text. Your transcription is passed to the bundled keyboard helper as data, never as a shell command."))))))));
     };
     var index = deckyFrontendLib.definePlugin(() => {
         let logic = new DecktationLogic();
@@ -863,14 +1184,14 @@
                     if (logic.recordingIndicator !== "none") {
                         const startCount = result.recording_start_count || 0;
                         if (logic.recordingIndicator === "toast" && startCount > logic.prevRecordingStartCount) {
-                            logic.notify("Recording", 1500, "🎤 Recording...");
+                            logic.notify(t("Recording"), 1500, "🎤 " + t("Recording..."));
                         }
                         logic.prevRecordingStartCount = startCount;
                         const pendingText = result.pending_text || "";
                         const pendingDelay = result.pending_delay || 0;
                         if (pendingText && !logic.prevPendingText) {
                             const secs = Math.round(pendingDelay);
-                            logic.notify(`Sending in ${secs}s`, (pendingDelay + 0.5) * 1000, `"${pendingText}" — hold PTT to cancel`)
+                            logic.notify(t("Sending in {seconds}s", { seconds: secs }), (pendingDelay + 0.5) * 1000, t("\"{text}\" — hold PTT to cancel", { text: pendingText }))
                                 .then(id => { logic.lastPendingToastId = id; });
                         }
                         else if (!pendingText && logic.prevPendingText) {
