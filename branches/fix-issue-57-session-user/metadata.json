@@ -2,7 +2,7 @@
   "plugin": "Decktation",
   "channel": "branch",
   "ref": "fix/issue-57-session-user",
-  "commit": "c395595edb82599d2d5c7d05abf26053d6102e0b",
+  "commit": "70335109001ed33750a32edb5fd750b7faebc0e8",
   "zip_url": "https://nukeador.github.io/decktation/branches/fix-issue-57-session-user/decktation.zip",
-  "generated_at": "2026-10-05T22:25:30Z"
+  "generated_at": "2026-10-06T11:28:18Z"
 }
