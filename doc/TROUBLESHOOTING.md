@@ -27,6 +27,24 @@ Controller-listener output is forwarded into the plugin log. Decktation no longe
 
 Enable Decktation and wait for **Ready**, then select **Test Recording (3s)** and speak clearly while it records. Check that the Steam Deck microphone or connected headset works in another app. The test displays its transcription in the panel and does not type it into the focused app.
 
+## Microphone crackles, pops, or cuts out
+
+A Steam Deck LCD user reported popping in Steam's microphone test and poor Decktation transcription. Disabling Steam's voice-processing options removed the popping and improved transcription for that user. This is a community-reported workaround, not an independently verified fix or a confirmed defect affecting every LCD Deck. Its effect on Decktation's system audio input has not been established.
+
+1. On the Deck, open **Steam → Power → Switch to Desktop**.
+2. In the desktop Steam client, open **Friends & Chat**, then the **gear icon → Voice**. Depending on your Steam client version, Voice may also be available under **Steam → Settings → Voice**.
+3. Check **Voice Input Device** and select the microphone you intend to use. Choose **Start Microphone Test**, speak, and listen for popping, crackling, or missing words. Stop the test afterward.
+4. Note your current settings, then expand **Show Advanced Settings** if the options below are hidden. Try turning off all three voice-processing options:
+   - **Noise Cancellation**
+   - **Echo Cancellation**
+   - **Automatic Volume/Gain Control** (automatic gain control; wording may vary)
+5. Run **Start Microphone Test** again using the same microphone and phrase, then stop the test. If the audio improves, you can re-enable the options one at a time and repeat the test to identify which setting helps.
+6. Return to **Gaming Mode**, enable Decktation, wait for **Ready**, and repeat the plugin's three-second dictation test. Check the resulting transcription before trying it in a game.
+
+Restore your previous settings if this does not help. Disabling processing can increase background noise or speaker echo and can affect Steam voice chat. Clear playback in Steam does not guarantee that Decktation is receiving the same audio; if Steam sounds clear but dictation still fails, check the system's default recording device and the plugin logs.
+
+When reporting a persistent problem, include your Deck model (LCD or OLED), SteamOS and Steam client versions, whether you use the built-in microphone or a headset, and whether the improvement survives returning to Gaming Mode and rebooting.
+
 ## Push-to-talk is not detected
 
 - Open the plugin panel and check **Input**. **Receiving input** confirms decoded
@@ -45,6 +63,7 @@ Enable Decktation and wait for **Ready**, then select **Test Recording (3s)** an
 
 ## Transcription is slow or inaccurate
 
+- If the microphone audio crackles, pops, or cuts out, try the [microphone troubleshooting steps](#microphone-crackles-pops-or-cuts-out) before changing models.
 - Speak clearly and reduce background noise.
 - Set **Lang** to the language you are speaking, or leave it on **Auto**.
 - Base is fastest, Small is a balanced choice, and Medium is more accurate but slower.
