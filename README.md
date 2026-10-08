@@ -74,6 +74,8 @@ Decktation has been [submitted to the official Decky Plugin Store](https://githu
 
 WoW and GW2 presets normally open game chat, add the selected channel command, and send the message; the spoken **type** channel enters text without opening chat. **Generic** also enters text directly in the focused field. See [channel and preset configuration](doc/ADVANCED_CONFIGURATION.md) for details.
 
+If your microphone crackles or transcription is poor, see [microphone troubleshooting](doc/TROUBLESHOOTING.md#microphone-crackles-pops-or-cuts-out) for Steam Voice settings to try, including a workaround reported by a Steam Deck LCD user.
+
 ## Documentation
 
 - [Advanced configuration](doc/ADVANCED_CONFIGURATION.md): presets, spoken channel prefixes, model and language settings, and controller mappings.
