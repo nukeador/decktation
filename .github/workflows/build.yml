@@ -60,10 +60,13 @@ jobs:
         run: |
           unzip -t build-output/decktation.zip
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/ydotoold'
+          unzip -l build-output/decktation.zip | grep -q 'decktation/bin/whisper-server'
+          ! unzip -l build-output/decktation.zip | grep -q 'decktation/bin/whisper-cli'
+          unzip -l build-output/decktation.zip | grep -q 'decktation/bin/resident_whisper.py'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/xclip'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/clipboard_injection.py'
-          unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/faster_whisper'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/sentry_sdk'
+          unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/numpy'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/lib/libportaudio.so.2'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/telemetry.py'
           unzip -l build-output/decktation.zip | grep -q 'decktation/bin/decktation_backend.py'
@@ -74,6 +77,9 @@ jobs:
           unzip -l build-output/decktation.zip | grep -q 'cpython-311'
           ! unzip -l build-output/decktation.zip | grep -q 'cpython-313'
           ! unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/av/'
+          ! unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/ctranslate2'
+          ! unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/faster_whisper'
+          ! unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/onnxruntime'
           ! unzip -l build-output/decktation.zip | grep -q 'decktation/debug_controller.py'
           ! unzip -l build-output/decktation.zip | grep -q 'decktation/test.py'
           ! unzip -l build-output/decktation.zip | grep -q 'decktation/test_channels.py'
@@ -84,7 +90,7 @@ jobs:
           DECKTATION_VERSION="$(node scripts/release-version.mjs print)"
           python scripts/generate-store-catalog.py \
             --artifact build-output/decktation.zip \
-            --artifact-url "https://silverfoxy.github.io/decktation/releases/v${DECKTATION_VERSION}/decktation.zip" \
+            --artifact-url "https://silverfoxy.github.io/decktation/releases/v${DECKTATION_VERSION}/Decktation.zip" \
             --output /tmp/decktation-store.json
           python -m json.tool /tmp/decktation-store.json >/dev/null
 
@@ -110,7 +116,7 @@ jobs:
             echo "- [Download the ready-to-install plugin ZIP]($ARTIFACT_URL) from this Actions run. GitHub sign-in is required."
             if [ "$EVENT_NAME" != "pull_request" ] && [ "$REF_TYPE" = "branch" ]; then
               BRANCH_PATH="$(python3 scripts/branch-slug.py "$REF_NAME")"
-              echo "- Public branch URL (when GitHub Pages is enabled): [$PAGES_BASE_URL/branches/$BRANCH_PATH/decktation.zip]($PAGES_BASE_URL/branches/$BRANCH_PATH/decktation.zip)"
+              echo "- Public branch URL (when GitHub Pages is enabled): [$PAGES_BASE_URL/branches/$BRANCH_PATH/Decktation.zip]($PAGES_BASE_URL/branches/$BRANCH_PATH/Decktation.zip)"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

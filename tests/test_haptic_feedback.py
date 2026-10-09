@@ -25,8 +25,14 @@ def test_default_disabled_and_missing_hardware(monkeypatch):
     assert feedback._events.empty()
     play.assert_not_called()
 
+
+def test_missing_hardware_is_a_no_op(monkeypatch):
+    feedback = haptic_feedback.HapticFeedback(enabled=True)
     monkeypatch.setattr(haptic_feedback, "find_steam_hidraw", lambda: iter(()))
-    feedback._play("started")  # Unsupported hardware is a no-op.
+    opened = MagicMock()
+    monkeypatch.setattr(haptic_feedback.os, "open", opened)
+    feedback._play("started", _source("steam_deck", "/dev/hidraw9"), 0)
+    opened.assert_not_called()
 
 
 def test_single_worker_plays_distinct_patterns_and_survives_failure(monkeypatch):
@@ -134,7 +140,9 @@ def test_preference_defaults_off_and_persists(tmp_path, monkeypatch):
         "decktation_backend_haptic_test", repo / "backend/src/decktation_backend.py"
     )
     backend = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(backend)
+    async def load_backend():
+        spec.loader.exec_module(backend)
+    asyncio.run(load_backend())
 
     assert backend._read_button_config()["hapticFeedback"] is False
     backend.Plugin.haptic_feedback = haptic_feedback.HapticFeedback()

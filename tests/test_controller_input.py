@@ -341,8 +341,7 @@ def test_triton_puck_reports_buttons_and_disconnect(listener, monkeypatch):
     packets = []
     state = bytearray(64)
     state[0] = 0x42
-    struct.pack_into('<I', state, 2, listener.TRITON_BUTTON_BITS['L1'] |
-                     listener.TRITON_BUTTON_BITS['R1'])
+    struct.pack_into('<I', state, 2, 0x80000 | 0x200)
     packets.extend((bytes(state), b'\x79\x01'))
     monkeypatch.setattr(listener.os, 'open', lambda *args: 42)
     monkeypatch.setattr(listener.os, 'read', lambda *args: packets.pop(0))

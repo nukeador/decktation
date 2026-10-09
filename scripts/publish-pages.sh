@@ -146,7 +146,7 @@ write_download_page() {
     <h1>${title}</h1>
     <p>Decky Loader should use the direct ZIP URL below. This page is only a human-friendly landing page.</p>
     <div class="actions">
-      <a class="button" href="${zip_url}">Download decktation.zip</a>
+      <a class="button" href="${zip_url}">Download Decktation.zip</a>
       <a class="button" href="${metadata_url}">View metadata</a>
     </div>
     <p><strong>Direct ZIP URL</strong><br><code>${zip_url}</code></p>
@@ -213,7 +213,13 @@ refresh_branch_pages() {
     relative_dir="$(dirname "${metadata#"$PAGES_DIR"/}")"
     local url_dir
     url_dir="$(encode_url_path "$relative_dir")"
-    local zip_url="$PAGES_BASE_URL/$url_dir/decktation.zip"
+    # Also repair existing branch downloads when publishing another branch.
+    local download_dir
+    download_dir="$(dirname "$metadata")"
+    if [ -f "$download_dir/decktation.zip" ]; then
+      cp "$download_dir/decktation.zip" "$download_dir/Decktation.zip"
+    fi
+    local zip_url="$PAGES_BASE_URL/$url_dir/Decktation.zip"
     local metadata_url="$PAGES_BASE_URL/$url_dir/metadata.json"
     local branch_name
     branch_name="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ref"])' "$metadata")"
@@ -275,17 +281,33 @@ for slug, (source, ref) in planned.items():
 PY_MIGRATE
 }
 
+assert_branch_target_available() {
+  local branch_key="$1"
+  local metadata="$PAGES_DIR/branches/$branch_key/metadata.json"
+  if [ ! -f "$metadata" ]; then
+    return
+  fi
+  local existing_ref
+  existing_ref="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ref"])' "$metadata")"
+  if [ "$existing_ref" != "$REF_NAME" ]; then
+    echo "Branch URL collision: $REF_NAME and $existing_ref both use $branch_key" >&2
+    exit 1
+  fi
+}
+
 render_pages_content() {
   migrate_branch_dirs
   if [ "$CLEANUP_ONLY" != "true" ]; then
     local branch_key
     branch_key="$(normalize_ref "$REF_NAME")"
+    assert_branch_target_available "$branch_key"
     local branch_url_path
     branch_url_path="$(encode_url_path "branches/$branch_key")"
-    local zip_url="$PAGES_BASE_URL/$branch_url_path/decktation.zip"
+    local zip_url="$PAGES_BASE_URL/$branch_url_path/Decktation.zip"
     local metadata_url="$PAGES_BASE_URL/$branch_url_path/metadata.json"
     mkdir -p "$PAGES_DIR/branches/$branch_key"
     cp "$ZIP_SOURCE" "$PAGES_DIR/branches/$branch_key/decktation.zip"
+    cp "$ZIP_SOURCE" "$PAGES_DIR/branches/$branch_key/Decktation.zip"
     write_metadata \
       "$PAGES_DIR/branches/$branch_key/metadata.json" \
       "branch" \
@@ -305,7 +327,9 @@ render_pages_content() {
     mkdir -p "$PAGES_DIR/releases/$RELEASE_TAG" "$PAGES_DIR/releases/latest" \
       "$PAGES_DIR/store"
     cp "$ZIP_SOURCE" "$PAGES_DIR/releases/$RELEASE_TAG/decktation.zip"
+    cp "$ZIP_SOURCE" "$PAGES_DIR/releases/$RELEASE_TAG/Decktation.zip"
     cp "$ZIP_SOURCE" "$PAGES_DIR/releases/latest/decktation.zip"
+    cp "$ZIP_SOURCE" "$PAGES_DIR/releases/latest/Decktation.zip"
     # Short, stable install URL for Decky's "Install Plugin from URL" action.
     # Only release tags update it; branch builds must never replace the stable
     # artifact a user receives from this address.
@@ -314,30 +338,30 @@ render_pages_content() {
       "$PAGES_DIR/releases/$RELEASE_TAG/metadata.json" \
       "release" \
       "$RELEASE_TAG" \
-      "$PAGES_BASE_URL/releases/$RELEASE_TAG/decktation.zip"
+      "$PAGES_BASE_URL/releases/$RELEASE_TAG/Decktation.zip"
     write_metadata \
       "$PAGES_DIR/releases/latest/metadata.json" \
       "release-latest" \
       "$RELEASE_TAG" \
-      "$PAGES_BASE_URL/releases/latest/decktation.zip"
+      "$PAGES_BASE_URL/releases/latest/Decktation.zip"
     write_download_page \
       "$PAGES_DIR/releases/$RELEASE_TAG/index.html" \
       "Decktation release build: $RELEASE_TAG" \
-      "$PAGES_BASE_URL/releases/$RELEASE_TAG/decktation.zip" \
+      "$PAGES_BASE_URL/releases/$RELEASE_TAG/Decktation.zip" \
       "$PAGES_BASE_URL/releases/$RELEASE_TAG/metadata.json"
     write_download_page \
       "$PAGES_DIR/releases/latest/index.html" \
       "Decktation latest release" \
-      "$PAGES_BASE_URL/releases/latest/decktation.zip" \
+      "$PAGES_BASE_URL/releases/latest/Decktation.zip" \
       "$PAGES_BASE_URL/releases/latest/metadata.json"
   fi
 
   if [ "$CLEANUP_ONLY" != "true" ] && { [ "$REF_TYPE" = "tag" ] || [ "$REF_NAME" = "master" ]; }; then
     local catalog_artifact_url
     if [ "$REF_TYPE" = "tag" ]; then
-      catalog_artifact_url="$PAGES_BASE_URL/releases/$RELEASE_TAG/decktation.zip"
+      catalog_artifact_url="$PAGES_BASE_URL/releases/$RELEASE_TAG/Decktation.zip"
     else
-      catalog_artifact_url="$PAGES_BASE_URL/branches/master/decktation.zip"
+      catalog_artifact_url="$PAGES_BASE_URL/branches/master/Decktation.zip"
     fi
     mkdir -p "$PAGES_DIR/store"
     python3 "$WORKSPACE_DIR/scripts/generate-store-catalog.py" \
@@ -347,6 +371,17 @@ render_pages_content() {
       --artifact-url "$catalog_artifact_url" \
       --github-repository "$GITHUB_REPOSITORY" \
       --output "$PAGES_DIR/store/plugins.json"
+  fi
+
+  # Keep the stable short URL's filename equal to plugin.json's name.
+  # Migrate existing releases too, without changing which release is latest.
+  if [ -f "$PAGES_DIR/latest.zip" ]; then
+    cp "$PAGES_DIR/latest.zip" "$PAGES_DIR/Decktation.zip"
+  fi
+  if [ -d "$PAGES_DIR/releases" ]; then
+    find "$PAGES_DIR/releases" -type f -name decktation.zip -print | while read -r artifact; do
+      cp "$artifact" "$(dirname "$artifact")/Decktation.zip"
+    done
   fi
 
   mkdir -p "$PAGES_DIR/downloads"
@@ -440,10 +475,10 @@ render_pages_content() {
         <p>Stable, direct ZIP URLs for Decky Loader installs. Use the ZIP URLs directly with Decky's <strong>Install Plugin from URL</strong> flow.</p>
       </div>
       <div class="panel">
-        <p><strong>Short install URL</strong><br><code>${PAGES_BASE_URL}/latest.zip</code></p>
-        <p><strong>Latest release ZIP</strong><br><code>${PAGES_BASE_URL}/releases/latest/decktation.zip</code></p>
+        <p><strong>Short install URL</strong><br><code>${PAGES_BASE_URL}/Decktation.zip</code></p>
+        <p><strong>Latest release ZIP</strong><br><code>${PAGES_BASE_URL}/releases/latest/Decktation.zip</code></p>
         <p><strong>Decky Custom Store URL</strong><br><code>https://homebrew.imsilverfoxy.com/plugins.json</code></p>
-        <p><strong>Branch ZIP pattern</strong><br><code>${PAGES_BASE_URL}/branches/&lt;url-encoded-branch-name&gt;/decktation.zip</code></p>
+        <p><strong>Branch ZIP pattern</strong><br><code>${PAGES_BASE_URL}/branches/&lt;branch-slug&gt;/Decktation.zip</code></p>
       </div>
     </div>
     $(render_index_list "$PAGES_DIR/releases" "Releases" "$PAGES_BASE_URL")

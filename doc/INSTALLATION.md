@@ -6,8 +6,8 @@ For the recommended install walkthrough, start with the [README](../README.md#in
 
 Use a packaged plugin ZIP, which includes the runtime dependencies required by Decktation:
 
-- [Recommended short URL](https://silverfoxy.github.io/decktation/latest.zip)
-- [Full stable URL](https://silverfoxy.github.io/decktation/releases/latest/decktation.zip)
+- [Recommended short URL](https://silverfoxy.github.io/decktation/Decktation.zip)
+- [Full stable URL](https://silverfoxy.github.io/decktation/releases/latest/Decktation.zip)
 - [GitHub release asset](https://github.com/silverfoxy/decktation/releases/latest/download/decktation.zip)
 
 Keep Decky's **Store Channel** set to **Default** for the recommended install. In Decky Settings, choose **Install Plugin from URL** and paste the short URL above, or download the ZIP and choose **Install Plugin from ZIP**. Enable developer options if those actions are not shown. Decky imports the archive and reloads the plugin.
@@ -20,11 +20,10 @@ Do not use GitHub’s automatically generated **Source code (zip)** or **Source 
 
 Until Decktation is available in Decky's official store, update it manually when you want a newer release:
 
-1. Open Decky and uninstall the current Decktation plugin using Decky's normal uninstall action.
-2. Install the [latest packaged ZIP](https://silverfoxy.github.io/decktation/latest.zip) with **Install Plugin from URL**, or download it and use **Install Plugin from ZIP**.
-3. Reopen Decktation.
+1. Install the [latest packaged ZIP](https://silverfoxy.github.io/decktation/Decktation.zip) with **Install Plugin from URL**, or download it and use **Install Plugin from ZIP**.
+2. Reopen Decktation.
 
-For manual updates, uninstall the current plugin before installing the latest ZIP. This gives Decky a clean plugin-code replacement and removes files left behind by an older release. Leave Decktation settings and downloaded Whisper model files alone; deleting them is not part of a normal update.
+Keep the filename `Decktation.zip` so Decky recognizes the existing plugin and uninstalls its code before extracting the new build. Leave Decktation settings and downloaded Whisper model files alone; deleting them is not part of a normal update.
 
 Once Decktation is available in Decky's official **Default** store, that will be the preferred install and update route. Existing manual installations with the same plugin name and an older valid version should normally become eligible for official store updates without a fresh install. This describes current Decky behavior and is not a permanent API guarantee.
 
@@ -35,7 +34,7 @@ For details about the optional Decktation Custom Store and its effect on the sel
 When GitHub Pages is enabled for a repository, branch packages use this URL pattern:
 
 ```text
-https://<owner>.github.io/decktation/branches/<branch-slug>/decktation.zip
+https://<owner>.github.io/decktation/branches/<branch-slug>/Decktation.zip
 ```
 
 Branch names use readable ASCII slugs. For example, `feat/haptic-feedback` uses `feat-haptic-feedback`. Names containing other punctuation or Unicode also receive a stable hash suffix. Prefer the exact URL shown in the workflow run summary or branch page.
@@ -47,3 +46,28 @@ To publish public branch ZIPs from a fork, enable **Settings → Pages → Build
 ## Install a local development build
 
 See [Development](DEVELOPMENT.md) for the source build and contributor workflow. For a local plugin package, use the Decky plugin builder and install the resulting ZIP through **Install Plugin from ZIP**.
+
+## Consistent branch installs
+
+Use the branch download ending in **`Decktation.zip`**, with that capitalization.
+For example, the `feat/transcription-review` branch uses:
+
+```text
+https://silverfoxy.github.io/decktation/branches/feat-transcription-review/Decktation.zip
+```
+
+Paste that URL into Decky Settings → Developer → Install Plugin from URL.
+Use the same route to switch to another branch or return to the stable
+`https://silverfoxy.github.io/decktation/Decktation.zip` build. Branch builds do
+not need a store entry. Their commit/version remains in the manifest and download
+metadata; their install identity always stays `Decktation`.
+
+Decky derives the initial plugin name from the URL filename before reading the
+ZIP manifest. Matching `Decktation` lets it recognize an existing installation
+and unload it before extracting the replacement. If downloading a ZIP locally (including the lowercase GitHub release asset),
+rename it to `Decktation.zip` before importing it. Avoid query strings on install URLs, since
+Decky includes them when deriving this name.
+
+The lowercase `decktation.zip` and `latest.zip` addresses remain compatibility
+downloads, but should not be used for Decky's URL installer. If an earlier install
+has already stalled, restart Decky before trying the matching-name URL.

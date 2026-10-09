@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 import json
@@ -85,3 +86,40 @@ def test_overlay_mode_keeps_legacy_notifications_flag_compatible(tmp_path, monke
 
     assert written["recordingIndicator"] == "overlay"
     assert written["showNotifications"] is True
+
+
+def test_model_size_rpc_reports_resident_vulkan_reload(tmp_path, monkeypatch):
+    config_file = tmp_path / "button_config.json"
+    monkeypatch.setattr(decktation_backend, "BUTTON_CONFIG_FILE", str(config_file))
+
+    async def run_inline(function, *args):
+        return function(*args)
+
+    monkeypatch.setattr(decktation_backend.asyncio, "to_thread", run_inline)
+    service = MagicMock()
+    service.is_model_ready.return_value = True
+    service.set_model_size.return_value = True
+    monkeypatch.setattr(decktation_backend.Plugin, "voice_service", service)
+
+    result = asyncio.run(decktation_backend.Plugin().set_model_size("small"))
+
+    assert result == {"success": True, "modelSize": "small", "reloaded": True}
+    service.set_model_size.assert_called_once_with("small")
+
+
+def test_status_reports_active_whisper_cpp_device(monkeypatch):
+    service = MagicMock()
+    service.is_model_ready.return_value = True
+    service.model_loading = False
+    service.inference_device = "cpu"
+    service.is_recording = False
+    service.pending_text = None
+    service.confirm_delay = 0
+    monkeypatch.setattr(decktation_backend.Plugin, "voice_service", service)
+    monkeypatch.setattr(decktation_backend.Plugin, "listener_process", None)
+
+    result = asyncio.run(decktation_backend.Plugin().get_status())
+
+    assert result["success"] is True, result
+    assert result["model_ready"] is True
+    assert result["inference_device"] == "cpu"

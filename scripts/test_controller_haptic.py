@@ -16,7 +16,7 @@ def main():
     parser.add_argument('--play', action='store_true', help='Send exactly one start cue')
     args = parser.parse_args()
     if args.backend.startswith('steam-controller'):
-        allowed = (('steam_controller_2026',) if args.backend == 'steam-controller-2026'
+        allowed = (('steam_controller_2026_puck',) if args.backend == 'steam-controller-2026'
                    else ('steam_controller_wired', 'steam_controller_wireless'))
         matches = {path: kind for path, kind in find_steam_hidraw()
                    if kind in allowed}

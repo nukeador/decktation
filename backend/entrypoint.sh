@@ -8,29 +8,14 @@ cp -R /runtime/python/. out/python/
 # Decky places backend/out under the installed plugin's bin/ directory. Keep
 # substantive Python backend source in backend/src; root main.py is only the
 # Decky Loader entry point.
-cp src/audio_runtime.py src/decktation_backend.py src/wow_voice_chat.py src/clipboard_injection.py src/controller_listener.py \
+cp src/resident_whisper.py src/audio_runtime.py src/decktation_backend.py src/wow_voice_chat.py src/clipboard_injection.py src/controller_listener.py \
     src/recording_mode.py src/binding_capture.py src/haptic_feedback.py \
     src/deck_hid.py src/gamepad_evdev.py src/telemetry.py src/convert_wow_context.py \
-    src/recording_overlay.py src/recording_overlay_manager.py out/
+    src/recording_overlay.py src/recording_overlay_manager.py src/overlay_render.py src/review_gesture.py out/
 
-# Keep inference code and package license metadata, but omit installation-time
-# tools, test suites, caches, and SymPy (used by ONNX conversion tooling, not
-# by faster-whisper/ONNX Runtime inference). This substantially reduces store
-# archive size and file count.
-rm -rf out/python/bin out/python/av out/python/av.libs out/python/av-*.dist-info \
-    out/python/sympy out/python/sympy-*.dist-info \
-    out/python/mpmath out/python/mpmath-*.dist-info \
-    out/python/onnxruntime/transformers \
-    out/python/typer out/python/typer_slim-*.dist-info \
-    out/python/click out/python/click-*.dist-info \
-    out/python/shellingham out/python/shellingham-*.dist-info \
-    out/python/isympy.py
-# faster-whisper imports PyAV only to decode file paths. Decktation supplies
-# decoded NumPy samples, so keep the decoder function available but lazy-load
-# PyAV if another caller explicitly uses it.
-sed -i '/^import av$/d' out/python/faster_whisper/audio.py
-sed -i '/    resampler = av.audio.resampler.AudioResampler(/i\    global av\n    import av' \
-    out/python/faster_whisper/audio.py
+# Omit installation-time tools, tests, and caches from the bundled Python
+# runtime. Inference itself is provided by whisper.cpp.
+rm -rf out/python/bin
 find out/python -type d \( -name __pycache__ -o -name tests -o -name test \) \
     -prune -exec rm -rf '{}' +
 find out/python -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
@@ -47,8 +32,9 @@ if ! find out/python -type f -name '*cpython-311*' | grep -q .; then
 fi
 
 cp /ydotool-build/ydotool /ydotool-build/ydotoold out/
+cp /whisper.cpp/build/bin/whisper-server out/
 cp /usr/bin/xclip out/
-cp -L /usr/lib/libportaudio.so.2 out/lib/libportaudio.so.2
+cp -L /portaudio-build/libportaudio.so out/lib/libportaudio.so.2
 cp /ydotool-src/LICENSE out/licenses/ydotool-AGPL-3.0.txt
 cp /xclip-src/COPYING out/licenses/xclip-GPL-2.0.txt
-cp /usr/share/licenses/portaudio/LICENSE.txt out/licenses/portaudio-MIT.txt
+cp /portaudio-src/LICENSE.txt out/licenses/portaudio-MIT.txt

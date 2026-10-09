@@ -284,21 +284,17 @@ Test that context updates as you play:
    - Go to well-known zone (Orgrimmar, Stormwind)
    - Say the zone name
    - Should recognize it better
-5. **Increase model size** - Edit wow_voice_chat.py line 27:
-   ```python
-   # Change from "base" to "small" for better accuracy
-   self.model = WhisperModel("small", device="cpu", compute_type="int8")
-   ```
+5. **Increase model size** - In Decktation settings, change the Whisper model
+   from Base to Small or Medium. Both Vulkan and CPU inference use the selected
+   whisper.cpp GGML model.
 
 ### Performance issues
 
 **Problem:** Voice service is slow
 
 **Solutions:**
-1. **Use smaller model** - Edit wow_voice_chat.py:
-   ```python
-   self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
-   ```
+1. **Use the Base model** - Select Base in Decktation settings. It is the
+   smallest model currently supported by the bundled whisper.cpp engine.
 2. **Reduce recording duration**:
    ```bash
    python wow_voice_chat.py --duration 3  # Instead of 5

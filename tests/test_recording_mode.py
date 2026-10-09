@@ -1,3 +1,4 @@
+import asyncio
 from recording_mode import RecordingGesture, ControllerEvents, EventCursor
 
 
@@ -88,7 +89,9 @@ def backend_for_test(tmp_path, monkeypatch):
     monkeypatch.setattr(audio_runtime, 'setup_audio_environment', lambda *args: None)
     spec = importlib.util.spec_from_file_location('recording_mode_backend_test', repo / 'backend/src/decktation_backend.py')
     backend = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(backend)
+    async def load_backend():
+        spec.loader.exec_module(backend)
+    asyncio.run(load_backend())
     monkeypatch.setattr(backend.time, "monotonic", lambda: 0)
     plugin = backend.Plugin
     plugin.controller_enabled = True
