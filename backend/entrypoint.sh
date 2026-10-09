@@ -11,7 +11,7 @@ cp -R /runtime/python/. out/python/
 cp src/resident_whisper.py src/audio_runtime.py src/decktation_backend.py src/wow_voice_chat.py src/clipboard_injection.py src/controller_listener.py \
     src/haptic_feedback.py \
     src/deck_hid.py src/gamepad_evdev.py src/telemetry.py src/convert_wow_context.py \
-    src/recording_overlay.py src/recording_overlay_manager.py out/
+    src/recording_overlay.py src/recording_overlay_manager.py src/overlay_render.py src/review_gesture.py out/
 
 # Omit installation-time tools, tests, and caches from the bundled Python
 # runtime. Inference itself is provided by whisper.cpp.
@@ -34,7 +34,7 @@ fi
 cp /ydotool-build/ydotool /ydotool-build/ydotoold out/
 cp /whisper.cpp/build/bin/whisper-server out/
 cp /usr/bin/xclip out/
-cp -L /usr/lib/libportaudio.so.2 out/lib/libportaudio.so.2
+cp -L /portaudio-build/libportaudio.so out/lib/libportaudio.so.2
 cp /ydotool-src/LICENSE out/licenses/ydotool-AGPL-3.0.txt
 cp /xclip-src/COPYING out/licenses/xclip-GPL-2.0.txt
-cp /usr/share/licenses/portaudio/LICENSE.txt out/licenses/portaudio-MIT.txt
+cp /portaudio-src/LICENSE.txt out/licenses/portaudio-MIT.txt

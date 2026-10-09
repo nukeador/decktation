@@ -2,6 +2,7 @@
 
 import logging
 import os
+import pwd
 import shutil
 import subprocess
 import time
@@ -25,22 +26,51 @@ def _xclip_path(plugin_dir):
     return bundled if os.path.isfile(bundled) else shutil.which("xclip")
 
 
+def _session_account(env):
+    """Resolve the desktop account without assuming a username or UID."""
+    if os.geteuid() != 0:
+        return pwd.getpwuid(os.geteuid())
+    runtime = env.get("XDG_RUNTIME_DIR")
+    home = env.get("DECKY_USER_HOME")
+    for path in (runtime, home):
+        if path:
+            try:
+                uid = os.stat(path).st_uid
+                if uid != 0:
+                    return pwd.getpwuid(uid)
+            except (OSError, KeyError):
+                pass
+    raise RuntimeError("Cannot identify the desktop user for clipboard paste")
+
+
 def _clipboard_env():
     env = os.environ.copy()
-    # Gaming Mode keeps Steam on :0 and the foreground game on :1. Decky may
-    # inherit :0 or no DISPLAY; target the game's Xwayland socket when present.
-    if os.path.exists("/run/user/1000/gamescope-0") and os.path.exists("/tmp/.X11-unix/X1"):
+    account = _session_account(env)
+    runtime = f"/run/user/{account.pw_uid}"
+    env["XDG_RUNTIME_DIR"] = runtime
+    env["HOME"] = account.pw_dir
+    env["USER"] = account.pw_name
+    env["LOGNAME"] = account.pw_name
+    # Keep the existing Gaming Mode display selection, using the session UID.
+    if os.path.exists(os.path.join(runtime, "gamescope-0")) and os.path.exists("/tmp/.X11-unix/X1"):
         env["DISPLAY"] = ":1"
     elif not env.get("DISPLAY"):
         raise RuntimeError("No X11 display available for clipboard paste")
     return env
 
 
+def _process_identity(env):
+    if os.geteuid() != 0:
+        return {}
+    account = _session_account(env)
+    return {"user": account.pw_uid, "group": account.pw_gid, "extra_groups": []}
+
+
 def _clip(xclip, env, mode, data=None):
     args = [xclip, "-selection", "clipboard", mode]
     result = subprocess.run(
         args, input=data, capture_output=True, env=env, timeout=3,
-        user="deck" if os.geteuid() == 0 else None,
+        **_process_identity(env),
     )
     if result.returncode != 0:
         raise RuntimeError("X11 clipboard operation failed")
@@ -58,7 +88,7 @@ def _previous_text(xclip, env):
         targets = subprocess.run(
             [xclip, "-selection", "clipboard", "-out", "-target", "TARGETS"],
             capture_output=True, env=env, timeout=3,
-            user="deck" if os.geteuid() == 0 else None,
+            **_process_identity(env),
         )
     except Exception as exc:
         logger.warning(

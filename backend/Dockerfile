@@ -7,9 +7,18 @@ ARG WHISPER_CPP_COMMIT=f24588a272ae8e23280d9c220536437164e6ed28
 # their packages again fails because those files are not tracked by its pacman
 # database, so install only the additional build/runtime dependencies here.
 RUN pacman -Sydd --noconfirm --dbpath /var/lib/pacman \
-        cmake cppdap git libuv portaudio python-pip rhash spirv-headers vulkan-icd-loader xclip \
+        alsa-lib cmake cppdap git libuv python-pip rhash spirv-headers vulkan-icd-loader xclip \
     && cmake --version \
     && glslc --version
+
+# Use ALSA (including the desktop PipeWire ALSA device), without starting
+# JACK clients whose callbacks can crash while Decky replaces the plugin.
+RUN git clone --depth 1 --branch v19.7.0 https://github.com/PortAudio/portaudio.git /portaudio-src \
+    && cmake -S /portaudio-src -B /portaudio-build \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DPA_BUILD_SHARED=ON -DPA_BUILD_STATIC=OFF \
+        -DPA_USE_ALSA=ON -DPA_USE_JACK=OFF -DPA_BUILD_EXAMPLES=OFF -DPA_BUILD_TESTS=OFF \
+    && cmake --build /portaudio-build -j2
 
 COPY src/requirements.txt /tmp/decktation-requirements.txt
 
