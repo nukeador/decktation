@@ -25,14 +25,14 @@ Until Decktation is available in Decky’s official store, install its packaged 
 3. Paste this URL and install Decktation:
 
    ```text
-   https://silverfoxy.github.io/decktation/latest.zip
+   https://silverfoxy.github.io/decktation/Decktation.zip
    ```
 
 Note: Decktation won't receive automatic updates, see updating section for more information.
 
 ### Alternative: Install from a packaged ZIP
 
-Download the [latest packaged Decktation ZIP](https://silverfoxy.github.io/decktation/latest.zip), then choose **Install Plugin from ZIP** in Decky Settings.
+Download the [latest packaged Decktation ZIP](https://silverfoxy.github.io/decktation/Decktation.zip), then choose **Install Plugin from ZIP** in Decky Settings.
 
 > **Do not install GitHub’s automatically generated “Source code (zip)” or “Source code (tar.gz)” archives.** They are not Decktation plugin packages and do not include its bundled dependencies.
 
@@ -52,11 +52,10 @@ Use this option only if you specifically want Decktation listed in Decky and und
 
 ### Updating to a new version
 
-Installing from `latest.zip` does not enable automatic updates. Until Decktation is in the official store, update it manually:
+Installing from `Decktation.zip` does not enable automatic updates. Until Decktation is in the official store, update it manually:
 
-1. Uninstall Decktation through Decky.
-2. Choose **Install Plugin from URL** and paste [`latest.zip`](https://silverfoxy.github.io/decktation/latest.zip), or download it and choose **Install Plugin from ZIP**.
-3. Reopen Decktation.
+1. Choose **Install Plugin from URL** and paste [`Decktation.zip`](https://silverfoxy.github.io/decktation/Decktation.zip), or download it and choose **Install Plugin from ZIP**.
+2. Reopen Decktation.
 
 This replaces the plugin code; do not delete Decktation settings or downloaded Whisper models. See the [full update steps](doc/INSTALLATION.md#updating-decktation-before-it-reaches-the-official-store).
 
