@@ -743,6 +743,8 @@ class Plugin:
     async def _unload(self):
         """Cleanup when plugin unloads"""
         logger.info("Unloading Decktation plugin")
+        if Plugin.voice_service:
+            Plugin.voice_service.begin_shutdown()
         if Plugin.haptic_feedback:
             Plugin.haptic_feedback.set_enabled(False)
         try:
@@ -751,31 +753,55 @@ class Plugin:
             Plugin.stop_ydotoold()
             if Plugin.recording_overlay:
                 Plugin.recording_overlay.stop()
-            if Plugin.voice_service and Plugin.voice_service.is_recording:
-                await asyncio.to_thread(Plugin.voice_service.abort_recording)
-                Plugin._finish_dictation_trace(False)
-            if Plugin.voice_service:
-                await asyncio.to_thread(Plugin.voice_service.unload_model)
         except Exception as e:
             logger.error(f"Error during unload: {traceback.format_exc()}")
             if telemetry:
                 telemetry_capture_error("plugin.unload_failed", e)
+        finally:
+            await self._shutdown_voice_service()
         if telemetry:
             telemetry_flush()
         return
 
     async def _uninstall(self):
         """Remove runtime processes and transient files on uninstall."""
-        if Plugin.haptic_feedback:
-            Plugin.haptic_feedback.set_enabled(False)
-        Plugin.poll_running = False
-        Plugin.stop_controller_listener()
-        Plugin.stop_ydotoold()
         if Plugin.voice_service:
-            await asyncio.to_thread(Plugin.voice_service.abort_recording)
-            await asyncio.to_thread(Plugin.voice_service.unload_model)
-        if Plugin.recording_overlay:
-            Plugin.recording_overlay.stop()
+            Plugin.voice_service.begin_shutdown()
+        try:
+            if Plugin.haptic_feedback:
+                Plugin.haptic_feedback.set_enabled(False)
+            Plugin.poll_running = False
+            Plugin.stop_controller_listener()
+            Plugin.stop_ydotoold()
+            if Plugin.recording_overlay:
+                Plugin.recording_overlay.stop()
+        finally:
+            await self._shutdown_voice_service()
+
+    async def _shutdown_voice_service(self):
+        service = Plugin.voice_service
+        if service is None:
+            return
+        Plugin.voice_service = None
+        service.begin_shutdown()
+        finished = threading.Event()
+
+        def cleanup():
+            try:
+                service.shutdown()
+            except Exception:
+                logger.exception("Voice service shutdown failed")
+            finally:
+                finished.set()
+
+        # A stuck native audio call must not keep Python's executor alive.
+        threading.Thread(target=cleanup, name="decktation-shutdown", daemon=True).start()
+        deadline = time.monotonic() + 3
+        while not finished.is_set() and time.monotonic() < deadline:
+            await asyncio.sleep(0.05)
+        if not finished.is_set():
+            logger.warning("Voice service shutdown exceeded 3 seconds; continuing plugin stop")
+        Plugin._finish_dictation_trace(False)
 
     async def _migration(self):
         """Move settings created by pre-store releases into Decky's settings."""

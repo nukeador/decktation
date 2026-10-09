@@ -34,7 +34,7 @@ fi
 cp /ydotool-build/ydotool /ydotool-build/ydotoold out/
 cp /whisper.cpp/build/bin/whisper-server out/
 cp /usr/bin/xclip out/
-cp -L /usr/lib/libportaudio.so.2 out/lib/libportaudio.so.2
+cp -L /portaudio-build/libportaudio.so out/lib/libportaudio.so.2
 cp /ydotool-src/LICENSE out/licenses/ydotool-AGPL-3.0.txt
 cp /xclip-src/COPYING out/licenses/xclip-GPL-2.0.txt
-cp /usr/share/licenses/portaudio/LICENSE.txt out/licenses/portaudio-MIT.txt
+cp /portaudio-src/LICENSE.txt out/licenses/portaudio-MIT.txt

@@ -109,6 +109,7 @@ class WoWVoiceChat:
 
         # Lazy model loading - only load when needed
         # Guards native model use/teardown; reentrant because nested paths call _load_model.
+        self._closing = threading.Event()
         self.model_lock = threading.RLock()
         self.whisper_model = None
         self.whisper_worker = None
@@ -223,6 +224,8 @@ class WoWVoiceChat:
     def _load_model(self):
         """Load the Whisper model (can be called lazily)"""
         with self.model_lock:
+            if self._closing.is_set():
+                return False
             if self.whisper_worker is not None:
                 return True
             if self.model_loading:
@@ -252,6 +255,8 @@ class WoWVoiceChat:
                 return False
             finally:
                 self.model_loading = False
+                if self._closing.is_set():
+                    self._stop_whisper_worker()
 
     def unload_model(self):
         """Stop the resident Whisper worker and release its model."""
@@ -317,9 +322,14 @@ class WoWVoiceChat:
 
     def _start_whisper_worker(self, whisper_server, model, use_gpu):
         """Start and record a healthy resident GPU or CPU worker."""
+        if self._closing.is_set():
+            raise RuntimeError("Voice service is shutting down")
         worker = ResidentWhisper(
             whisper_server, model, _vulkan_environment(), use_gpu=use_gpu
         )
+        if self._closing.is_set():
+            worker.close()
+            raise RuntimeError("Voice service is shutting down")
         self.whisper_worker = worker
         self.whisper_model = model
         self.inference_device = "gpu" if use_gpu else "cpu"
@@ -699,7 +709,7 @@ class WoWVoiceChat:
 
     def send_to_wow_chat(self, text, channel=None):
         """Paste a transcription into the focused game using the clipboard."""
-        if not text:
+        if not text or self._closing.is_set():
             return
 
         # Parse channel from text if not explicitly provided.
@@ -848,8 +858,10 @@ class WoWVoiceChat:
 
     def start_recording(self):
         """Start recording audio (for push-to-talk)"""
-        ensure_audio_environment(sd, os.environ.get("DECKY_USER_HOME"))
         with self.recording_lock:
+            if self._closing.is_set():
+                return
+            ensure_audio_environment(sd, os.environ.get("DECKY_USER_HOME"))
             if self.is_recording:
                 return
 
@@ -950,12 +962,12 @@ class WoWVoiceChat:
             self.is_recording = False
 
             stream = self.recording_stream
-            self.recording_stream = None
             if stream:
                 try:
-                    stream.stop()
+                    stream.abort()
                 finally:
                     stream.close()
+                self.recording_stream = None
 
             # Drop captured audio promptly so disabling does not start a
             # transcription after the model has been released.
@@ -965,6 +977,28 @@ class WoWVoiceChat:
         if was_recording:
             print("Recording aborted")
         return was_recording
+
+    def begin_shutdown(self):
+        """Reject new work and cancel delayed sends before cleanup starts."""
+        self._closing.set()
+        self.cancel_pending()
+
+    def shutdown(self):
+        """Interrupt inference, close capture, and terminate PortAudio."""
+        self.begin_shutdown()
+        # Closing the process interrupts HTTP inference and frees recording/model
+        # locks held by stop_recording. Shutdown cannot wait behind those locks.
+        self._stop_whisper_worker()
+        try:
+            self.abort_recording()
+        finally:
+            try:
+                # sounddevice's exit hook becomes a no-op after explicit
+                # termination. Never terminate a stream that failed to close.
+                if self.recording_stream is None:
+                    sd._terminate()
+            finally:
+                self.unload_model()
 
     def run_push_to_talk_keyboard(self, ptt_key='`'):
         """Run in push-to-talk mode with keyboard key"""

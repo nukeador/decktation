@@ -103,10 +103,10 @@ class ResidentWhisper:
             if self.process.poll() is None:
                 self.process.terminate()
                 try:
-                    self.process.wait(timeout=5)
+                    self.process.wait(timeout=1)
                 except subprocess.TimeoutExpired:
                     self.process.kill()
-                    self.process.wait(timeout=5)
+                    self.process.wait(timeout=1)
             self.process = None
         self.log_file.close()
         self.directory.cleanup()
