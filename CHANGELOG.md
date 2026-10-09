@@ -7,16 +7,32 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.3.18] - 2026-10-09
+
 ### Added
 
+- Configurable game presets, WoW reply channel, and casual-case formatting.
+- Controller haptics and a Gamescope recording indicator.
+- Refreshed QAM settings and public branch build downloads.
 - Persistent transcription review with tap-to-send and hold-to-cancel using the
   configured recording binding, plus full-text review and Send/Cancel in QAM.
   Review works independently of recording cues. Existing Confirm settings retain
   countdown behavior; opening QAM pauses the countdown for explicit review.
 - An offline interactive review preview generated from the actual overlay renderer.
 
+### Changed
+
+- Switched local transcription to whisper.cpp with Vulkan acceleration and a
+  resident model worker for faster repeated dictation.
+- Use clipboard paste for Unicode text injection.
+
 ### Fixed
 
+- Clean up audio capture and inference workers during plugin shutdown.
+- Support clipboard execution for non-Deck session users.
+- Restore enable-transition handling and release model memory when disabled.
+- Support WoW Classic Era specialization and zone API differences.
+- Match branch download filenames to the Decky plugin identity.
 - Confirm controller taps using the native Gamescope focus report when frontend
   menu state is unavailable or stale. Blocked confirmations now explain the
   reason in the overlay and diagnostics; renderer acknowledgments are atomic.
@@ -238,7 +254,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 - Initial packaged release of Decktation for Decky Loader.
 
-[Unreleased]: https://github.com/silverfoxy/decktation/compare/v0.3.8...HEAD
+[Unreleased]: https://github.com/silverfoxy/decktation/compare/v0.3.18...HEAD
+[0.3.18]: https://github.com/silverfoxy/decktation/compare/v0.3.17...v0.3.18
 [0.3.8]: https://github.com/silverfoxy/decktation/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/silverfoxy/decktation/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/silverfoxy/decktation/compare/v0.3.4...v0.3.6
