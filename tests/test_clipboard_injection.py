@@ -181,3 +181,49 @@ def test_failure_to_write_new_payload_is_an_injection_error(monkeypatch):
         with temporary_clipboard("dictated", "/plugin"):
             entered = True
     assert entered is False
+
+
+@pytest.mark.parametrize("name,uid", [("bazzite", 1001), ("deck", 1000), ("alice", 1042)])
+def test_root_clipboard_uses_session_account(monkeypatch, name, uid):
+    from types import SimpleNamespace
+    import clipboard_injection as clipboard
+    account = SimpleNamespace(pw_uid=uid, pw_gid=uid + 10, pw_name=name, pw_dir="/home/" + name)
+    monkeypatch.setattr(clipboard.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(clipboard.os, "stat", lambda path: SimpleNamespace(st_uid=uid))
+    monkeypatch.setattr(clipboard.pwd, "getpwuid", lambda value: account if value == uid else None)
+    monkeypatch.setattr(clipboard.os, "environ", {"XDG_RUNTIME_DIR": f"/run/user/{uid}"})
+    monkeypatch.setattr(clipboard.os.path, "exists", lambda path: path in (f"/run/user/{uid}/gamescope-0", "/tmp/.X11-unix/X1"))
+    env = clipboard._clipboard_env()
+    assert env["DISPLAY"] == ":1" and env["HOME"] == account.pw_dir
+    result = SimpleNamespace(returncode=0, stdout=TEXT_TARGETS)
+    with patch.object(clipboard.subprocess, "run", return_value=result) as run:
+        clipboard._previous_text("xclip", env)
+        clipboard._clip("xclip", env, "-in", b"hello")
+    for call in run.call_args_list:
+        assert call.kwargs["user"] == uid
+        assert call.kwargs["group"] == account.pw_gid
+        assert call.kwargs["extra_groups"] == []
+
+
+def test_root_session_falls_back_to_decky_home(monkeypatch):
+    from types import SimpleNamespace
+    import clipboard_injection as clipboard
+    monkeypatch.setattr(clipboard.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(clipboard.os, "stat", lambda path: SimpleNamespace(st_uid=0 if path == "/run/user/0" else 1002))
+    monkeypatch.setattr(clipboard.pwd, "getpwuid", lambda uid: SimpleNamespace(pw_uid=uid))
+    assert clipboard._session_account({"XDG_RUNTIME_DIR": "/run/user/0", "DECKY_USER_HOME": "/home/bazzite"}).pw_uid == 1002
+
+
+def test_unknown_session_fails_before_launching_clipboard(monkeypatch):
+    import clipboard_injection as clipboard
+    monkeypatch.setattr(clipboard.os, "geteuid", lambda: 0)
+    with patch.object(clipboard.subprocess, "run") as run:
+        with pytest.raises(RuntimeError, match="desktop user"):
+            clipboard._clip("xclip", {}, "-in", b"hello")
+    run.assert_not_called()
+
+
+def test_non_root_clipboard_keeps_current_identity(monkeypatch):
+    import clipboard_injection as clipboard
+    monkeypatch.setattr(clipboard.os, "geteuid", lambda: 1002)
+    assert clipboard._process_identity({}) == {}

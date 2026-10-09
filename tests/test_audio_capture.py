@@ -77,8 +77,53 @@ def test_abort_recording_discards_audio_and_cancels_pending_send():
 
     assert voice.is_recording is False
     assert voice.recording_stream is None
-    stream.stop.assert_called_once()
+    stream.abort.assert_called_once()
     stream.close.assert_called_once()
     assert voice.audio_queue.empty()
     assert voice.pending_text is None
     timer.cancel.assert_called_once()
+
+
+def test_shutdown_closes_capture_before_terminating_portaudio(monkeypatch):
+    voice = service()
+    events = []
+    stream = MagicMock()
+    stream.abort.side_effect = lambda: events.append("abort")
+    stream.close.side_effect = lambda: events.append("close")
+    voice.recording_stream = stream
+    voice.is_recording = True
+    monkeypatch.setattr(wow_voice_chat.sd, "_terminate", lambda: events.append("terminate"))
+    voice.shutdown()
+    voice.start_recording()
+    assert events == ["abort", "close", "terminate"]
+    assert not voice.is_recording
+
+
+def test_shutdown_does_not_terminate_portaudio_when_stream_close_fails():
+    voice = service()
+    voice.recording_stream = MagicMock()
+    voice.recording_stream.close.side_effect = RuntimeError("close failed")
+    with pytest.raises(RuntimeError, match="close failed"):
+        voice.shutdown()
+    wow_voice_chat.sd._terminate.assert_not_called()
+
+
+def test_shutdown_prevents_model_load_and_text_injection():
+    voice = service()
+    voice.begin_shutdown()
+    assert voice._load_model() is False
+    voice.send_to_wow_chat("do not send")
+    assert voice.pending_text is None
+
+
+def test_shutdown_interrupts_inference_before_waiting_for_capture(monkeypatch):
+    voice = service()
+    worker = MagicMock()
+    voice.whisper_worker = worker
+    events = []
+    worker.close.side_effect = lambda: events.append("worker")
+    monkeypatch.setattr(voice, "abort_recording", lambda: events.append("capture"))
+    monkeypatch.setattr(wow_voice_chat.sd, "_terminate", lambda: events.append("audio"))
+    voice.shutdown()
+    assert events == ["worker", "capture", "audio"]
+    assert voice.whisper_worker is None

@@ -2,7 +2,7 @@ import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 import pytest
 import resident_whisper
 
@@ -56,3 +56,4 @@ def test_timeout_kills_worker(tmp_path):
     worker.close()
     process.terminate.assert_called_once(); process.kill.assert_called_once()
     assert worker.process is None
+    assert process.wait.call_args_list == [call(timeout=1)] * 2

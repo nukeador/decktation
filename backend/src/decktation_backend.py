@@ -36,6 +36,7 @@ for dependency_path in dependency_paths:
 from audio_runtime import ensure_audio_environment, setup_audio_environment
 from haptic_feedback import HapticFeedback
 from recording_overlay_manager import RecordingOverlay
+from review_gesture import ReviewGesture
 
 # Decky plugins run outside the desktop user's login environment.  Configure
 # the PipeWire runtime before sounddevice is imported by wow_voice_chat.
@@ -154,6 +155,7 @@ DEFAULT_BUTTON_CONFIG = {
     "enabled": False,
     "game": "wow",
     "confirmMode": False,
+    "sendingMode": "immediate",
     "manualSend": False,
     "rememberLastChannel": False,
     "lastChannel": None,
@@ -217,6 +219,11 @@ def _read_button_config():
         config["recordingIndicator"] = (
             "toast" if config.get("showNotifications", True) else "none"
         )
+
+    if "sendingMode" not in saved_config:
+        config["sendingMode"] = "countdown" if config.get("confirmMode") else "immediate"
+    if config.get("sendingMode") not in {"immediate", "countdown", "review"}:
+        config["sendingMode"] = "immediate"
 
     config["transcriptionLanguage"] = _normalize_transcription_language(
         config.get("transcriptionLanguage")
@@ -331,6 +338,62 @@ class Plugin:
     dictation_transaction = None
     haptic_feedback = None
     recording_overlay = None
+    review_qam_visible = False
+    review_context_known = False
+    review_context_time = 0
+    review_closed_at = 0
+    review_armed_id = None
+
+    @staticmethod
+    def _pending_changed(draft):
+        if not Plugin.recording_overlay:
+            return
+        if draft and draft.get("mode") == "result":
+            Plugin.review_armed_id = None
+            Plugin.recording_overlay.show_result(draft["message"])
+        elif draft:
+            config = _read_button_config()
+            Plugin.recording_overlay.show_preview(draft, "+".join(config["buttons"]))
+        else:
+            Plugin.review_armed_id = None
+            Plugin.recording_overlay.hide()
+
+    @staticmethod
+    def _hide_unless_pending():
+        if Plugin.recording_overlay and not (
+            Plugin.voice_service and Plugin.voice_service.pending_snapshot()
+        ):
+            Plugin.recording_overlay.hide()
+
+    @staticmethod
+    def _review_block_reason(draft, overlay_status=None):
+        if not draft:
+            return ""
+        if draft.get("sending"):
+            return "Typing transcription…"
+        if draft.get("error"):
+            return "Open Decktation to retry typing"
+        status = overlay_status
+        if status is None:
+            status = Plugin.recording_overlay.preview_status(draft["id"]) if Plugin.recording_overlay else {}
+        if not status.get("visible"):
+            return "Open Decktation to review and send"
+        if not status.get("ready"):
+            return "Open Decktation to review all"
+        focused_app = status.get("focus_app")
+        # Gamescope publishes the input-focus app (Steam UI uses app ID 769).
+        # Prefer this native observation over hidden Steam browser state.
+        if isinstance(focused_app, int):
+            return "Close Steam menus and return to your game" if focused_app in (0, 769) else ""
+        if not Plugin.review_context_known:
+            return "Open Decktation to confirm sending"
+        if Plugin.review_qam_visible or time.monotonic() - Plugin.review_closed_at < 0.5:
+            return "Close Steam menus and return to your game"
+        return ""
+
+    @staticmethod
+    def _review_ready(draft):
+        return bool(draft) and not Plugin._review_block_reason(draft)
 
     @staticmethod
     def _set_controller_enabled(enabled):
@@ -537,10 +600,13 @@ class Plugin:
         last_state = False
         last_recording_state = False
         health_check_counter = 0
+        gesture = ReviewGesture()
 
         while Plugin.poll_running:
             try:
                 if not Plugin.controller_enabled:
+                    last_state = False
+                    gesture.suppress_until_release(True)
                     time.sleep(0.1)
                     continue
 
@@ -548,8 +614,26 @@ class Plugin:
                     with open(STATE_FILE, 'r') as f:
                         state = f.read().strip() == "1"
 
-                    # Detect state change
-                    if state and not last_state:
+                    draft = Plugin.voice_service.pending_snapshot() if Plugin.voice_service else None
+                    block_reason = Plugin._review_block_reason(draft) if draft else ""
+                    handled, action, progress = gesture.update(
+                        state, draft, not block_reason if draft else False,
+                        time.monotonic(),
+                    )
+                    if draft and state != last_state:
+                        logger.info("Review binding %s: ready=%s reason=%s action=%s",
+                                    "pressed" if state else "released", not block_reason,
+                                    block_reason or "none", action or "none")
+                    if draft and Plugin.recording_overlay:
+                        Plugin.recording_overlay.set_send_block_reason(block_reason)
+                        Plugin.recording_overlay.set_cancel_progress(progress)
+                    if action and draft:
+                        if action == "cancel":
+                            Plugin.voice_service.cancel_pending(draft["id"], feedback=True)
+                        else:
+                            Plugin.voice_service.confirm_pending(draft["id"])
+                    # Review presses are consumed, including release after cancellation.
+                    if state and not last_state and not handled:
                         with Plugin.controller_lock:
                             if Plugin.controller_enabled:
                                 # Button pressed - cancel pending send if one is waiting
@@ -565,7 +649,7 @@ class Plugin:
                                     try:
                                         Plugin.voice_service.start_recording()
                                         Plugin.recording_start_count += 1
-                                        if Plugin.recording_overlay:
+                                        if Plugin.recording_overlay and _read_button_config()["recordingIndicator"] == "overlay":
                                             Plugin.recording_overlay.show("compact")
                                     except Exception as e:
                                         if Plugin.haptic_feedback:
@@ -579,11 +663,11 @@ class Plugin:
                                                 controller_type=Plugin._controller_type(),
                                             )
                                         raise
-                    elif not state and last_state:
+                    elif not state and last_state and not handled:
                         # Button released
                         logger.info("Button combo released - stopping recording")
                         if Plugin.voice_service and Plugin.voice_service.is_recording:
-                            if Plugin.recording_overlay:
+                            if Plugin.recording_overlay and _read_button_config()["recordingIndicator"] == "overlay":
                                 Plugin.recording_overlay.show("transcribing")
                             try:
                                 Plugin.voice_service.stop_recording()
@@ -600,8 +684,14 @@ class Plugin:
                             else:
                                 Plugin._finish_dictation_trace(True)
                             finally:
-                                if Plugin.recording_overlay:
-                                    Plugin.recording_overlay.hide()
+                                Plugin._hide_unless_pending()
+                                # Transcription blocks this poller. A binding already
+                                # held when text appears must be released before acting.
+                                try:
+                                    state = Path(STATE_FILE).read_text().strip() == "1"
+                                except OSError:
+                                    state = False
+                                gesture.suppress_until_release(state)
 
                     last_state = state
 
@@ -661,14 +751,14 @@ class Plugin:
                 plugin_path,
                 logger,
                 decky_user_home=getattr(decky, "DECKY_USER_HOME", None),
-                enabled=saved_config.get("recordingIndicator") == "overlay",
+                enabled=(saved_config.get("recordingIndicator") == "overlay" or saved_config.get("sendingMode") != "immediate"),
             )
             active_game = saved_config.get("game", "wow")
             active_preset = _game_presets.get(active_game, _game_presets.get("wow", {}))
             Plugin.active_preset = active_game
             logger.info(f"Active game preset: {active_game}")
 
-            confirm_mode = saved_config.get("confirmMode", False)
+            confirm_mode = saved_config.get("sendingMode") == "countdown"
             manual_send = saved_config.get("manualSend", False)
             remember_last_channel = saved_config.get("rememberLastChannel", False)
             last_channel = saved_config.get("lastChannel")
@@ -688,6 +778,8 @@ class Plugin:
                 test_audio_file=None,
                 preset=active_preset,
                 confirm_delay=2.0 if confirm_mode else 0,
+                review_mode=saved_config.get("sendingMode") == "review",
+                pending_callback=Plugin._pending_changed,
                 manual_send=manual_send,
                 remember_last_channel=remember_last_channel,
                 last_channel=last_channel,
@@ -743,6 +835,8 @@ class Plugin:
     async def _unload(self):
         """Cleanup when plugin unloads"""
         logger.info("Unloading Decktation plugin")
+        if Plugin.voice_service:
+            Plugin.voice_service.begin_shutdown()
         if Plugin.haptic_feedback:
             Plugin.haptic_feedback.set_enabled(False)
         try:
@@ -751,31 +845,55 @@ class Plugin:
             Plugin.stop_ydotoold()
             if Plugin.recording_overlay:
                 Plugin.recording_overlay.stop()
-            if Plugin.voice_service and Plugin.voice_service.is_recording:
-                await asyncio.to_thread(Plugin.voice_service.abort_recording)
-                Plugin._finish_dictation_trace(False)
-            if Plugin.voice_service:
-                await asyncio.to_thread(Plugin.voice_service.unload_model)
         except Exception as e:
             logger.error(f"Error during unload: {traceback.format_exc()}")
             if telemetry:
                 telemetry_capture_error("plugin.unload_failed", e)
+        finally:
+            await self._shutdown_voice_service()
         if telemetry:
             telemetry_flush()
         return
 
     async def _uninstall(self):
         """Remove runtime processes and transient files on uninstall."""
-        if Plugin.haptic_feedback:
-            Plugin.haptic_feedback.set_enabled(False)
-        Plugin.poll_running = False
-        Plugin.stop_controller_listener()
-        Plugin.stop_ydotoold()
         if Plugin.voice_service:
-            await asyncio.to_thread(Plugin.voice_service.abort_recording)
-            await asyncio.to_thread(Plugin.voice_service.unload_model)
-        if Plugin.recording_overlay:
-            Plugin.recording_overlay.stop()
+            Plugin.voice_service.begin_shutdown()
+        try:
+            if Plugin.haptic_feedback:
+                Plugin.haptic_feedback.set_enabled(False)
+            Plugin.poll_running = False
+            Plugin.stop_controller_listener()
+            Plugin.stop_ydotoold()
+            if Plugin.recording_overlay:
+                Plugin.recording_overlay.stop()
+        finally:
+            await self._shutdown_voice_service()
+
+    async def _shutdown_voice_service(self):
+        service = Plugin.voice_service
+        if service is None:
+            return
+        Plugin.voice_service = None
+        service.begin_shutdown()
+        finished = threading.Event()
+
+        def cleanup():
+            try:
+                service.shutdown()
+            except Exception:
+                logger.exception("Voice service shutdown failed")
+            finally:
+                finished.set()
+
+        # A stuck native audio call must not keep Python's executor alive.
+        threading.Thread(target=cleanup, name="decktation-shutdown", daemon=True).start()
+        deadline = time.monotonic() + 3
+        while not finished.is_set() and time.monotonic() < deadline:
+            await asyncio.sleep(0.05)
+        if not finished.is_set():
+            logger.warning("Voice service shutdown exceeded 3 seconds; continuing plugin stop")
+        Plugin._finish_dictation_trace(False)
 
     async def _migration(self):
         """Move settings created by pre-store releases into Decky's settings."""
@@ -882,6 +1000,9 @@ class Plugin:
             combo_str = "+".join(unique_buttons)
             logger.info(f"Button config updated: {combo_str}")
 
+            if Plugin.voice_service:
+                Plugin.voice_service.cancel_pending()
+
             # Always restart controller listener so new config takes effect immediately
             Plugin.stop_controller_listener()
             Plugin.start_controller_listener()
@@ -899,7 +1020,7 @@ class Plugin:
             config["recordingIndicator"] = mode
             _write_button_config(config)
             if Plugin.recording_overlay:
-                Plugin.recording_overlay.set_enabled(mode == "overlay")
+                Plugin.recording_overlay.set_enabled(mode == "overlay" or config.get("sendingMode") != "immediate")
             logger.info(f"Recording indicator set to {mode}")
             return {"success": True, "mode": mode}
         except Exception as e:
@@ -907,25 +1028,74 @@ class Plugin:
             return {"success": False, "error": str(e)}
 
     async def set_confirm_mode(self, enabled: bool):
-        """Enable or disable the confirm-before-sending delay"""
+        """Compatibility RPC for older frontends."""
+        return await self.set_sending_mode("countdown" if enabled else "immediate")
+
+    async def set_sending_mode(self, mode: str):
         try:
+            if mode not in {"immediate", "countdown", "review"}:
+                raise ValueError("Unsupported sending mode")
             config = _read_button_config()
-            config["confirmMode"] = enabled
-            _write_button_config(config)
-
+            config["sendingMode"] = mode
+            config["confirmMode"] = mode == "countdown"
             if Plugin.voice_service:
-                Plugin.voice_service.confirm_delay = 2.0 if enabled else 0
-
-            logger.info(f"Confirm mode {'enabled' if enabled else 'disabled'}")
+                Plugin.voice_service.cancel_pending()
+                Plugin.voice_service.review_mode = mode == "review"
+                Plugin.voice_service.confirm_delay = 2.0 if mode == "countdown" else 0
+            _write_button_config(config)
+            if Plugin.recording_overlay:
+                Plugin.recording_overlay.set_enabled(config["recordingIndicator"] == "overlay" or mode != "immediate")
             return {"success": True}
         except Exception as e:
-            logger.error(f"Error setting confirm mode: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
+
+    async def cancel_draft(self, draft_id: str):
+        success = bool(Plugin.voice_service and Plugin.voice_service.cancel_pending(draft_id, feedback=True))
+        return {"success": success, "error": "Draft is no longer available" if not success else None}
+
+    async def arm_draft(self, draft_id: str):
+        """Panel approval is completed only after the frontend observes QAM closed."""
+        service = Plugin.voice_service
+        if service is None:
+            return {"success": False, "error": "Service unavailable"}
+        with service._pending_lock:
+            draft = service.pending_draft
+            if not draft or draft["id"] != draft_id or draft["sending"]:
+                return {"success": False, "error": "Draft is no longer available"}
+            if not Plugin.review_context_known or not Plugin.review_qam_visible or time.monotonic() - Plugin.review_context_time > 2:
+                return {"success": False, "error": "Open Decktation to review this draft"}
+            Plugin.review_armed_id = draft_id
+            if service._pending_timer:
+                service._pending_timer.cancel()
+                service._pending_timer = None
+            draft["deadline"] = None
+        return {"success": True}
+
+    async def set_review_context(self, qam_visible: bool, known: bool = True):
+        if Plugin.review_qam_visible and not qam_visible:
+            Plugin.review_closed_at = time.monotonic()
+        Plugin.review_qam_visible = bool(qam_visible) if known else False
+        Plugin.review_context_known = bool(known)
+        Plugin.review_context_time = time.monotonic()
+        if known and qam_visible and Plugin.voice_service:
+            Plugin.voice_service.pause_countdown()
+        return {"success": True}
+
+    async def send_armed_draft(self, draft_id: str):
+        if (Plugin.review_armed_id != draft_id or not Plugin.review_context_known or Plugin.review_qam_visible or
+                time.monotonic() - Plugin.review_context_time > 2 or
+                time.monotonic() - Plugin.review_closed_at < 0.5):
+            return {"success": False, "error": "Close the Quick Access Menu before sending"}
+        Plugin.review_armed_id = None
+        success = await asyncio.to_thread(Plugin.voice_service.confirm_pending, draft_id)
+        return {"success": success, "error": "Typing failed; review the draft before retrying" if not success else None}
 
     async def set_manual_send(self, enabled: bool):
         """Enable or disable manual send mode (skip final Enter press)"""
         try:
             config = _read_button_config()
+            if Plugin.voice_service:
+                Plugin.voice_service.cancel_pending()
             config["manualSend"] = enabled
             _write_button_config(config)
 
@@ -1091,7 +1261,7 @@ class Plugin:
                 Plugin._start_dictation_trace()
                 try:
                     Plugin.voice_service.start_recording()
-                    if Plugin.recording_overlay:
+                    if Plugin.recording_overlay and _read_button_config()["recordingIndicator"] == "overlay":
                         Plugin.recording_overlay.show("compact")
                 except Exception as e:
                     if Plugin.haptic_feedback:
@@ -1121,7 +1291,7 @@ class Plugin:
             # Stream shutdown happens promptly in the worker, while Decky's
             # event loop remains available for status/UI requests during
             # transcription.
-            if Plugin.recording_overlay and Plugin.voice_service.is_recording:
+            if Plugin.recording_overlay and Plugin.voice_service.is_recording and _read_button_config()["recordingIndicator"] == "overlay":
                 Plugin.recording_overlay.show("transcribing")
             try:
                 await asyncio.to_thread(Plugin.voice_service.stop_recording, send)
@@ -1138,8 +1308,7 @@ class Plugin:
             else:
                 Plugin._finish_dictation_trace(True)
             finally:
-                if Plugin.recording_overlay:
-                    Plugin.recording_overlay.hide()
+                Plugin._hide_unless_pending()
             return {"success": True}
         except Exception as e:
             logger.error(f"Error stopping recording: {traceback.format_exc()}")
@@ -1200,8 +1369,18 @@ class Plugin:
                                  'Receiving input')
             combo_supported = any(source.get('combo_supported') for source in receiving_sources)
 
+            draft = Plugin.voice_service.pending_snapshot() if Plugin.voice_service else None
+            if not isinstance(draft, dict):
+                draft = None
+            overlay_status = Plugin.recording_overlay.preview_status(draft["id"]) if Plugin.recording_overlay and draft else {}
             return {
                 "success": True,
+                "pending_draft": draft,
+                "preview_overlay": overlay_status,
+                "review_block_reason": Plugin._review_block_reason(draft, overlay_status),
+                "review_menu_known": Plugin.review_context_known,
+                "review_menu_open": Plugin.review_qam_visible,
+                "manual_send": Plugin.voice_service.manual_send if Plugin.voice_service else False,
                 "service_ready": Plugin.voice_service is not None,
                 "model_ready": model_ready,
                 "inference_device": (
@@ -1216,7 +1395,7 @@ class Plugin:
                 "controller_status": controller_status,
                 "controller_combo_supported": combo_supported,
                 "pending_text": Plugin.voice_service.pending_text or "" if Plugin.voice_service else "",
-                "pending_delay": Plugin.voice_service._confirm_delay_for(Plugin.voice_service.pending_text) if Plugin.voice_service and Plugin.voice_service.pending_text else 0,
+                "pending_delay": max(0, draft["deadline"] - time.time()) if draft and draft.get("deadline") else 0,
                 "confirm_mode": Plugin.voice_service.confirm_delay > 0 if Plugin.voice_service else False,
                 "input_ready": Plugin.ydotoold_ready,
             }
