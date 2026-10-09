@@ -7,7 +7,24 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- Persistent transcription review with tap-to-send and hold-to-cancel using the
+  configured recording binding, plus full-text review and Send/Cancel in QAM.
+  Review works independently of recording cues. Existing Confirm settings retain
+  countdown behavior; opening QAM pauses the countdown for explicit review.
+- An offline interactive review preview generated from the actual overlay renderer.
+
 ### Fixed
+
+- Confirm controller taps using the native Gamescope focus report when frontend
+  menu state is unavailable or stale. Blocked confirmations now explain the
+  reason in the overlay and diagnostics; renderer acknowledgments are atomic.
+
+- Detect QAM from its actual visible surface so a missing navigation tree cannot
+  silently replace countdown with review or disable tap confirmation. Controller
+  confirmation no longer expires with a throttled frontend heartbeat.
+- Clarify that Enter is pressed in the game after manual-send text is typed.
 
 - Read Steam Controller (2026) Puck input directly, including all four grips,
   instead of depending on Steam's virtual gamepad emitting events in Gaming Mode.
