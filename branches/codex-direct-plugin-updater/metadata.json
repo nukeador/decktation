@@ -1,0 +1,8 @@
+{
+  "plugin": "Decktation",
+  "channel": "branch",
+  "ref": "codex/direct-plugin-updater",
+  "commit": "088b60f1e55d9defcefa4d7cf5a1257f66e7ae98",
+  "zip_url": "https://nukeador.github.io/decktation/branches/codex-direct-plugin-updater/Decktation.zip",
+  "generated_at": "2026-10-10T19:55:49Z"
+}
