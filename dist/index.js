@@ -45,7 +45,7 @@
         }
     }
 
-    var version = "0.3.18";
+    var version = "0.3.19";
 
     // Read the actual QAM surface. Document visibility alone does not establish
     // whether a persistent Steam sidebar is on screen.
@@ -89,7 +89,7 @@
         return foundMenu ? false : null;
     }
 
-    var _manifest = {"name":"Decktation","version":"0.3.18","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.19","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -502,6 +502,7 @@
         const [presets, setPresets] = React.useState([]);
         const [sendingMode, setSendingMode] = React.useState("immediate");
         const [pendingDraft, setPendingDraft] = React.useState(null);
+        const microphoneHelpRef = React.useRef(null);
         const reviewTextRef = React.useRef(null);
         const [draftBusy, setDraftBusy] = React.useState(false);
         const [qamVisible, setQamVisible] = React.useState(false);
@@ -759,6 +760,12 @@
             resetScroll();
             const frame = requestAnimationFrame(() => {
                 resetScroll();
+                if (page === "microphone-help") {
+                    if (microphoneHelpRef.current) {
+                        microphoneHelpRef.current.scrollTop = 0;
+                        microphoneHelpRef.current.focus();
+                    }
+                }
                 if (page === "advanced" || page === "updates") {
                     (page === "updates" ? updateActionRowRef.current : advancedModelRowRef.current)?.querySelector('[role="button"], button')?.focus();
                 }
@@ -783,7 +790,14 @@
             node.scrollTop += direction * 96;
             return true;
         };
-        const goBack = () => setPage(page === "updates" || page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
+        const scrollMicrophoneHelp = (direction) => {
+            const node = microphoneHelpRef.current;
+            if (!node || (direction < 0 ? node.scrollTop <= 0 : node.scrollTop + node.clientHeight >= node.scrollHeight - 1))
+                return false;
+            node.scrollTop += direction * 96;
+            return true;
+        };
+        const goBack = () => setPage(page === "microphone-help" ? "diagnostics" : page === "updates" || page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
         const chooseLanguage = async (language) => {
             const result = await setTranscriptionOptionsRpc(language);
             if (result.success) {
@@ -1090,7 +1104,47 @@
                         React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("diagnostics") }, "Diagnostics")),
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                         React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("help") }, "Help & permissions"))),
+                page === "microphone-help" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Microphone troubleshooting" },
+                    React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement(deckyFrontendLib.Focusable, { ref: microphoneHelpRef, tabIndex: 0, "aria-label": "Microphone guide. Use Up and Down to scroll.", style: { maxHeight: '300px', overflowY: 'auto', overflowWrap: 'anywhere', fontSize: '15px', lineHeight: '1.5', padding: '8px' }, onGamepadDirection: (event) => {
+                                const direction = event.detail.button === deckyFrontendLib.GamepadButton.DIR_UP ? -1 : event.detail.button === deckyFrontendLib.GamepadButton.DIR_DOWN ? 1 : 0;
+                                if (direction && scrollMicrophoneHelp(direction)) {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                }
+                            }, onKeyDown: (event) => {
+                                const direction = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+                                if (direction && scrollMicrophoneHelp(direction)) {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                }
+                            } },
+                            React__default["default"].createElement("p", null,
+                                React__default["default"].createElement("strong", null, "Start with a dictation test")),
+                            React__default["default"].createElement("p", null, "Enable Decktation, wait for Ready, then run Test Dictation (3s) on the main page. Speak clearly. The result stays in the panel and is not typed into your game."),
+                            React__default["default"].createElement("p", null, "Check that your built-in microphone or headset works in another app. If Steam sounds clear but dictation fails, check the system default recording device."),
+                            React__default["default"].createElement("p", null,
+                                React__default["default"].createElement("strong", null, "If audio crackles, pops, or cuts out")),
+                            React__default["default"].createElement("p", null, "A Steam Deck LCD user reported improvement after disabling Steam voice processing. This is a community workaround, not a guaranteed fix. Its effect on Decktation\u2019s audio input has not been established."),
+                            React__default["default"].createElement("ol", { style: { paddingLeft: '24px' } },
+                                React__default["default"].createElement("li", null, "Open Steam \u2192 Power \u2192 Switch to Desktop."),
+                                React__default["default"].createElement("li", null, "In Steam, open Friends & Chat \u2192 gear icon \u2192 Voice. Some versions also have Steam \u2192 Settings \u2192 Voice."),
+                                React__default["default"].createElement("li", null, "Select your Voice Input Device. Run Start Microphone Test, speak, listen for crackling or missing words, then stop the test."),
+                                React__default["default"].createElement("li", null, "Note your current settings. Under Show Advanced Settings, try turning off Noise Cancellation, Echo Cancellation and Automatic Volume/Gain Control."),
+                                React__default["default"].createElement("li", null, "Repeat the microphone test. If it improves, re-enable the options one at a time to identify which setting helps."),
+                                React__default["default"].createElement("li", null, "Return to Gaming Mode and repeat Decktation\u2019s three-second dictation test before trying it in a game.")),
+                            React__default["default"].createElement("p", null, "Restore your previous settings if this does not help. Disabling processing can increase background noise or speaker echo and affect Steam voice chat."),
+                            React__default["default"].createElement("p", null,
+                                React__default["default"].createElement("strong", null, "If the problem persists")),
+                            React__default["default"].createElement("p", null, "Include your Deck model (LCD or OLED), SteamOS and Steam client versions, microphone or headset, and whether any improvement survives Gaming Mode and a reboot when reporting the problem. Check the latest plugin log for errors."))),
+                    React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => deckyFrontendLib.Router.NavigateToExternalWeb("https://github.com/silverfoxy/decktation/blob/master/doc/TROUBLESHOOTING.md#microphone-crackles-pops-or-cuts-out") }, "Open full guide online"))),
                 page === "diagnostics" && React__default["default"].createElement(React__default["default"].Fragment, null,
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Microphone help" },
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement("div", null, "Voice not recognized, missing words, or crackling audio? Read the microphone guide here.")),
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("microphone-help") }, "Having problems with your microphone?"))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Input and service" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
@@ -1124,7 +1178,7 @@
                             React__default["default"].createElement("div", { role: "alert" }, statusError || rpcError))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Diagnostics sharing" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Share", description: "Optional scrubbed diagnostics sent to Sentry", checked: shareDiagnostics, onChange: async (next) => {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Share", description: "Sends scrubbed errors, usage counts, and performance metrics to Sentry, including inference backend and coarse device/OS details. Audio and transcripts stay local.", checked: shareDiagnostics, onChange: async (next) => {
                                     setShareDiagnostics(next);
                                     const result = await setShareDiagnosticsRpc(next);
                                     if (!result.success) {

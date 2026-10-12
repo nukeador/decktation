@@ -323,7 +323,7 @@ const PRESET_DISPLAY_NAMES: Record<string, string> = {
 	generic: "Generic",
 };
 
-type PanelPage = "main" | "advanced" | "updates" | "diagnostics" | "help" | "game" | "model" | "binding-button";
+type PanelPage = "main" | "advanced" | "updates" | "diagnostics" | "microphone-help" | "help" | "game" | "model" | "binding-button";
 
 const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [page, setPage] = useState<PanelPage>("main");
@@ -351,6 +351,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [presets, setPresets] = useState<DropdownOption[]>([]);
 	const [sendingMode, setSendingMode] = useState<string>("immediate");
 	const [pendingDraft, setPendingDraft] = useState<PendingDraft | null>(null);
+	const microphoneHelpRef = useRef<HTMLDivElement>(null);
 	const reviewTextRef = useRef<HTMLDivElement>(null);
 	const [draftBusy, setDraftBusy] = useState<boolean>(false);
 	const [qamVisible, setQamVisible] = useState<boolean>(false);
@@ -591,6 +592,9 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 		resetScroll();
 		const frame = requestAnimationFrame(() => {
 			resetScroll();
+			if (page === "microphone-help") {
+				if (microphoneHelpRef.current) { microphoneHelpRef.current.scrollTop = 0; microphoneHelpRef.current.focus(); }
+			}
 			if (page === "advanced" || page === "updates") {
 				((page === "updates" ? updateActionRowRef.current : advancedModelRowRef.current)?.querySelector('[role="button"], button') as HTMLElement | null)?.focus();
 			}
@@ -615,7 +619,13 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 		node.scrollTop += direction * 96;
 		return true;
 	};
-	const goBack = () => setPage(page === "updates" || page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
+	const scrollMicrophoneHelp = (direction: number) => {
+		const node = microphoneHelpRef.current;
+		if (!node || (direction < 0 ? node.scrollTop <= 0 : node.scrollTop + node.clientHeight >= node.scrollHeight - 1)) return false;
+		node.scrollTop += direction * 96;
+		return true;
+	};
+	const goBack = () => setPage(page === "microphone-help" ? "diagnostics" : page === "updates" || page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
 	const chooseLanguage = async (language: string) => {
 		const result = await setTranscriptionOptionsRpc(language);
 		if (result.success) {
@@ -868,7 +878,40 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("diagnostics")}>Diagnostics</ButtonItem></PanelSectionRow>
 					<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("help")}>Help & permissions</ButtonItem></PanelSectionRow>
 				</>}
+				{page === "microphone-help" && <PanelSection title="Microphone troubleshooting">
+					<PanelSectionRow><Focusable ref={microphoneHelpRef} tabIndex={0} aria-label="Microphone guide. Use Up and Down to scroll." style={{ maxHeight: '300px', overflowY: 'auto', overflowWrap: 'anywhere', fontSize: '15px', lineHeight: '1.5', padding: '8px' }} onGamepadDirection={(event) => {
+						const direction = event.detail.button === GamepadButton.DIR_UP ? -1 : event.detail.button === GamepadButton.DIR_DOWN ? 1 : 0;
+						if (direction && scrollMicrophoneHelp(direction)) { event.preventDefault(); event.stopPropagation(); }
+					}} onKeyDown={(event) => {
+						const direction = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+						if (direction && scrollMicrophoneHelp(direction)) { event.preventDefault(); event.stopPropagation(); }
+					}}>
+						<p><strong>Start with a dictation test</strong></p>
+						<p>Enable Decktation, wait for Ready, then run Test Dictation (3s) on the main page. Speak clearly. The result stays in the panel and is not typed into your game.</p>
+						<p>Check that your built-in microphone or headset works in another app. If Steam sounds clear but dictation fails, check the system default recording device.</p>
+						<p><strong>If audio crackles, pops, or cuts out</strong></p>
+						<p>A Steam Deck LCD user reported improvement after disabling Steam voice processing. This is a community workaround, not a guaranteed fix. Its effect on Decktation’s audio input has not been established.</p>
+						<ol style={{ paddingLeft: '24px' }}>
+							<li>Open Steam → Power → Switch to Desktop.</li>
+							<li>In Steam, open Friends &amp; Chat → gear icon → Voice. Some versions also have Steam → Settings → Voice.</li>
+							<li>Select your Voice Input Device. Run Start Microphone Test, speak, listen for crackling or missing words, then stop the test.</li>
+							<li>Note your current settings. Under Show Advanced Settings, try turning off Noise Cancellation, Echo Cancellation and Automatic Volume/Gain Control.</li>
+							<li>Repeat the microphone test. If it improves, re-enable the options one at a time to identify which setting helps.</li>
+							<li>Return to Gaming Mode and repeat Decktation’s three-second dictation test before trying it in a game.</li>
+						</ol>
+						<p>Restore your previous settings if this does not help. Disabling processing can increase background noise or speaker echo and affect Steam voice chat.</p>
+						<p><strong>If the problem persists</strong></p>
+						<p>Include your Deck model (LCD or OLED), SteamOS and Steam client versions, microphone or headset, and whether any improvement survives Gaming Mode and a reboot when reporting the problem. Check the latest plugin log for errors.</p>
+					</Focusable></PanelSectionRow>
+					<PanelSectionRow><ButtonItem layout="below" onClick={() => Router.NavigateToExternalWeb("https://github.com/silverfoxy/decktation/blob/master/doc/TROUBLESHOOTING.md#microphone-crackles-pops-or-cuts-out")}>Open full guide online</ButtonItem></PanelSectionRow>
+				</PanelSection>}
 				{page === "diagnostics" && <>
+					<PanelSection title="Microphone help">
+						<PanelSectionRow><div>Voice not recognized, missing words, or crackling audio? Read the microphone guide here.</div></PanelSectionRow>
+						<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("microphone-help")}>
+							Having problems with your microphone?
+						</ButtonItem></PanelSectionRow>
+					</PanelSection>
 					<PanelSection title="Input and service">
 						<PanelSectionRow><div>Controller: {controllerStatus}</div></PanelSectionRow>
 						{pendingDraft && <PanelSectionRow><div>Review confirmation: {reviewBlockReason || "Ready"}</div></PanelSectionRow>}
