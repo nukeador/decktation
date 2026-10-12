@@ -347,7 +347,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [buttons, setButtons] = useState<string[]>(["L1", "R1"]);
 	const [recordingIndicator, setRecordingIndicator] = useState<string>("toast");
 	const [hapticFeedback, setHapticFeedback] = useState<boolean>(false);
-	const [activePreset, setActivePreset] = useState<string>("wow");
+	const [activePreset, setActivePreset] = useState<string>("generic");
 	const [presets, setPresets] = useState<DropdownOption[]>([]);
 	const [sendingMode, setSendingMode] = useState<string>("immediate");
 	const [pendingDraft, setPendingDraft] = useState<PendingDraft | null>(null);

@@ -283,3 +283,32 @@ class TestUserProfileOverrides:
 
         presets = decktation_backend._load_game_presets()
         assert presets["wow"]["whisper_prompt"] == "legacy custom preset prompt"
+
+class TestDefaultGame:
+    def test_new_install_uses_generic_without_chat_commands(self, monkeypatch, tmp_path):
+        import decktation_backend
+        monkeypatch.setattr(decktation_backend, "BUTTON_CONFIG_FILE", str(tmp_path / "buttons.json"))
+        config = decktation_backend._read_button_config()
+        assert config["game"] == "generic"
+        preset = decktation_backend._load_game_presets()[config["game"]]
+        assert preset["chat_open_key"] is None
+        assert preset["chat_send_key"] is None
+        assert preset["channels"][preset["default_channel"]] == ""
+
+    @pytest.mark.parametrize("game", ["wow", "guildwars2", "generic"])
+    def test_saved_game_is_preserved(self, monkeypatch, tmp_path, game):
+        import decktation_backend
+        path = tmp_path / "buttons.json"
+        path.write_text(json.dumps({"game": game}))
+        monkeypatch.setattr(decktation_backend, "BUTTON_CONFIG_FILE", str(path))
+        assert decktation_backend._read_button_config()["game"] == game
+
+    def test_older_settings_without_game_use_generic(self, monkeypatch, tmp_path):
+        import decktation_backend
+        path = tmp_path / "buttons.json"
+        path.write_text(json.dumps({"enabled": True, "modelSize": "small"}))
+        monkeypatch.setattr(decktation_backend, "BUTTON_CONFIG_FILE", str(path))
+        config = decktation_backend._read_button_config()
+        assert config["game"] == "generic"
+        assert config["enabled"] is True
+        assert config["modelSize"] == "small"

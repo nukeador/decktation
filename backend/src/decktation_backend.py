@@ -169,7 +169,7 @@ DEFAULT_BUTTON_CONFIG = {
     "hapticFeedback": False,
     "recordingIndicator": "toast",
     "enabled": False,
-    "game": "wow",
+    "game": "generic",
     "confirmMode": False,
     "sendingMode": "immediate",
     "manualSend": False,
@@ -353,7 +353,7 @@ class Plugin:
     update_preparing = False
     model_operations = 0
     recording_start_count = 0  # Increments each time recording starts
-    active_preset = "wow"
+    active_preset = "generic"
     dictation_transaction = None
     haptic_feedback = None
     recording_overlay = None
@@ -776,8 +776,8 @@ class Plugin:
                 decky_user_home=getattr(decky, "DECKY_USER_HOME", None),
                 enabled=(saved_config.get("recordingIndicator") == "overlay" or saved_config.get("sendingMode") != "immediate"),
             )
-            active_game = saved_config.get("game", "wow")
-            active_preset = _game_presets.get(active_game, _game_presets.get("wow", {}))
+            active_game = saved_config.get("game", "generic")
+            active_preset = _game_presets.get(active_game, _game_presets.get("generic", {}))
             Plugin.active_preset = active_game
             logger.info(f"Active game preset: {active_game}")
 
@@ -1232,7 +1232,7 @@ class Plugin:
         """Get the currently active game preset id"""
         try:
             config = _read_button_config()
-            game = config.get("game", "wow")
+            game = config.get("game", "generic")
             return {"success": True, "game": game}
         except Exception as e:
             logger.error(f"Error getting active preset: {traceback.format_exc()}")
