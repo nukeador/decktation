@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import uuid
 import asyncio
 import traceback
 import threading
@@ -36,6 +37,7 @@ for dependency_path in dependency_paths:
 from audio_runtime import ensure_audio_environment, setup_audio_environment
 from haptic_feedback import HapticFeedback
 from recording_overlay_manager import RecordingOverlay
+from binding_capture import read_json, write_json
 from review_gesture import ReviewGesture
 from plugin_update import PluginUpdater, cleanup_stale
 
@@ -353,6 +355,8 @@ class Plugin:
     update_preparing = False
     model_operations = 0
     recording_start_count = 0  # Increments each time recording starts
+    binding_session = None
+    binding_deadline = 0
     active_preset = "wow"
     dictation_transaction = None
     haptic_feedback = None
@@ -623,7 +627,7 @@ class Plugin:
 
         while Plugin.poll_running:
             try:
-                if not Plugin.controller_enabled:
+                if not Plugin.controller_enabled or (Plugin.binding_session and time.time() < Plugin.binding_deadline):
                     last_state = False
                     gesture.suppress_until_release(True)
                     time.sleep(0.1)
@@ -858,6 +862,7 @@ class Plugin:
 
     async def _unload(self):
         """Cleanup when plugin unloads"""
+        await Plugin.cancel_binding_capture(None, Plugin.binding_session)
         logger.info("Unloading Decktation plugin")
         if Plugin.voice_service:
             Plugin.voice_service.begin_shutdown()
@@ -998,6 +1003,44 @@ class Plugin:
         except Exception as e:
             logger.error("Error saving haptic preference: %s", e)
             return {"success": False, "error": str(e)}
+
+    async def start_binding_capture(self):
+        if Plugin.voice_service and (Plugin.voice_service.is_recording or getattr(Plugin.voice_service, "is_transcribing", False) or Plugin.voice_service.pending_snapshot()):
+            return {"success": False, "error": "Finish recording before changing the binding."}
+        if not Plugin.listener_process or Plugin.listener_process.poll() is not None:
+            Plugin.start_controller_listener()
+        if not Plugin.listener_process or Plugin.listener_process.poll() is not None:
+            return {"success": False, "error": "Controller listener unavailable."}
+        Plugin.binding_session = uuid.uuid4().hex
+        Plugin.binding_deadline = time.time() + 20
+        write_json(os.path.join(CONFIG_DIR, "binding_capture_request.json"), {
+            "session": Plugin.binding_session, "deadline": Plugin.binding_deadline})
+        return {"success": True, "session": Plugin.binding_session}
+
+    async def cancel_binding_capture(self, session: str):
+        if session and session == Plugin.binding_session:
+            write_json(os.path.join(CONFIG_DIR, "binding_capture_request.json"), {
+                "session": session, "deadline": Plugin.binding_deadline, "cancelled": True})
+            Plugin.binding_session = None
+        return {"success": True}
+
+    async def get_binding_capture(self, session: str):
+        if session != Plugin.binding_session:
+            return {"success": False, "error": "Binding session ended."}
+        result = read_json(os.path.join(CONFIG_DIR, "binding_capture_result.json"))
+        if result.get("session") != session:
+            result = {"phase": "release", "buttons": []}
+        if time.time() >= Plugin.binding_deadline and result.get("phase") != "captured":
+            result = {"phase": "cancelled", "error": "Binding timed out. Your previous binding is unchanged."}
+        if result.get("phase") == "captured":
+            write_json(os.path.join(CONFIG_DIR, "binding_capture_request.json"), {
+                "session": session, "deadline": Plugin.binding_deadline, "cancelled": True})
+            saved = await Plugin.set_button_config(None, result["buttons"])
+            Plugin.binding_session = None
+            return {**result, **saved, "phase": "saved" if saved["success"] else "cancelled"}
+        if result.get("phase") == "cancelled":
+            await Plugin.cancel_binding_capture(None, session)
+        return {"success": True, **result}
 
     async def set_button_config(self, buttons: list, showNotifications: bool = None):
         """Set button configuration and settings, restart listener"""
@@ -1367,6 +1410,8 @@ class Plugin:
     @staticmethod
     def _update_block_reason():
         service = Plugin.voice_service
+        if Plugin.binding_session and time.time() < Plugin.binding_deadline:
+            return "Finish changing the recording binding before updating."
         if Plugin.model_operations or (service and service.model_loading):
             return "Wait for the transcription model to finish loading."
         if service and (service.is_recording or getattr(service, "is_transcribing", False)

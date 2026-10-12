@@ -31,7 +31,7 @@ import React, {
 	useState,
 } from "react";
 
-import { FaMicrophone, FaTrash, FaArrowCircleUp } from "react-icons/fa";
+import { FaMicrophone, FaArrowCircleUp } from "react-icons/fa";
 
 type RpcResponse = { success: boolean; error?: string; [key: string]: any };
 
@@ -39,6 +39,9 @@ const getPluginUpdate = callable<[force: boolean], RpcResponse>("get_plugin_upda
 const preparePluginUpdate = callable<[version: string], RpcResponse>("prepare_plugin_update");
 
 const getStatus = callable<[], RpcResponse>("get_status");
+const startBindingCapture = callable<[], RpcResponse>("start_binding_capture");
+const getBindingCapture = callable<[session: string], RpcResponse>("get_binding_capture");
+const cancelBindingCapture = callable<[session: string], RpcResponse>("cancel_binding_capture");
 const getButtonConfig = callable<[], RpcResponse>("get_button_config");
 const getPresets = callable<[], RpcResponse>("get_presets");
 const setEnabledRpc = callable<[enabled: boolean], RpcResponse>("set_enabled");
@@ -63,10 +66,7 @@ const setTranscriptionOptionsRpc = callable<
 	[language: string],
 	RpcResponse
 >("set_transcription_options");
-const setButtonConfig = callable<
-	[buttons: string[]],
-	RpcResponse
->("set_button_config");
+
 
 class DecktationLogic {
     updateAvailable = false;
@@ -186,21 +186,7 @@ class DecktationLogic {
 	}
 }
 
-// Available button options
-const BUTTON_OPTIONS: DropdownOption[] = [
-	{ data: "L1", label: "L1 Bumper" },
-	{ data: "R1", label: "R1 Bumper" },
-	{ data: "L2", label: "L2 Trigger" },
-	{ data: "R2", label: "R2 Trigger" },
-	{ data: "L4", label: "L4 Grip" },
-	{ data: "R4", label: "R4 Grip" },
-	{ data: "L5", label: "L5 Grip" },
-	{ data: "R5", label: "R5 Grip" },
-	{ data: "A", label: "A" },
-	{ data: "B", label: "B" },
-	{ data: "X", label: "X" },
-	{ data: "Y", label: "Y" },
-];
+
 
 const WHISPER_LANGUAGE_OPTIONS: DropdownOption[] = [
 	{ data: "auto", label: "Auto Detect" },
@@ -323,7 +309,7 @@ const PRESET_DISPLAY_NAMES: Record<string, string> = {
 	generic: "Generic",
 };
 
-type PanelPage = "main" | "advanced" | "updates" | "diagnostics" | "microphone-help" | "help" | "game" | "model" | "binding-button";
+type PanelPage = "main" | "advanced" | "updates" | "diagnostics" | "microphone-help" | "help" | "game" | "model";
 
 const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [page, setPage] = useState<PanelPage>("main");
@@ -331,7 +317,10 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const languageMenuAnchorRef = useRef<HTMLSpanElement>(null);
 	const advancedModelRowRef = useRef<HTMLDivElement>(null);
     const updateActionRowRef = useRef<HTMLDivElement>(null);
-	const [bindingButtonIndex, setBindingButtonIndex] = useState<number>(0);
+	const [capture, setCapture] = useState<{ session: string; phase: string; buttons: string[] } | null>(null);
+	const captureRef = useRef<string | null>(null);
+	const captureFocusRef = useRef<HTMLDivElement>(null);
+	const [bindingMessage, setBindingMessage] = useState("");
 	const [enabled, setEnabled] = useState<boolean>(false);
 	const [recording, setRecording] = useState<boolean>(false);
 	const [serviceReady, setServiceReady] = useState<boolean>(false);
@@ -435,7 +424,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
         }
     }, [qamVisible]);
     const updateBusy = recording || transcribing || modelLoading || testPhase !== "idle" ||
-        !!pendingDraft || draftBusy || updatePhase !== "idle";
+        !!pendingDraft || !!capture || draftBusy || updatePhase !== "idle";
     const startUpdate = async () => {
         if (updateBusy || updateInFlight.current || !updateInfo?.update_available || logic.readQamVisibility?.() !== true) return;
         updateInFlight.current = true;
@@ -613,6 +602,53 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 		return () => cancelAnimationFrame(frame);
 	}, [qamVisible, pendingDraft?.id]);
 
+	useEffect(() => {
+        if (!capture) return;
+        let disposed = false;
+        let timer: ReturnType<typeof setTimeout>;
+        const pollCapture = async () => {
+            try {
+                const result = await getBindingCapture(capture.session);
+                if (disposed) return;
+                if (!result.success || result.phase === "cancelled" || result.phase === "saved") {
+                    if (result.phase === "saved") {
+                        setButtons(result.buttons);
+                        setBindingMessage(`Binding saved: ${result.buttons.join(" + ")}`);
+                    } else setRpcError(result.error || "Binding cancelled. Your previous binding is unchanged.");
+                    captureRef.current = null;
+                    setCapture(null);
+                    return;
+                }
+                setCapture({ session: capture.session, phase: result.phase, buttons: result.buttons || [] });
+            } catch (error) {
+                if (!disposed) { setRpcError(String(error)); void cancelCapture(); }
+                return;
+            }
+            if (!disposed) timer = setTimeout(pollCapture, 80);
+        };
+        captureFocusRef.current?.focus();
+        void pollCapture();
+        return () => { disposed = true; clearTimeout(timer); };
+    }, [capture?.session]);
+    useEffect(() => () => {
+        if (captureRef.current) void cancelBindingCapture(captureRef.current);
+    }, []);
+    const beginCapture = async () => {
+        setRpcError(""); setBindingMessage("");
+        try {
+            const result = await startBindingCapture();
+            if (!result.success) { setRpcError(result.error || "Could not start binding capture"); return; }
+            captureRef.current = result.session;
+            setCapture({ session: result.session, phase: "release", buttons: [] });
+        } catch (error) { setRpcError(String(error)); }
+    };
+    const cancelCapture = async () => {
+        const session = captureRef.current;
+        captureRef.current = null;
+        setCapture(null);
+        if (session) await cancelBindingCapture(session);
+    };
+
 	const scrollReview = (direction: number) => {
 		const node = reviewTextRef.current;
 		if (!node || (direction < 0 ? node.scrollTop <= 0 : node.scrollTop + node.clientHeight >= node.scrollHeight - 1)) return false;
@@ -625,7 +661,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 		node.scrollTop += direction * 96;
 		return true;
 	};
-	const goBack = () => setPage(page === "microphone-help" ? "diagnostics" : page === "updates" || page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
+	const goBack = () => setPage(page === "microphone-help" ? "diagnostics" : page === "updates" || page === "diagnostics" || page === "help" || page === "model" ? "advanced" : "main");
 	const chooseLanguage = async (language: string) => {
 		const result = await setTranscriptionOptionsRpc(language);
 		if (result.success) {
@@ -660,6 +696,22 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 		: !controllerReady ? "Controller unavailable"
 		: "Ready";
 	const statusProblem = !!(statusError || rpcError || (serviceReady && !inputReady) || (enabled && serviceReady && !controllerReady));
+
+    if (capture) {
+        const swallow = (event: CustomEvent) => { event.preventDefault(); event.stopPropagation(); };
+        return <Focusable ref={captureFocusRef} tabIndex={0} onButtonDown={swallow} onButtonUp={swallow}
+            onOKButton={swallow} onCancelButton={swallow} onGamepadDirection={swallow}
+            onActivate={swallow} onCancel={swallow}>
+            <PanelSection title="Recording binding">
+                <PanelSectionRow><div role="status">{capture.phase === "release"
+                    ? "Release all buttons to start listening."
+                    : "Hold your new combination together. Release to save."}</div></PanelSectionRow>
+                <PanelSectionRow><div>Detected: <strong>{capture.buttons.join(" + ") || "Listening…"}</strong></div></PanelSectionRow>
+                <PanelSectionRow><div style={{ fontSize: "12px", opacity: 0.85 }}>One to five buttons. Steam and Quick Access are excluded. Capture times out after 20 seconds.</div></PanelSectionRow>
+                <PanelSectionRow><button tabIndex={-1} onClick={() => { void cancelCapture(); }} style={{ padding: "10px 20px", color: "white", background: "#3b4252", border: 0, borderRadius: "4px" }}>Cancel (touch)</button></PanelSectionRow>
+            </PanelSection>
+        </Focusable>;
+    }
 
 	return (
 		<Focusable onCancel={page === "main" ? undefined : (event) => {
@@ -775,7 +827,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 							}}>Language: {WHISPER_LANGUAGE_OPTIONS.find(option => option.data === transcriptionLanguage)?.label || transcriptionLanguage}</ButtonItem>
 						</div></PanelSectionRow>
 						<PanelSectionRow><div>Binding: <strong>{buttons.join(' + ')}</strong></div></PanelSectionRow>
-						<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("advanced")}>Edit Bindings</ButtonItem></PanelSectionRow>
+						<PanelSectionRow><ButtonItem layout="below" disabled={!controllerReady || recording || !!pendingDraft || testPhase !== "idle"} onClick={beginCapture}>Change binding</ButtonItem></PanelSectionRow>
+                        {bindingMessage && <PanelSectionRow><div role="status">{bindingMessage}</div></PanelSectionRow>}
 					</PanelSection>
 					<PanelSection title="Try it">
 						<PanelSectionRow><ButtonItem layout="below" onClick={runTest}
@@ -819,35 +872,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						)}
 						<PanelSectionRow><div style={{ fontSize: '12px' }}>Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use.</div></PanelSectionRow>
 					</PanelSection>
-					<PanelSection title="Recording binding">
-						<PanelSectionRow><div>Hold <strong>{buttons.join('+')}</strong> to record</div></PanelSectionRow>
-						{buttons.map((button, index) => <PanelSectionRow key={index}>
-							<Focusable flow-children="row" style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-								<div style={{ flex: '1 1 0', minWidth: 0, overflow: 'hidden' }}>
-									<ButtonItem layout="below" onClick={() => { setBindingButtonIndex(index); setPage("binding-button"); }}>
-										Button {index + 1}: {button}
-									</ButtonItem>
-								</div>
-								{buttons.length > 1 && <Focusable role="button" tabIndex={0} focusClassName="decktation-trash-focused" aria-label={`Remove button ${index + 1}`}
-									onActivate={async () => {
-										const next = buttons.filter((_, i) => i !== index);
-										const result = await setButtonConfig(next);
-										if (result.success) setButtons(next);
-										else setRpcError(result.error || "Could not remove button");
-									}} style={{ flex: '0 0 36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', backgroundColor: '#3b4252' }}>
-									<FaTrash size={14} aria-hidden="true" />
-								</Focusable>}
-							</Focusable>
-						</PanelSectionRow>)}
-						{buttons.length < 5 && <PanelSectionRow><ButtonItem layout="below" onClick={async () => {
-							const available = BUTTON_OPTIONS.find(opt => !buttons.includes(opt.data as string));
-							if (available) {
-								const next = [...buttons, available.data as string];
-								setButtons(next);
-								await setButtonConfig(next);
-							}
-						}}>Add Button</ButtonItem></PanelSectionRow>}
-					</PanelSection>
+
 					<PanelSection title="Sending">
 						<PanelSectionRow><DropdownItem label="Transcription sending" menuLabel="Transcription sending" rgOptions={[{data:"immediate",label:"Send immediately"},{data:"review",label:"Review before sending"},{data:"countdown",label:"Send after countdown"}]} selectedOption={sendingMode} onChange={async (option) => {
 							const next = option.data as string;
@@ -952,17 +977,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						else { setModelLoading(false); setRpcError(result.error || "Could not update model size"); }
 					}}>{option.data === modelSize ? "✓ " : ""}{option.label}</ButtonItem></PanelSectionRow>)}
 				</PanelSection>}
-				{page === "binding-button" && <PanelSection title={`Button ${bindingButtonIndex + 1}`}>
-					{rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
-					{BUTTON_OPTIONS.map(option => <PanelSectionRow key={String(option.data)}><ButtonItem layout="below" onClick={async () => {
-						const next = [...buttons];
-						next[bindingButtonIndex] = option.data as string;
-						setRpcError("");
-						const result = await setButtonConfig(next);
-						if (result.success) { setButtons(next); setPage("advanced"); }
-						else setRpcError(result.error || "Could not update binding");
-					}}>{option.data === buttons[bindingButtonIndex] ? "✓ " : ""}{option.label}</ButtonItem></PanelSectionRow>)}
-				</PanelSection>}
+
 				{page === "help" && <>
 					<PanelSection title="How to use">
 						<PanelSectionRow><div style={{ fontSize: '13px', lineHeight: '1.6' }}>

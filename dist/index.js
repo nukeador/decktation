@@ -201,13 +201,14 @@
       return GenIcon({"tag":"svg","attr":{"viewBox":"0 0 512 512"},"child":[{"tag":"path","attr":{"d":"M8 256C8 119 119 8 256 8s248 111 248 248-111 248-248 248S8 393 8 256zm143.6 28.9l72.4-75.5V392c0 13.3 10.7 24 24 24h16c13.3 0 24-10.7 24-24V209.4l72.4 75.5c9.3 9.7 24.8 9.9 34.3.4l10.9-11c9.4-9.4 9.4-24.6 0-33.9L273 107.7c-9.4-9.4-24.6-9.4-33.9 0L106.3 240.4c-9.4 9.4-9.4 24.6 0 33.9l10.9 11c9.6 9.5 25.1 9.3 34.4-.4z"}}]})(props);
     }function FaMicrophone (props) {
       return GenIcon({"tag":"svg","attr":{"viewBox":"0 0 352 512"},"child":[{"tag":"path","attr":{"d":"M176 352c53.02 0 96-42.98 96-96V96c0-53.02-42.98-96-96-96S80 42.98 80 96v160c0 53.02 42.98 96 96 96zm160-160h-16c-8.84 0-16 7.16-16 16v48c0 74.8-64.49 134.82-140.79 127.38C96.71 376.89 48 317.11 48 250.3V208c0-8.84-7.16-16-16-16H16c-8.84 0-16 7.16-16 16v40.16c0 89.64 63.97 169.55 152 181.69V464H96c-8.84 0-16 7.16-16 16v16c0 8.84 7.16 16 16 16h160c8.84 0 16-7.16 16-16v-16c0-8.84-7.16-16-16-16h-56v-33.77C285.71 418.47 352 344.9 352 256v-48c0-8.84-7.16-16-16-16z"}}]})(props);
-    }function FaTrash (props) {
-      return GenIcon({"tag":"svg","attr":{"viewBox":"0 0 448 512"},"child":[{"tag":"path","attr":{"d":"M432 32H312l-9.4-18.7A24 24 0 0 0 281.1 0H166.8a23.72 23.72 0 0 0-21.4 13.3L136 32H16A16 16 0 0 0 0 48v32a16 16 0 0 0 16 16h416a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16zM53.2 467a48 48 0 0 0 47.9 45h245.8a48 48 0 0 0 47.9-45L416 128H32z"}}]})(props);
     }
 
     const getPluginUpdate = callable("get_plugin_update");
     const preparePluginUpdate = callable("prepare_plugin_update");
     const getStatus = callable("get_status");
+    const startBindingCapture = callable("start_binding_capture");
+    const getBindingCapture = callable("get_binding_capture");
+    const cancelBindingCapture = callable("cancel_binding_capture");
     const getButtonConfig = callable("get_button_config");
     const getPresets = callable("get_presets");
     const setEnabledRpc = callable("set_enabled");
@@ -228,7 +229,6 @@
     const setActivePresetRpc = callable("set_active_preset");
     const setModelSizeRpc = callable("set_model_size");
     const setTranscriptionOptionsRpc = callable("set_transcription_options");
-    const setButtonConfig = callable("set_button_config");
     class DecktationLogic {
         constructor() {
             this.updateAvailable = false;
@@ -344,21 +344,6 @@
             this.updateListeners.forEach(listener => listener(available));
         }
     }
-    // Available button options
-    const BUTTON_OPTIONS = [
-        { data: "L1", label: "L1 Bumper" },
-        { data: "R1", label: "R1 Bumper" },
-        { data: "L2", label: "L2 Trigger" },
-        { data: "R2", label: "R2 Trigger" },
-        { data: "L4", label: "L4 Grip" },
-        { data: "R4", label: "R4 Grip" },
-        { data: "L5", label: "L5 Grip" },
-        { data: "R5", label: "R5 Grip" },
-        { data: "A", label: "A" },
-        { data: "B", label: "B" },
-        { data: "X", label: "X" },
-        { data: "Y", label: "Y" },
-    ];
     const WHISPER_LANGUAGE_OPTIONS = [
         { data: "auto", label: "Auto Detect" },
         { data: "af", label: "Afrikaans" },
@@ -482,7 +467,10 @@
         const languageMenuAnchorRef = React.useRef(null);
         const advancedModelRowRef = React.useRef(null);
         const updateActionRowRef = React.useRef(null);
-        const [bindingButtonIndex, setBindingButtonIndex] = React.useState(0);
+        const [capture, setCapture] = React.useState(null);
+        const captureRef = React.useRef(null);
+        const captureFocusRef = React.useRef(null);
+        const [bindingMessage, setBindingMessage] = React.useState("");
         const [enabled, setEnabled] = React.useState(false);
         const [recording, setRecording] = React.useState(false);
         const [serviceReady, setServiceReady] = React.useState(false);
@@ -597,7 +585,7 @@
             }
         }, [qamVisible]);
         const updateBusy = recording || transcribing || modelLoading || testPhase !== "idle" ||
-            !!pendingDraft || draftBusy || updatePhase !== "idle";
+            !!pendingDraft || !!capture || draftBusy || updatePhase !== "idle";
         const startUpdate = async () => {
             if (updateBusy || updateInFlight.current || !updateInfo?.update_available || logic.readQamVisibility?.() !== true)
                 return;
@@ -783,6 +771,70 @@
             });
             return () => cancelAnimationFrame(frame);
         }, [qamVisible, pendingDraft?.id]);
+        React.useEffect(() => {
+            if (!capture)
+                return;
+            let disposed = false;
+            let timer;
+            const pollCapture = async () => {
+                try {
+                    const result = await getBindingCapture(capture.session);
+                    if (disposed)
+                        return;
+                    if (!result.success || result.phase === "cancelled" || result.phase === "saved") {
+                        if (result.phase === "saved") {
+                            setButtons(result.buttons);
+                            setBindingMessage(`Binding saved: ${result.buttons.join(" + ")}`);
+                        }
+                        else
+                            setRpcError(result.error || "Binding cancelled. Your previous binding is unchanged.");
+                        captureRef.current = null;
+                        setCapture(null);
+                        return;
+                    }
+                    setCapture({ session: capture.session, phase: result.phase, buttons: result.buttons || [] });
+                }
+                catch (error) {
+                    if (!disposed) {
+                        setRpcError(String(error));
+                        void cancelCapture();
+                    }
+                    return;
+                }
+                if (!disposed)
+                    timer = setTimeout(pollCapture, 80);
+            };
+            captureFocusRef.current?.focus();
+            void pollCapture();
+            return () => { disposed = true; clearTimeout(timer); };
+        }, [capture?.session]);
+        React.useEffect(() => () => {
+            if (captureRef.current)
+                void cancelBindingCapture(captureRef.current);
+        }, []);
+        const beginCapture = async () => {
+            setRpcError("");
+            setBindingMessage("");
+            try {
+                const result = await startBindingCapture();
+                if (!result.success) {
+                    setRpcError(result.error || "Could not start binding capture");
+                    return;
+                }
+                captureRef.current = result.session;
+                setCapture({ session: result.session, phase: "release", buttons: [] });
+            }
+            catch (error) {
+                setRpcError(String(error));
+            }
+        };
+        const cancelCapture = async () => {
+            const session = captureRef.current;
+            captureRef.current = null;
+            setCapture(null);
+            if (session)
+                await cancelBindingCapture(session);
+        };
         const scrollReview = (direction) => {
             const node = reviewTextRef.current;
             if (!node || (direction < 0 ? node.scrollTop <= 0 : node.scrollTop + node.clientHeight >= node.scrollHeight - 1))
@@ -797,7 +849,7 @@
             node.scrollTop += direction * 96;
             return true;
         };
-        const goBack = () => setPage(page === "microphone-help" ? "diagnostics" : page === "updates" || page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
+        const goBack = () => setPage(page === "microphone-help" ? "diagnostics" : page === "updates" || page === "diagnostics" || page === "help" || page === "model" ? "advanced" : "main");
         const chooseLanguage = async (language) => {
             const result = await setTranscriptionOptionsRpc(language);
             if (result.success) {
@@ -835,6 +887,23 @@
                                         : !controllerReady ? "Controller unavailable"
                                             : "Ready";
         const statusProblem = !!(statusError || rpcError || (serviceReady && !inputReady) || (enabled && serviceReady && !controllerReady));
+        if (capture) {
+            const swallow = (event) => { event.preventDefault(); event.stopPropagation(); };
+            return React__default["default"].createElement(deckyFrontendLib.Focusable, { ref: captureFocusRef, tabIndex: 0, onButtonDown: swallow, onButtonUp: swallow, onOKButton: swallow, onCancelButton: swallow, onGamepadDirection: swallow, onActivate: swallow, onCancel: swallow },
+                React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Recording binding" },
+                    React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement("div", { role: "status" }, capture.phase === "release"
+                            ? "Release all buttons to start listening."
+                            : "Hold your new combination together. Release to save.")),
+                    React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement("div", null,
+                            "Detected: ",
+                            React__default["default"].createElement("strong", null, capture.buttons.join(" + ") || "Listening…"))),
+                    React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement("div", { style: { fontSize: "12px", opacity: 0.85 } }, "One to five buttons. Steam and Quick Access are excluded. Capture times out after 20 seconds.")),
+                    React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement("button", { tabIndex: -1, onClick: () => { void cancelCapture(); }, style: { padding: "10px 20px", color: "white", background: "#3b4252", border: 0, borderRadius: "4px" } }, "Cancel (touch)"))));
+        }
         return (React__default["default"].createElement(deckyFrontendLib.Focusable, { onCancel: page === "main" ? undefined : (event) => {
                 event.stopPropagation();
                 goBack();
@@ -976,7 +1045,9 @@
                                 "Binding: ",
                                 React__default["default"].createElement("strong", null, buttons.join(' + ')))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("advanced") }, "Edit Bindings"))),
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", disabled: !controllerReady || recording || !!pendingDraft || testPhase !== "idle", onClick: beginCapture }, "Change binding")),
+                        bindingMessage && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement("div", { role: "status" }, bindingMessage))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Try it" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: runTest, disabled: !enabled || !modelReady || modelLoading || recording || testPhase !== "idle" },
@@ -1026,38 +1097,6 @@
                                 : "whisper.cpp runs on the CPU."))),
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { style: { fontSize: '12px' } }, "Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use."))),
-                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Recording binding" },
-                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement("div", null,
-                                "Hold ",
-                                React__default["default"].createElement("strong", null, buttons.join('+')),
-                                " to record")),
-                        buttons.map((button, index) => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: index },
-                            React__default["default"].createElement(deckyFrontendLib.Focusable, { "flow-children": "row", style: { display: 'flex', alignItems: 'center', gap: '4px', width: '100%', minWidth: 0, boxSizing: 'border-box' } },
-                                React__default["default"].createElement("div", { style: { flex: '1 1 0', minWidth: 0, overflow: 'hidden' } },
-                                    React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => { setBindingButtonIndex(index); setPage("binding-button"); } },
-                                        "Button ",
-                                        index + 1,
-                                        ": ",
-                                        button)),
-                                buttons.length > 1 && React__default["default"].createElement(deckyFrontendLib.Focusable, { role: "button", tabIndex: 0, focusClassName: "decktation-trash-focused", "aria-label": `Remove button ${index + 1}`, onActivate: async () => {
-                                        const next = buttons.filter((_, i) => i !== index);
-                                        const result = await setButtonConfig(next);
-                                        if (result.success)
-                                            setButtons(next);
-                                        else
-                                            setRpcError(result.error || "Could not remove button");
-                                    }, style: { flex: '0 0 36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', backgroundColor: '#3b4252' } },
-                                    React__default["default"].createElement(FaTrash, { size: 14, "aria-hidden": "true" }))))),
-                        buttons.length < 5 && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
-                                    const available = BUTTON_OPTIONS.find(opt => !buttons.includes(opt.data));
-                                    if (available) {
-                                        const next = [...buttons, available.data];
-                                        setButtons(next);
-                                        await setButtonConfig(next);
-                                    }
-                                } }, "Add Button"))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Sending" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: "Transcription sending", menuLabel: "Transcription sending", rgOptions: [{ data: "immediate", label: "Send immediately" }, { data: "review", label: "Review before sending" }, { data: "countdown", label: "Send after countdown" }], selectedOption: sendingMode, onChange: async (option) => {
@@ -1223,24 +1262,6 @@
                                 }
                             } },
                             option.data === modelSize ? "✓ " : "",
-                            option.label)))),
-                page === "binding-button" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: `Button ${bindingButtonIndex + 1}` },
-                    rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                        React__default["default"].createElement("div", { role: "alert" }, rpcError)),
-                    BUTTON_OPTIONS.map(option => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: String(option.data) },
-                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: async () => {
-                                const next = [...buttons];
-                                next[bindingButtonIndex] = option.data;
-                                setRpcError("");
-                                const result = await setButtonConfig(next);
-                                if (result.success) {
-                                    setButtons(next);
-                                    setPage("advanced");
-                                }
-                                else
-                                    setRpcError(result.error || "Could not update binding");
-                            } },
-                            option.data === buttons[bindingButtonIndex] ? "✓ " : "",
                             option.label)))),
                 page === "help" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "How to use" },
