@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Release Changelog
+
+When preparing a release, update `CHANGELOG.md` as part of the release commit. Record all user-facing changes since the previous release under the new version and date, and keep the `Unreleased` section for changes intended for a later release. Check the commits since the previous release so user-facing changes are not missed.
+
 ## Project Overview
 
 Decktation is a push-to-talk dictation plugin for Steam Deck that enables voice-to-text input for gaming. It uses OpenAI's Whisper model through a resident whisper.cpp server, with context-aware transcription optimized for World of Warcraft gameplay. All processing is done locally on the device.

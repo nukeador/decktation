@@ -7,6 +7,15 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- Added a public website for Decktation downloads and project information.
+- Added validated stable plugin updates with confirmation in Decky.
+
+### Fixed
+
+- Improved language dropdown colors in dark mode.
+
 ## [0.3.18] - 2026-10-09
 
 ### Added
