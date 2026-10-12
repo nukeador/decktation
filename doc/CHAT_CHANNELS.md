@@ -35,22 +35,7 @@ python3 backend/src/wow_voice_chat.py --mode once --duration 5
 - "**guild** anyone want to run mythics?"
 - "**say** hello there"
 
-The service will automatically detect the channel and send to the right place!
-
-### Method 3: Auto-Detection from Context
-
-Use `--channel auto` to automatically choose based on your group:
-
-```bash
-python3 backend/src/wow_voice_chat.py --channel auto --mode once --duration 5
-```
-
-**Auto-detection rules:**
-- **In Raid** (6+ people): Uses `/raid` by default
-- **In Party** (2-5 people): Uses `/p` by default
-- **Solo**: Uses `/s` (say) by default
-
-You can still override by saying the channel name first!
+A spoken channel prefix selects that message’s destination; without a prefix, the selected default channel is used.
 
 ## Supported Channels
 
@@ -81,12 +66,12 @@ Now when you record:
 ### Example 2: Party Dungeons
 
 ```bash
-# Auto-detect (will use party when in group)
-python3 backend/src/wow_voice_chat.py --channel auto --mode once --duration 5
+# Default to party chat
+python3 backend/src/wow_voice_chat.py --channel party --mode once --duration 5
 ```
 
 Recording:
-- "**pull the next pack**" → `/p pull the next pack` (auto-detected party)
+- "**pull the next pack**" → `/p pull the next pack`
 - "**guild** anyone want to join us?" → `/g anyone want to join us?` (explicit override)
 
 ### Example 3: Multi-Channel Communication
@@ -121,44 +106,26 @@ The service recognizes these formats:
 
 ## Integration with Context
 
-When using `--channel auto`, the service checks your WoW context:
-
-```python
-# If wow_context.json shows:
-{
-  "party": ["Player1", "Player2", "Player3", "Player4", "Player5"]
-}
-
-# Auto-detect will use party chat
-```
-
-```python
-# If wow_context.json shows:
-{
-  "party": ["Player1", "Player2", ..., "Player15"]  # 15+ people
-}
-
-# Auto-detect will use raid chat
-```
+The WoW context can improve transcription of game terms. Select the destination separately with `--channel` or a spoken channel prefix. Context does not choose a chat channel.
 
 ## Complete Usage Examples
 
 ### Scenario 1: Mythic+ Dungeon
 
-You're running a Mythic+ with 4 friends:
+You're running a Mythic+ with 4 friends and choose party chat:
 
 ```bash
 # Terminal 1: Keep context updated
-python convert_wow_context.py --watch
+python3 backend/src/convert_wow_context.py --watch
 
-# Terminal 2: Voice with auto-detection
-python3 backend/src/wow_voice_chat.py --channel auto --context wow_context.json --mode once --duration 5
+# Terminal 2: Voice with party chat and WoW context
+python3 backend/src/wow_voice_chat.py --channel party --context wow_context.json --mode once --duration 5
 ```
 
 **Usage:**
-- Hold `` ` `` and say: "**skip this pack**"
-  - Auto-detects you're in a party → `/p skip this pack`
-- Hold `` ` `` and say: "**guild who wants to run keys?**"
+- Say: "**skip this pack**"
+  - Uses the selected default `/p` channel
+- Say: "**guild who wants to run keys?**"
   - Explicit override → `/g who wants to run keys?`
 
 ### Scenario 2: Raid Night
@@ -170,9 +137,9 @@ python3 backend/src/wow_voice_chat.py --channel raid --context wow_context.json 
 ```
 
 **Usage:**
-- Hold `` ` `` and say: "**stack for beam**"
+- Say: "**stack for beam**"
   - Goes to `/raid stack for beam`
-- Hold `` ` `` and say: "**officer need more healers**"
+- Say: "**officer need more healers**"
   - Overridden to `/o need more healers`
 
 ### Scenario 3: Solo Questing
@@ -203,15 +170,9 @@ python3 backend/src/wow_voice_chat.py --channel party --mode once --duration 5
 # - "stack on me" → Goes to party (default)
 ```
 
-### 2. Auto-Detection for Dynamic Groups
+### 2. Choose a Default for Each Session
 
-Use `--channel auto` if you switch between solo, party, and raid frequently:
-
-```bash
-python3 backend/src/wow_voice_chat.py --channel auto --mode daemon
-```
-
-The service will automatically adjust based on your current group size.
+Set `--channel` to the destination you want, then use a spoken channel prefix when a message needs a different destination.
 
 ### 3. Quick Channel Switching
 
@@ -228,14 +189,15 @@ This becomes second nature quickly!
 The service loads your WoW context, so:
 
 ```bash
-python3 backend/src/wow_voice_chat.py --channel auto --context wow_context.json --mode once --duration 5
+python3 backend/src/wow_voice_chat.py --channel party --context wow_context.json --mode once --duration 5
 ```
 
 Now it knows:
 - Your current zone (for better transcription)
 - Your party/raid members
 - Your class and spec
-- And automatically picks the right chat channel!
+
+Choose the chat destination with `--channel` or a spoken prefix.
 
 ## Testing
 
@@ -276,16 +238,6 @@ done
 - Check the transcription output - did it hear "party" correctly?
 - Channel names are: say, party, raid, guild, officer, yell, instance
 
-### Wrong channel auto-detected
-
-**Problem:** Auto mode choosing wrong channel
-
-**Solution:**
-- Check your context: `cat wow_context.json`
-- Verify party member count is correct
-- Use explicit `--channel` instead of auto
-- Or use voice prefixes to override
-
 ### Message not sending
 
 **Problem:** Transcription works but message doesn't appear in WoW
@@ -325,24 +277,22 @@ The game reports "There is nobody to reply to" when you have not received a whis
 
 ## Summary
 
-**Three ways to control channels:**
+**Two ways to choose a channel:**
 
 1. **Default flag**: `--channel party`
 2. **Voice prefix**: Say "party" before your message
-3. **Auto-detect**: `--channel auto` (uses context)
 
 **Recommended setup for most users:**
 
 ```bash
 # Keep context updated
-python convert_wow_context.py --watch &
+python3 backend/src/convert_wow_context.py --watch &
 
-# Use auto-detection with voice overrides
-python3 backend/src/wow_voice_chat.py --channel auto --context wow_context.json --mode once --duration 5
+# Use party as default with voice prefix overrides
+python3 backend/src/wow_voice_chat.py --channel party --context wow_context.json --mode once --duration 5
 ```
 
 This gives you:
-- Automatic channel selection based on group
 - Context-aware transcription for WoW terms
 - Ability to override with voice prefixes
 - A single five-second recording per invocation

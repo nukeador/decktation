@@ -799,18 +799,6 @@ class WoWVoiceChat:
         channel, message, _ = self._parse_channel_and_text(text)
         return channel, message
 
-    def auto_detect_channel(self):
-        """Auto-detect best channel based on context"""
-        # If in raid, default to raid chat
-        if self.context.get("party") and len(self.context.get("party", [])) > 5:
-            return "raid"
-        # If in party, default to party chat
-        elif self.context.get("party") and len(self.context.get("party", [])) > 1:
-            return "party"
-        # Otherwise use say
-        else:
-            return "say"
-
     def send_to_wow_chat(self, text, channel=None):
         """Paste a transcription into the focused game using the clipboard."""
         if not text or self._closing.is_set():
@@ -1147,9 +1135,9 @@ if __name__ == "__main__":
     parser.add_argument("--mode", choices=["once", "continuous", "daemon"],
                        default="once",
                        help="Recording mode (default: once)")
-    parser.add_argument("--channel", choices=["say", "party", "raid", "guild", "officer", "yell", "instance", "whisper", "reply", "auto"],
+    parser.add_argument("--channel", choices=["say", "party", "raid", "guild", "officer", "yell", "instance", "whisper", "reply"],
                        default="say",
-                       help="Default chat channel (default: say). Use 'auto' to detect from context or voice prefix")
+                       help="Default chat channel (default: say); voice prefixes can override it")
     parser.add_argument("--duration", type=int, default=5,
                        help="Recording duration in seconds for 'once' and 'continuous' modes (default: 5)")
     parser.add_argument("--pause", type=int, default=1,
@@ -1159,11 +1147,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Handle auto-detection
     default_channel = args.channel
-    if default_channel == "auto":
-        # Will auto-detect per-message based on context
-        default_channel = "say"  # Fallback
 
     service = WoWVoiceChat(context_file=args.context, default_channel=default_channel)
 
