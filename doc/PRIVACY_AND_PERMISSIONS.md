@@ -6,9 +6,9 @@ Audio recording, transcription, chat parsing, and text entry run on the Steam De
 
 ## Optional diagnostics
 
-**Diagnostics → Share** is off by default. When enabled, Decktation sends scrubbed error and performance data to Sentry to help diagnose problems. The data can include the plugin release, error category/type, selected game preset, whether dictation succeeded, and limited controller details such as controller family, vendor/product IDs, connection type, input backend, configured buttons, input-source count, lifecycle events, and numeric input errors.
+**Diagnostics → Share** is off by default. When enabled, Decktation sends scrubbed errors, performance samples, and exact application counters to Sentry. Counters record the inference backend used for each request (Vulkan or CPU), failed inference attempts, and explicit draft cancellations by source. Performance samples include audio length, audio preparation time, inference time, and total transcription time. Metrics also include the selected model size and coarse runtime categories: Steam Deck or other device, OS family and major/minor version, and processor architecture.
 
-Diagnostics exclude audio, transcript text, WoW context, credentials, controller names, serial numbers, Bluetooth addresses, individual button-press streams, IP addresses, and paths containing the local username. You can turn sharing off at any time in **Diagnostics → Share**. Sentry is not initialized while sharing is off.
+Diagnostics exclude audio, transcript and chat text, WoW context, credentials, hostnames, serial numbers, Bluetooth addresses, raw hardware model strings, individual button-press streams, IP addresses, full kernel versions, and paths containing the local username. You can turn sharing off at any time in **Diagnostics → Share**. Sentry is not initialized while sharing is off.
 
 ## Decky permission
 

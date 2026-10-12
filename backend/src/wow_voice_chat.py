@@ -85,9 +85,10 @@ def _format_casual_message(text: str) -> str:
 
 
 class WoWVoiceChat:
-    def __init__(self, context_file="wow_context.json", sample_rate=44100, default_channel="say", lazy_load=False, test_mode=False, test_audio_file=None, preset=None, confirm_delay=0, manual_send=False, transcription_language=None, model_size="base", diagnostic_reporter=None, remember_last_channel=False, last_channel=None, channel_rememberer=None, recording_state_callback=None, review_mode=False, pending_callback=None):
+    def __init__(self, context_file="wow_context.json", sample_rate=44100, default_channel="say", lazy_load=False, test_mode=False, test_audio_file=None, preset=None, confirm_delay=0, manual_send=False, transcription_language=None, model_size="base", diagnostic_reporter=None, remember_last_channel=False, last_channel=None, channel_rememberer=None, recording_state_callback=None, review_mode=False, pending_callback=None, metric_reporter=None):
         self.preset = preset or {}
         self.diagnostic_reporter = diagnostic_reporter
+        self.metric_reporter = metric_reporter
         self.recording_state_callback = recording_state_callback
         self.context_file = Path(context_file)
         self.sample_rate = sample_rate  # Recording sample rate
@@ -152,6 +153,13 @@ class WoWVoiceChat:
     def _report_diagnostic(self, name, error=None):
         if self.diagnostic_reporter:
             self.diagnostic_reporter(name, error)
+
+    def _report_metric(self, name, value=1, unit=None, **attributes):
+        if self.metric_reporter:
+            try:
+                self.metric_reporter(name, value, unit, **attributes)
+            except Exception:
+                logger.debug("Could not record diagnostics metric %s", name, exc_info=True)
 
     def _recording_transition(self, state):
         if self.recording_state_callback:
@@ -353,9 +361,23 @@ class WoWVoiceChat:
                 raise RuntimeError("Resident worker is not loaded")
             prompt = ". ".join(part for part in (hotwords, initial_prompt) if part)
             started = time.monotonic()
-            text = self.whisper_worker.transcribe(
-                wav_path, self.transcription_language, prompt
-            )
+            backend = "vulkan" if self.inference_device == "gpu" else "cpu"
+            attributes = {"backend": backend, "model_size": self.model_size}
+            self._report_metric("decktation.inference.attempt", **attributes)
+            try:
+                text = self.whisper_worker.transcribe(
+                    wav_path, self.transcription_language, prompt
+                )
+            except Exception:
+                self._report_metric("decktation.inference.failed", **attributes)
+                raise
+            finally:
+                self._report_metric(
+                    "decktation.inference.duration",
+                    time.monotonic() - started,
+                    "second",
+                    **attributes,
+                )
             logger.info(
                 "Resident Whisper inference: device=%s pid=%s audio=%.3fs request=%.3fs text=%r",
                 self.inference_device, self.whisper_worker.process.pid,
@@ -500,11 +522,16 @@ class WoWVoiceChat:
                 "error": "", "sending": False,
             }
             self._publish_pending()
+            self._report_metric(
+                "decktation.draft.created",
+                mode=self.pending_draft["mode"],
+                model_size=self.model_size,
+            )
             if delay:
                 self._pending_timer = threading.Timer(delay, self._send_pending, args=(draft_id,))
                 self._pending_timer.start()
 
-    def cancel_pending(self, draft_id=None, feedback=False):
+    def cancel_pending(self, draft_id=None, feedback=False, source=None):
         """Cancel only the specified draft; invalidate transcription in flight."""
         with self._pending_lock:
             if draft_id is not None and (
@@ -518,6 +545,14 @@ class WoWVoiceChat:
                 self._pending_timer.cancel()
                 self._pending_timer = None
             had_pending = bool(self.pending_text)
+            cancelled_mode = self.pending_draft.get("mode") if self.pending_draft else "unknown"
+            if had_pending and source in {"controller_gesture", "controller_button", "panel"}:
+                self._report_metric(
+                    "decktation.draft.cancelled",
+                    source=source,
+                    mode=cancelled_mode,
+                    model_size=self.model_size,
+                )
             self.pending_text = None
             self.pending_draft = None
             if had_pending:
@@ -764,7 +799,8 @@ class WoWVoiceChat:
             print("Model not ready, cannot transcribe")
             return ""
 
-        # Load context and build prompts
+        # Load context, prepare audio and build prompts.
+        preparation_started = time.monotonic()
         self.load_context()
         initial_prompt, hotwords = self.build_prompt_from_context()
 
@@ -776,15 +812,35 @@ class WoWVoiceChat:
         else:
             audio_input = self._prepare_audio(audio_input, self.sample_rate)
 
+        self._report_metric(
+            "decktation.audio.prepare_duration",
+            time.monotonic() - preparation_started,
+            "second",
+            model_size=self.model_size,
+        )
         if len(audio_input) == 0:
             print("No audio samples to transcribe")
             return ""
 
+        self._report_metric(
+            "decktation.audio.duration",
+            len(audio_input) / self.whisper_sample_rate,
+            "second",
+            model_size=self.model_size,
+        )
+        transcription_started = time.monotonic()
         try:
             return self._transcribe_whisper(audio_input, initial_prompt, hotwords)
         except Exception as e:
             self._report_diagnostic("transcription.failed", e)
             raise
+        finally:
+            self._report_metric(
+                "decktation.transcription.duration",
+                time.monotonic() - transcription_started,
+                "second",
+                model_size=self.model_size,
+            )
 
     def parse_channel_and_text(self, text):
         """

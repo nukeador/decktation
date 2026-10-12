@@ -880,7 +880,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						{(statusError || rpcError) && <PanelSectionRow><div role="alert">{statusError || rpcError}</div></PanelSectionRow>}
 					</PanelSection>
 					<PanelSection title="Diagnostics sharing">
-						<PanelSectionRow><ToggleField label="Share" description="Optional scrubbed diagnostics sent to Sentry"
+						<PanelSectionRow><ToggleField label="Share" description="Sends scrubbed errors, usage counts, and performance metrics to Sentry, including inference backend and coarse device/OS details. Audio and transcripts stay local."
 							checked={shareDiagnostics} onChange={async (next) => {
 								setShareDiagnostics(next);
 								const result = await setShareDiagnosticsRpc(next);
