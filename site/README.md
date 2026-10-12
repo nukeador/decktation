@@ -1,6 +1,11 @@
 # Decktation product landing
 
-Astro builds the English `/` and Spanish `/es/` landing pages into `dist/`.
+Astro builds ten landing languages into `dist/`: English at `/`, plus
+`/es/`, `/de/`, `/fr/`, `/ja/`, `/ko/`, `/pl/`, `/pt/`, `/ru/` and `/zh/`.
+Portuguese uses Brazilian Portuguese phrasing; Chinese uses Simplified Chinese.
+Regional browser tags map to the base language. Detection follows the browser
+preference list, respects saved selections, and falls back to English. Explicit
+localized URLs retain their language.
 The existing Cloudflare Worker serves those static assets and handles the
 custom store and downloads. No Astro server adapter is needed.
 
@@ -37,7 +42,10 @@ The contribution's rendered public media are included; its raw compositing
 inputs and Python generator are available in that source branch.
 
 Hero and WoW chat visuals are illustrative/edited demos, labeled on the page.
-The WoW example uses GameStar's Forever beta gameplay with edited native chat:
+The WoW example uses GameStar's Forever beta gameplay with edited native chat.
+Its raster chat images are available in English and Spanish; other locales use
+the English screenshot, while the live hero and spoken examples are localized:
+
 - [Gameplay gallery](https://www.gamestar.de/galerien/world_of_warcraft_forever,137281.html)
 - [Original screenshot](https://images.cgames.de/images/gamestar/287/world-of-warcraft-forever_6441900.jpg)
 
