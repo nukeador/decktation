@@ -1,6 +1,7 @@
 """Privacy-safe structured diagnostics for Decktation."""
 
 import json
+import platform
 import re
 import socket
 
@@ -13,6 +14,56 @@ SENTRY_DSN = (
 )
 _HOME_PATH = re.compile(r"/(?:home/[^/\s]+|root)(?=/|\s|$)")
 _DEVICE_NAME = socket.gethostname()
+
+
+def _read_system_value(path):
+    try:
+        with open(path, encoding="utf-8", errors="ignore") as source:
+            return source.read().strip().strip("\x00")
+    except OSError:
+        return ""
+
+
+def _runtime_attributes():
+    os_values = {}
+    for line in _read_system_value("/etc/os-release").splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key in {"ID", "VERSION_ID"}:
+            os_values[key] = value.strip().strip('"\'')
+    os_id = os_values.get("ID", "").lower()
+    os_family = {
+        "steamos": "steamos",
+        "arch": "arch",
+        "ubuntu": "ubuntu",
+        "debian": "debian",
+    }.get(os_id, "other_linux" if platform.system() == "Linux" else "other")
+    version = os_values.get("VERSION_ID", "")
+    version_match = re.match(r"(\d+)(?:\.(\d+))?", version)
+    os_version = (
+        ".".join(part[:2] for part in version_match.groups() if part)
+        if version_match else "unknown"
+    )
+    vendor = _read_system_value("/sys/devices/virtual/dmi/id/sys_vendor").lower()
+    product = _read_system_value("/sys/devices/virtual/dmi/id/product_name").lower()
+    device_family = (
+        "steam_deck" if product in {"jupiter", "galileo"}
+        else "other"
+    )
+    architecture = {
+        "x86_64": "x86_64",
+        "amd64": "x86_64",
+        "aarch64": "arm64",
+        "arm64": "arm64",
+    }.get(platform.machine().lower(), "other")
+    return {
+        "device_family": device_family,
+        "os_family": os_family,
+        "os_version": os_version,
+        "architecture": architecture,
+    }
+
+
+_RUNTIME_ATTRIBUTES = _runtime_attributes()
 _enabled = False
 _captured_errors = set()
 _controller_context = {}
@@ -95,6 +146,7 @@ def clear_controller_context():
 
 
 def _attach_controller(target):
+    target.set_context("decktation", _RUNTIME_ATTRIBUTES)
     snapshot = _controller_context
     if snapshot:
         target.set_context('controller', snapshot)
@@ -198,6 +250,29 @@ def is_enabled():
     return _enabled
 
 
+def count_metric(name, value=1, **attributes):
+    """Record one exact, low-cardinality application counter."""
+    if not _enabled:
+        return
+    sentry_sdk.metrics.count(
+        name,
+        value,
+        attributes={**_RUNTIME_ATTRIBUTES, **attributes},
+    )
+
+
+def distribution_metric(name, value, unit=None, **attributes):
+    """Record a numeric performance sample without attaching content."""
+    if not _enabled:
+        return
+    sentry_sdk.metrics.distribution(
+        name,
+        value,
+        unit=unit,
+        attributes={**_RUNTIME_ATTRIBUTES, **attributes},
+    )
+
+
 def breadcrumb(name, **data):
     """Record a successful lifecycle step without consuming an error event."""
     if not _enabled:
@@ -218,7 +293,7 @@ def capture_error(name, error=None, **data):
     with sentry_sdk.new_scope() as scope:
         _attach_controller(scope)
         scope.set_tag("diagnostic_event", name)
-        scope.set_context("decktation", _scrub(data))
+        scope.set_context("decktation", {**_RUNTIME_ATTRIBUTES, **_scrub(data)})
         if error is not None:
             scope.set_context(
                 "failure",

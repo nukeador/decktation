@@ -78,6 +78,8 @@ try:
         capture_error as telemetry_capture_error,
         controller_event as telemetry_controller_event,
         clear_controller_context as telemetry_clear_controller_context,
+        count_metric as telemetry_count_metric,
+        distribution_metric as telemetry_distribution_metric,
         flush as telemetry_flush,
         finish_dictation_trace as telemetry_finish_dictation,
         is_enabled as telemetry_is_enabled,
@@ -89,6 +91,15 @@ try:
 except Exception as e:
     telemetry_is_enabled = lambda: False
     logger.error(f"Failed to import diagnostics: {e}")
+
+def report_telemetry_metric(name, value=1, unit=None, **attributes):
+    if not telemetry_available or not telemetry_is_enabled():
+        return
+    if unit is None:
+        telemetry_count_metric(name, value, **attributes)
+    else:
+        telemetry_distribution_metric(name, value, unit, **attributes)
+
 
 # Read consent before importing optional voice dependencies so startup import
 # failures can be captured for users who have opted in.
@@ -637,7 +648,7 @@ class Plugin:
                         Plugin.recording_overlay.set_cancel_progress(progress)
                     if action and draft:
                         if action == "cancel":
-                            Plugin.voice_service.cancel_pending(draft["id"], feedback=True)
+                            Plugin.voice_service.cancel_pending(draft["id"], feedback=True, source="controller_gesture")
                         else:
                             Plugin.voice_service.confirm_pending(draft["id"])
                     # Review presses are consumed, including release after cancellation.
@@ -646,7 +657,7 @@ class Plugin:
                             if Plugin.controller_enabled:
                                 # Button pressed - cancel pending send if one is waiting
                                 if Plugin.voice_service and Plugin.voice_service.pending_text:
-                                    cancelled = Plugin.voice_service.cancel_pending()
+                                    cancelled = Plugin.voice_service.cancel_pending(source="controller_button")
                                     if cancelled:
                                         logger.info("Pending send cancelled by button press")
                                 elif Plugin.voice_service and not Plugin.voice_service.is_recording:
@@ -809,6 +820,7 @@ class Plugin:
                     )
                     if telemetry_is_enabled() else None
                 ),
+                metric_reporter=report_telemetry_metric,
                 recording_state_callback=Plugin.haptic_feedback.emit,
             )
             logger.info("Voice service initialized (model will load on first use)")
@@ -1061,7 +1073,7 @@ class Plugin:
             return {"success": False, "error": str(e)}
 
     async def cancel_draft(self, draft_id: str):
-        success = bool(Plugin.voice_service and Plugin.voice_service.cancel_pending(draft_id, feedback=True))
+        success = bool(Plugin.voice_service and Plugin.voice_service.cancel_pending(draft_id, feedback=True, source="panel"))
         return {"success": success, "error": "Draft is no longer available" if not success else None}
 
     async def arm_draft(self, draft_id: str):
