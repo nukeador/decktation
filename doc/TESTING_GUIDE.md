@@ -157,7 +157,7 @@ cat > wow_context_test.json << 'EOF'
 EOF
 
 # Test with voice service
-python wow_voice_chat.py --context wow_context_test.json --mode once --duration 3
+python3 backend/src/wow_voice_chat.py --context wow_context_test.json --mode once --duration 3
 ```
 
 **During recording, say something WoW-related like:**
@@ -189,13 +189,10 @@ This will automatically update `wow_context.json` when the SavedVariables file c
 cd /home/deck/Documents/personal/decktation
 
 # Option A: Test once
-python wow_voice_chat.py --context wow_context.json --mode once --duration 5
+python3 backend/src/wow_voice_chat.py --context wow_context.json --mode once --duration 5
 
-# Option B: Push-to-talk mode (hold ` key to record)
-python wow_voice_chat.py --context wow_context.json --mode push-to-talk --ptt-key '`'
-
-# Option C: Daemon mode (for Decky integration)
-python wow_voice_chat.py --context wow_context.json --mode daemon
+# Option B: Daemon mode (controlled by a JSON file)
+python3 backend/src/wow_voice_chat.py --context wow_context.json --mode daemon
 ```
 
 **Test the integration:**
@@ -297,7 +294,7 @@ Test that context updates as you play:
    smallest model currently supported by the bundled whisper.cpp engine.
 2. **Reduce recording duration**:
    ```bash
-   python wow_voice_chat.py --duration 3  # Instead of 5
+   python3 backend/src/wow_voice_chat.py --duration 3  # Instead of 5
    ```
 3. **Check CPU usage:**
    ```bash
@@ -322,7 +319,7 @@ cat > test_raid.json << 'EOF'
 }
 EOF
 
-python wow_voice_chat.py --context test_raid.json --mode once --duration 3
+python3 backend/src/wow_voice_chat.py --context test_raid.json --mode once --duration 3
 # Say: "Lich King is at 50 percent health"
 
 # Dungeon scenario
@@ -337,7 +334,7 @@ cat > test_dungeon.json << 'EOF'
 }
 EOF
 
-python wow_voice_chat.py --context test_dungeon.json --mode once --duration 3
+python3 backend/src/wow_voice_chat.py --context test_dungeon.json --mode once --duration 3
 # Say: "Pull Stitchflesh when ready"
 ```
 
@@ -347,11 +344,11 @@ Compare with and without context:
 
 ```bash
 # Without context
-python wow_voice_chat.py --mode once --duration 3
+python3 backend/src/wow_voice_chat.py --mode once --duration 3
 # Say: "The Lich King"
 
 # With context
-python wow_voice_chat.py --context test_raid.json --mode once --duration 3
+python3 backend/src/wow_voice_chat.py --context test_raid.json --mode once --duration 3
 # Say: "The Lich King"
 ```
 

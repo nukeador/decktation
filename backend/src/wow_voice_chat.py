@@ -1103,31 +1103,6 @@ class WoWVoiceChat:
             finally:
                 self.unload_model()
 
-    def run_push_to_talk_keyboard(self, ptt_key='`'):
-        """Run in push-to-talk mode with keyboard key"""
-        print(f"Push-to-talk mode: Hold '{ptt_key}' to record, release to transcribe")
-        print("Press Ctrl+C to stop")
-
-        def on_press(key):
-            try:
-                if hasattr(key, 'char') and key.char == ptt_key:
-                    self.start_recording()
-            except AttributeError:
-                pass
-
-        def on_release(key):
-            try:
-                if hasattr(key, 'char') and key.char == ptt_key:
-                    self.stop_recording()
-            except AttributeError:
-                pass
-
-        with Listener(on_press=on_press, on_release=on_release) as listener:
-            try:
-                listener.join()
-            except KeyboardInterrupt:
-                print("\nStopping service...")
-
     def run_daemon_mode(self, control_file="wow_voice_control.json"):
         """Run as daemon, controlled by external file (for Decky integration)"""
         control_path = Path(control_file)
@@ -1169,7 +1144,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="WoW Voice-to-Chat Service")
     parser.add_argument("--context", default="wow_context.json",
                        help="Path to WoW context JSON file")
-    parser.add_argument("--mode", choices=["once", "continuous", "push-to-talk", "daemon"],
+    parser.add_argument("--mode", choices=["once", "continuous", "daemon"],
                        default="once",
                        help="Recording mode (default: once)")
     parser.add_argument("--channel", choices=["say", "party", "raid", "guild", "officer", "yell", "instance", "whisper", "reply", "auto"],
@@ -1179,8 +1154,6 @@ if __name__ == "__main__":
                        help="Recording duration in seconds for 'once' and 'continuous' modes (default: 5)")
     parser.add_argument("--pause", type=int, default=1,
                        help="Pause between recordings in continuous mode (default: 1)")
-    parser.add_argument("--ptt-key", default="`",
-                       help="Push-to-talk key for 'push-to-talk' mode (default: `)")
     parser.add_argument("--control-file", default="wow_voice_control.json",
                        help="Control file path for 'daemon' mode (default: wow_voice_control.json)")
 
@@ -1198,7 +1171,5 @@ if __name__ == "__main__":
         service.run_once(duration=args.duration)
     elif args.mode == "continuous":
         service.run_continuous(duration=args.duration, pause=args.pause)
-    elif args.mode == "push-to-talk":
-        service.run_push_to_talk_keyboard(ptt_key=args.ptt_key)
     elif args.mode == "daemon":
         service.run_daemon_mode(control_file=args.control_file)

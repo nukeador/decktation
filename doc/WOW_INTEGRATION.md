@@ -36,10 +36,10 @@ python3 backend/src/convert_wow_context.py \
 
 Add `--watch` to regenerate the JSON when the SavedVariables file changes. It cannot make the context live if WoW has not flushed new values to disk. The Decky plugin’s WoW preset reads `wow_context.json` from the installed plugin directory (`$DECKY_PLUGIN_DIR/wow_context.json`, commonly `/home/deck/homebrew/plugins/decktation/wow_context.json`). Set `--output` to that file if you want the plugin to use the latest saved snapshot; the converter needs permission to write there.
 
-If you run the standalone voice service from the repository, point it at the generated file with `--context`:
+For a single five-second recording with the standalone voice service, point it at the generated file with `--context`:
 
 ```bash
-python3 backend/src/wow_voice_chat.py --context wow_context.json --mode push-to-talk
+python3 backend/src/wow_voice_chat.py --context wow_context.json --mode once --duration 5
 ```
 
 ## Troubleshooting
