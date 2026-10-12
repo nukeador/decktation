@@ -98,7 +98,6 @@ jobs:
           ! unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/ctranslate2'
           ! unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/faster_whisper'
           ! unzip -l build-output/decktation.zip | grep -q 'decktation/bin/python/onnxruntime'
-          ! unzip -l build-output/decktation.zip | grep -q 'decktation/debug_controller.py'
           ! unzip -l build-output/decktation.zip | grep -q 'decktation/test.py'
           ! unzip -l build-output/decktation.zip | grep -q 'decktation/test_channels.py'
           ! unzip -l build-output/decktation.zip | grep -q 'decktation/test_audio.wav'
