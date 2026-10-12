@@ -1,110 +1,65 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file gives Claude Code and other contributors current repository guidance.
 
-## Project Overview
+## Project overview
 
-Decktation is a push-to-talk dictation plugin for Steam Deck that enables voice-to-text input for gaming. It uses OpenAI's Whisper model through a resident whisper.cpp server, with context-aware transcription optimized for World of Warcraft gameplay. All processing is done locally on the device.
+Decktation is a Decky Loader plugin for controller push-to-talk dictation on Steam Deck. The TypeScript/React panel is in `src/`; the Python plugin backend and voice service are in `backend/src/`. The backend uses a bundled resident `whisper-server` (Vulkan when available, CPU fallback), captures audio locally, recognizes optional spoken chat-channel prefixes, and types text into the focused app.
 
-## Build Commands
+The optional WoW addon is in `WowAddon/DecktationContext/`. It writes game context to WoW SavedVariables. WoW does not save each in-memory update immediately, so context read from that file can be stale during a play session. See [`doc/WOW_INTEGRATION.md`](doc/WOW_INTEGRATION.md).
 
-```bash
-npm install           # Install Node dependencies (package-lock.json is ignored)
-npm run build         # Compile TypeScript to dist/index.js
-npm run watch         # Watch mode for development
-```
+## Build and test
 
-The packaged Python runtime includes sounddevice, NumPy, Sentry, and their small supporting dependencies. Speech inference is provided by the bundled `whisper-server` executable rather than a Python ML package.
-
-## Testing
+Build the frontend with Node and the repository's root package manifest:
 
 ```bash
-# Unit tests (no hardware required)
-.venv/bin/pytest tests/ -v     # Run all unit tests
-
-# One-time venv setup (uses nix Python 3.11)
-/nix/store/dwix9cc815h6vxvdvl8zc6pvznq6whdh-python3-3.11.14/bin/python -m venv .venv
-.venv/bin/pip install pytest
-
-# Manual/integration tests
-python test_voice.py           # Test transcription
-python test_xdotool.py         # Test keyboard simulation
-python test_context_benefit.py # Test context improvement
-./test_wow_integration.sh      # Full WoW addon integration test
+npm install
+npm run build
 ```
 
-### Unit test coverage (`tests/`)
+This generates `dist/index.js`, which is included in the Decky package. Run `npm run watch` for frontend development. The `npm test` script is a placeholder; use `npm run test:update` for the frontend update tests.
 
-| File | What it tests |
-|------|--------------|
-| `test_channel_parsing.py` | `parse_channel_and_text` — all separators, all WoW channels, generic preset |
-| `test_presets.py` | `game_presets.json` structure, constructor preset wiring, `set_preset` live switching |
-| `test_send_behavior.py` | `send_to_wow_chat` key presses — WoW channels (Enter+Enter), type channel (no Enter), Generic preset (no Enter) |
+Set up and run the Python test suite with:
 
-## Architecture
-
-The system has five main components:
-
-1. **Frontend Plugin** (`src/index.tsx`) - React/TypeScript Decky Loader plugin UI. Provides toggle to enable dictation, dynamic button configuration (1-5 buttons), status display, and manual test button. Hybrid UI shows dropdowns for each button with add/remove controls. Note: Steam's frontend input APIs only work when Steam UI is active, so controller input is handled by the backend.
-
-2. **Backend Plugin** (`main.py`) - Python Decky plugin backend. Uses static methods and class variables (Decky quirk). Spawns the controller listener subprocess and polls for button state. Provides RPC methods for button configuration (`get_button_config`, `set_button_config`) using array format.
-
-3. **Controller Listener** (`controller_listener.py`) - Separate Python process using the Steam Deck vendor raw HID interface to detect a configurable physical button combo. Reads configuration from `button_config.json` (array of 1-5 buttons). Writes button state to `/tmp/decktation_l5`. All buttons in the combo must be pressed simultaneously to activate, independent of the active Steam Input layout.
-
-4. **Voice Service** (`wow_voice_chat.py`) - Core audio processing. Records audio via sounddevice, transcribes through resident whisper.cpp using Vulkan when available and `--no-gpu` CPU fallback otherwise, parses chat channel prefixes, and types output via ydotool.
-
-5. **WoW Addon** (`WowAddon/DecktationContext/`) - Lua addon that exports game state (zone, target, party members, class/spec) to SavedVariables every 2 seconds. The `convert_wow_context.py` script watches and converts this to `wow_context.json` for the voice service.
-
-### Data Flow
-```
-User adds/removes buttons in UI → set_button_config RPC → button_config.json
-    ↓
-Button Combo (1-5 buttons, raw HID) → controller_listener.py reads config
-    ↓
-All buttons pressed? → Button state → /tmp/decktation_l5
-    ↓
-main.py polls file → WoWVoiceChat.start_recording()
-    ↓
-Audio Capture → Whisper Transcription
-    ↓
-Parse Channel (party, raid, say, etc.)
-    ↓
-Clipboard paste → Game Chat
+```bash
+make test-setup
+make test
 ```
 
-### Chat Channel Detection
-Voice input like "party, hello everyone" or "raid: pull boss" is parsed to extract channel prefix (`/p`, `/raid`) and message text. Supports separators: colon, comma, period, or space. Channels: `/s`, `/p`, `/raid`, `/g`, `/o`, `/y`, `/i`, `/w`, `/r`.
+The Python tests use mocks for audio and Decky-specific APIs and do not require a Steam Deck. `make release-check` runs the Python suite, release-version validation, and selected Python compile checks. CI also runs the Cloudflare Worker tests and builds and validates the installable Decky archive; see [`.github/workflows/build.yml`](.github/workflows/build.yml).
 
-## Key Files
+Website tasks use the separate Astro project in `site/` and Cloudflare Worker in `cloudflare/`. Their build and test commands are in [`site/README.md`](site/README.md) and the Worker package scripts.
 
-- `src/index.tsx` - Plugin UI with button configuration dropdowns, status polling, manual test button
-- `main.py` - Plugin lifecycle, spawns controller listener, polls button state, RPC endpoints for config
-- `controller_listener.py` - Standalone raw HID process for configurable button combo detection
-- `button_config.json` - User's button configuration (created on first config change)
-- `wow_voice_chat.py` - Whisper model, audio recording, transcription, ydotool output
-- `convert_wow_context.py` - Lua SavedVariables parser with `--watch` mode
-- `WowAddon/DecktationContext/DecktationContext.lua` - WoW addon for game context
+## Source layout
 
-## Configuration
+- `main.py` is the small Decky Loader entry point. It imports `Plugin` from the packaged backend.
+- `backend/src/decktation_backend.py` implements plugin lifecycle and RPC methods.
+- `backend/src/wow_voice_chat.py` captures and transcribes speech, manages pending drafts, and sends text to the active app.
+- `backend/src/controller_listener.py`, `deck_hid.py`, and `gamepad_evdev.py` read controller inputs in a separate process.
+- `backend/src/resident_whisper.py` manages the local Whisper server. `backend/src/audio_runtime.py` and `clipboard_injection.py` handle audio setup and text insertion.
+- `backend/src/telemetry.py` implements opt-in, scrubbed Sentry diagnostics. Sharing is disabled by default.
+- `backend/entrypoint.sh` assembles the runtime files and binaries that Decky packages under the plugin's `bin/` directory. `backend/Dockerfile` pins and builds the native tools and runtime dependencies.
+- `defaults/` contains the game preset and chat-language configuration bundled with the plugin.
+- `scripts/` contains release, catalog, Pages publishing, and manual controller/haptic tools. `tests/manual/` contains hardware-dependent probes; these are not part of the automated pytest suite.
 
-- Whisper models: multilingual GGML `base`, `small`, or `medium`, shared by the Vulkan and CPU whisper.cpp paths
-- Context file: `wow_context.json` (auto-generated from WoW SavedVariables)
-- Button config: `button_config.json` (default: `{"buttons": ["L1", "R1"]}`)
-- Push-to-talk: Configurable 1-5 button combo via UI (default: L1+R1)
-- Available buttons: L1, R1, L2, R2, L4, R4, L5, R5, A, B, X, Y
-- Logs: `/home/deck/homebrew/logs/decktation/*.log`
+The Decky build workflow is the source of truth for the installable archive. It uses the Decky CLI and validates that the bundled Python runtime, Whisper server, audio libraries, and helper binaries are present.
 
-## Platform Notes
+## Runtime behavior and configuration
 
-- Designed for Steam Deck Linux environment (Gaming Mode)
-- Uses **ydotool** for keyboard simulation (requires ydotoold service running)
-- Setup ydotoold: `sudo /path/to/setup_ydotoold.sh` (creates systemd service with proper socket permissions)
-- All selectable built-in controls are decoded from the Steam Deck vendor raw HID interface
-- Per-game Steam Input layouts can emit XInput, keyboard, or mouse events without affecting combo detection
-- WoW runs via Proton; addon SavedVariables at `~/.steam/steam/steamapps/compatdata/*/pfx/drive_c/Program Files (x86)/World of Warcraft/_retail_/WTF/Account/<ACCOUNT>/SavedVariables/`
-- Plugin installs to `~/homebrew/plugins/decktation/`
+The frontend calls the Python backend through Decky RPC. The backend starts the controller listener, polls its state, and starts or stops recording on the configured physical button combo. The plugin bundles and manages its own `ydotoold`; it does not require a separately installed system service.
 
-## Known Issues
+The default push-to-talk binding is L1 + R1. Users can configure one to five supported controls in the plugin. Persistent settings are read and written through Decky's settings directory; controller state and other temporary coordination files live in `/tmp`.
 
-- Steam's `RegisterForControllerStateChanges` API doesn't exist on all Steam Deck versions; the listener reads the physical raw HID report instead
-- Plugin class methods must use `@staticmethod` and `Plugin.xxx` instead of `self.xxx` due to Decky loader quirk
+The voice service supports the standalone modes `once`, `continuous`, and `daemon`. Controller push-to-talk is provided by the Decky plugin; standalone keyboard push-to-talk is not supported. For standalone use, the CLI lives at `backend/src/wow_voice_chat.py`.
+
+The default standalone channel is `say`. A spoken channel prefix can select a different destination for a message, and `--channel` selects the default. WoW context may improve game-term recognition, but it does not select a channel. The standalone CLI does not support `--channel auto`.
+
+Whisper models (`base`, `small`, or `medium`) are stored in the user's Decktation cache and run locally. Optional Sentry diagnostics send data only after the user enables **Diagnostics → Share**. Consult [`doc/PRIVACY_AND_PERMISSIONS.md`](doc/PRIVACY_AND_PERMISSIONS.md) before changing what telemetry records.
+
+## Development notes
+
+- Keep substantive Python backend modules in `backend/src/`; `main.py` remains the Decky entry point.
+- Keep the compiled frontend bundle `dist/index.js` in sync when changing frontend source, as required by the plugin build.
+- Do not assume WoW SavedVariables reflect live in-memory addon state. The current converter reads snapshots from disk.
+- Controller behavior depends on physical input reports and may require hardware for manual validation. Automated tests should continue to run without hardware.
+- Follow the existing tests and CI checks when changing packaging, native runtime dependencies, plugin RPCs, or release behavior.
