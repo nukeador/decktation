@@ -139,8 +139,11 @@ class HapticFeedback:
     def begin_session(self, source_file, max_age=2):
         source = None
         try:
-            with open(source_file) as file:
-                value = json.load(file)
+            if isinstance(source_file, dict):
+                value = dict(source_file)
+            else:
+                with open(source_file) as file:
+                    value = json.load(file)
             if (isinstance(value, dict) and isinstance(value.get('path'), str)
                     and isinstance(value.get('identity'), dict)
                     and isinstance(value.get('time'), (int, float))

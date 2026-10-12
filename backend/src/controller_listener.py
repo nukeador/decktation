@@ -14,6 +14,7 @@ import selectors
 import tempfile
 from deck_hid import STEAM_DECK_BUTTON_BITS, raw_button_states, triton_button_states
 from gamepad_evdev import EvdevGamepad
+from recording_mode import ControllerEvents
 
 STATE_FILE = "/tmp/decktation_l5"
 PREVIEW_FILE = "/tmp/decktation_button_preview"
@@ -233,6 +234,8 @@ def main():
     active_source = None
     open_errors = set()
     combo_active = False
+    event_source = None
+    events = ControllerEvents(os.path.join(CONFIG_DIR, "controller_events.json"))
 
     def diagnostic(event, **extra):
         snapshot = {
@@ -251,13 +254,15 @@ def main():
         print(DIAGNOSTIC_PREFIX + json.dumps(snapshot), flush=True)
 
     def update_combo():
-        nonlocal combo_active
-        if tracker.active != combo_active:
-            combo_active = tracker.active
-            if combo_active:
-                # The source completing the combo is selected in publish(),
-                # before the backend can observe STATE_FILE=1.
-                write_source(HAPTIC_SOURCE_FILE, source_snapshot(active_source))
+        nonlocal combo_active, event_source
+        active = tracker.active
+        if active != combo_active:
+            combo_active = active
+            if active:
+                event_source = next((path for path, states in tracker.sources.items() if all(states.get(b, False) for b in button_names)), None)
+                write_source(HAPTIC_SOURCE_FILE, source_snapshot(event_source))
+            events.append("press" if active else "release", time.monotonic(),
+                          source_snapshot(event_source) if active else None)
             print(f"{combo_str} COMBO: {'pressed' if combo_active else 'released'}", flush=True)
             with open(STATE_FILE, 'w') as f:
                 f.write("1" if combo_active else "0")
@@ -302,6 +307,8 @@ def main():
 
     def remove(path, error=None):
         nonlocal active_source
+        if path == event_source:
+            events.append("cancel", time.monotonic())
         disconnected = details.pop(path)
         device, _ = devices.pop(path)
         selector.unregister(device.fd)

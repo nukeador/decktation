@@ -39,6 +39,7 @@ const getPluginUpdate = callable<[force: boolean], RpcResponse>("get_plugin_upda
 const preparePluginUpdate = callable<[version: string], RpcResponse>("prepare_plugin_update");
 
 const getStatus = callable<[], RpcResponse>("get_status");
+const setRecordingModeRpc = callable<[mode: string], RpcResponse>("set_recording_mode");
 const getButtonConfig = callable<[], RpcResponse>("get_button_config");
 const getPresets = callable<[], RpcResponse>("get_presets");
 const setEnabledRpc = callable<[enabled: boolean], RpcResponse>("set_enabled");
@@ -323,7 +324,7 @@ const PRESET_DISPLAY_NAMES: Record<string, string> = {
 	generic: "Generic",
 };
 
-type PanelPage = "main" | "advanced" | "updates" | "diagnostics" | "microphone-help" | "help" | "game" | "model" | "binding-button";
+type PanelPage = "main" | "advanced" | "updates" | "diagnostics" | "microphone-help" | "help" | "game" | "model" | "binding-button" | "recording-mode";
 
 const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [page, setPage] = useState<PanelPage>("main");
@@ -344,6 +345,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [controllerReady, setControllerReady] = useState<boolean>(false);
 	const [controllerStatus, setControllerStatus] = useState<string>("Waiting for input");
 	const [controllerComboSupported, setControllerComboSupported] = useState<boolean>(true);
+	const [recordingMode, setRecordingMode] = useState<"hold" | "tap">("hold");
 	const [buttons, setButtons] = useState<string[]>(["L1", "R1"]);
 	const [recordingIndicator, setRecordingIndicator] = useState<string>("toast");
 	const [hapticFeedback, setHapticFeedback] = useState<boolean>(false);
@@ -481,6 +483,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 			if (result.success) {
 				const config = result.config;
 				if (config) {
+                    setRecordingMode(config.recordingMode === "tap" ? "tap" : "hold");
 					if (config.buttons) {
 						setButtons(config.buttons);
 					}
@@ -625,7 +628,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 		node.scrollTop += direction * 96;
 		return true;
 	};
-	const goBack = () => setPage(page === "microphone-help" ? "diagnostics" : page === "updates" || page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
+	const goBack = () => setPage(page === "microphone-help" ? "diagnostics" : page === "recording-mode" || page === "updates" || page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
 	const chooseLanguage = async (language: string) => {
 		const result = await setTranscriptionOptionsRpc(language);
 		if (result.success) {
@@ -820,7 +823,8 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						<PanelSectionRow><div style={{ fontSize: '12px' }}>Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use.</div></PanelSectionRow>
 					</PanelSection>
 					<PanelSection title="Recording binding">
-						<PanelSectionRow><div>Hold <strong>{buttons.join('+')}</strong> to record</div></PanelSectionRow>
+						<PanelSectionRow><ButtonItem layout="below" disabled={recording || testPhase !== "idle"} onClick={() => setPage("recording-mode")}>Mode: {recordingMode === "hold" ? "Hold to record" : "Tap to start/stop"}</ButtonItem></PanelSectionRow>
+                        <PanelSectionRow><div>{recordingMode === "hold" ? "Hold " : "Tap "}<strong>{buttons.join('+')}</strong>{recordingMode === "hold" ? " to record" : " to start; tap again to stop"}</div></PanelSectionRow>
 						{buttons.map((button, index) => <PanelSectionRow key={index}>
 							<Focusable flow-children="row" style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
 								<div style={{ flex: '1 1 0', minWidth: 0, overflow: 'hidden' }}>
@@ -963,11 +967,27 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						else setRpcError(result.error || "Could not update binding");
 					}}>{option.data === buttons[bindingButtonIndex] ? "✓ " : ""}{option.label}</ButtonItem></PanelSectionRow>)}
 				</PanelSection>}
+                {page === "recording-mode" && <PanelSection title="Recording mode">
+                    {rpcError && <PanelSectionRow><div role="alert">{rpcError}</div></PanelSectionRow>}
+                    {(["hold", "tap"] as const).map(mode => <PanelSectionRow key={mode}>
+                        <ButtonItem layout="below" disabled={recording} onClick={async () => {
+                            setRpcError("");
+                            try {
+                                const result = await setRecordingModeRpc(mode);
+                                if (result.success) { setRecordingMode(mode); setPage("advanced"); }
+                                else setRpcError(result.error || "Could not change recording mode");
+                            } catch (error) { setRpcError(String(error)); }
+                        }}>{mode === recordingMode ? "✓ " : ""}{mode === "hold" ? "Hold to record" : "Tap to start/stop"}</ButtonItem>
+                        <div style={{ fontSize: "12px", padding: "6px 0", opacity: 0.85 }}>{mode === "hold"
+                            ? "Hold the binding to record. Release to stop and transcribe."
+                            : "Tap once to start recording, then tap again to stop. You can also hold and release for a quick message."}</div>
+                    </PanelSectionRow>)}
+                </PanelSection>}
 				{page === "help" && <>
 					<PanelSection title="How to use">
 						<PanelSectionRow><div style={{ fontSize: '13px', lineHeight: '1.6' }}>
-							Hold <strong>{buttons.join('+')}</strong> {buttons.length > 1 ? "together " : ""}to record.
-							Release to transcribe and type into the active game or app. Keep it in the foreground.
+							{recordingMode === "hold" ? "Hold " : "Tap "}<strong>{buttons.join('+')}</strong> {recordingMode === "hold" ? "to record." : "to start; tap again to stop. You can also hold and release for a quick message."}
+							After recording, Decktation transcribes according to your sending settings. Keep it in the foreground.
 						</div></PanelSectionRow>
 					</PanelSection>
 					<PanelSection title="Permissions">

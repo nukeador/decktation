@@ -208,6 +208,7 @@
     const getPluginUpdate = callable("get_plugin_update");
     const preparePluginUpdate = callable("prepare_plugin_update");
     const getStatus = callable("get_status");
+    const setRecordingModeRpc = callable("set_recording_mode");
     const getButtonConfig = callable("get_button_config");
     const getPresets = callable("get_presets");
     const setEnabledRpc = callable("set_enabled");
@@ -495,6 +496,7 @@
         const [controllerReady, setControllerReady] = React.useState(false);
         const [controllerStatus, setControllerStatus] = React.useState("Waiting for input");
         const [controllerComboSupported, setControllerComboSupported] = React.useState(true);
+        const [recordingMode, setRecordingMode] = React.useState("hold");
         const [buttons, setButtons] = React.useState(["L1", "R1"]);
         const [recordingIndicator, setRecordingIndicator] = React.useState("toast");
         const [hapticFeedback, setHapticFeedback] = React.useState(false);
@@ -647,6 +649,7 @@
                 if (result.success) {
                     const config = result.config;
                     if (config) {
+                        setRecordingMode(config.recordingMode === "tap" ? "tap" : "hold");
                         if (config.buttons) {
                             setButtons(config.buttons);
                         }
@@ -797,7 +800,7 @@
             node.scrollTop += direction * 96;
             return true;
         };
-        const goBack = () => setPage(page === "microphone-help" ? "diagnostics" : page === "updates" || page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
+        const goBack = () => setPage(page === "microphone-help" ? "diagnostics" : page === "recording-mode" || page === "updates" || page === "diagnostics" || page === "help" || page === "model" || page === "binding-button" ? "advanced" : "main");
         const chooseLanguage = async (language) => {
             const result = await setTranscriptionOptionsRpc(language);
             if (result.success) {
@@ -1028,10 +1031,14 @@
                             React__default["default"].createElement("div", { style: { fontSize: '12px' } }, "Base is fastest. Small balances speed and accuracy. Medium is more accurate but slower and may download on first use."))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Recording binding" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", disabled: recording || testPhase !== "idle", onClick: () => setPage("recording-mode") },
+                                "Mode: ",
+                                recordingMode === "hold" ? "Hold to record" : "Tap to start/stop")),
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
-                                "Hold ",
+                                recordingMode === "hold" ? "Hold " : "Tap ",
                                 React__default["default"].createElement("strong", null, buttons.join('+')),
-                                " to record")),
+                                recordingMode === "hold" ? " to record" : " to start; tap again to stop")),
                         buttons.map((button, index) => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: index },
                             React__default["default"].createElement(deckyFrontendLib.Focusable, { "flow-children": "row", style: { display: 'flex', alignItems: 'center', gap: '4px', width: '100%', minWidth: 0, boxSizing: 'border-box' } },
                                 React__default["default"].createElement("div", { style: { flex: '1 1 0', minWidth: 0, overflow: 'hidden' } },
@@ -1242,15 +1249,39 @@
                             } },
                             option.data === buttons[bindingButtonIndex] ? "✓ " : "",
                             option.label)))),
+                page === "recording-mode" && React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Recording mode" },
+                    rpcError && React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                        React__default["default"].createElement("div", { role: "alert" }, rpcError)),
+                    ["hold", "tap"].map(mode => React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, { key: mode },
+                        React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", disabled: recording, onClick: async () => {
+                                setRpcError("");
+                                try {
+                                    const result = await setRecordingModeRpc(mode);
+                                    if (result.success) {
+                                        setRecordingMode(mode);
+                                        setPage("advanced");
+                                    }
+                                    else
+                                        setRpcError(result.error || "Could not change recording mode");
+                                }
+                                catch (error) {
+                                    setRpcError(String(error));
+                                }
+                            } },
+                            mode === recordingMode ? "✓ " : "",
+                            mode === "hold" ? "Hold to record" : "Tap to start/stop"),
+                        React__default["default"].createElement("div", { style: { fontSize: "12px", padding: "6px 0", opacity: 0.85 } }, mode === "hold"
+                            ? "Hold the binding to record. Release to stop and transcribe."
+                            : "Tap once to start recording, then tap again to stop. You can also hold and release for a quick message.")))),
                 page === "help" && React__default["default"].createElement(React__default["default"].Fragment, null,
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "How to use" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { style: { fontSize: '13px', lineHeight: '1.6' } },
-                                "Hold ",
+                                recordingMode === "hold" ? "Hold " : "Tap ",
                                 React__default["default"].createElement("strong", null, buttons.join('+')),
                                 " ",
-                                buttons.length > 1 ? "together " : "",
-                                "to record. Release to transcribe and type into the active game or app. Keep it in the foreground."))),
+                                recordingMode === "hold" ? "to record." : "to start; tap again to stop. You can also hold and release for a quick message.",
+                                "After recording, Decktation transcribes according to your sending settings. Keep it in the foreground."))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Permissions" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { style: { fontSize: '13px', lineHeight: '1.5' } }, "Decktation uses Decky root access only to read raw Steam Deck controller input and to create virtual keyboard events for dictated text. Your transcription is passed to the bundled keyboard helper as data, never as a shell command.")))))));

@@ -30,7 +30,9 @@ def test_invalid_custom_mapping_falls_back_atomically(monkeypatch, tmp_path, con
 @pytest.fixture
 def listener(monkeypatch, tmp_path):
     monkeypatch.setenv('DECKTATION_CONFIG_DIR', str(tmp_path))
-    return importlib.import_module('controller_listener')
+    module = importlib.import_module('controller_listener')
+    monkeypatch.setattr(module, 'CONFIG_DIR', str(tmp_path))
+    return module
 
 
 def gamepad(axes=None, identity=None):
