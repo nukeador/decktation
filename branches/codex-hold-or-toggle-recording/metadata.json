@@ -1,0 +1,8 @@
+{
+  "plugin": "Decktation",
+  "channel": "branch",
+  "ref": "codex/hold-or-toggle-recording",
+  "commit": "e3091c2ee7fb358538a7b4e3370743034e163d64",
+  "zip_url": "https://nukeador.github.io/decktation/branches/codex-hold-or-toggle-recording/Decktation.zip",
+  "generated_at": "2026-10-12T18:40:17Z"
+}
