@@ -37,8 +37,11 @@ if (currentLocale === 'en') {
   let saved;
   try { saved = localStorage.getItem('decktation-lang'); } catch {}
   const supported = localeOptions.map(option => option.value);
-  const browserLocale = (navigator.language || 'en').toLowerCase().split(/[-_]/)[0];
-  const preferred = supported.includes(saved) ? saved : (supported.includes(browserLocale) ? browserLocale : 'en');
+  const normalize = tag => String(tag || '').trim().toLowerCase().split(/[-_]/)[0];
+  const browserLocales = [...(navigator.languages || []), navigator.language];
+  const browserLocale = browserLocales.map(normalize).find(locale => supported.includes(locale));
+  const savedLocale = normalize(saved);
+  const preferred = supported.includes(savedLocale) ? savedLocale : (browserLocale || 'en');
   if (preferred !== currentLocale) window.location.replace(localeUrl(preferred));
 }
 const copyButton = document.getElementById('copy');

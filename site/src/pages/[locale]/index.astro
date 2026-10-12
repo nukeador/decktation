@@ -1,0 +1,10 @@
+---
+import Page from '../../layouts/Page.astro';
+import Landing from '../../components/Landing.astro';
+import { locales } from '../../i18n';
+export function getStaticPaths() {
+  return locales.filter(locale => locale !== 'en' && locale !== 'es').map(locale => ({ params: { locale }, props: { locale } }));
+}
+const { locale } = Astro.props;
+---
+<Page locale={locale}><Landing locale={locale} /></Page>

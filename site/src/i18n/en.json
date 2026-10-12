@@ -121,13 +121,13 @@
   "install.two": "Enable Developer Mode",
   "install.developer": "Open Decky Settings and enable Developer Mode.",
   "install.why": "Why Developer Mode?",
-  "install.whyBody": "Decktation is awaiting approval for the official Decky Store. Direct URL installation currently requires Decky’s Developer Mode.",
+  "install.whyBody": "Decktation is awaiting approval for the official Decky Store. Reviews can take weeks or months, and we believe users should have timely access to improvements and fixes. Developer Mode lets you install Decktation now; future updates are available inside the plugin.",
   "install.three": "Install Decktation",
   "install.urlHelp": "Choose Install Plugin from URL in Decky’s developer options. Paste this URL and confirm.",
   "install.copy": "Copy URL",
   "install.four": "Open Decktation and start dictating",
   "install.setup": "Choose your game and language, then enable Decktation. Focus a text field, hold L1 + R1, speak and release to write your message.",
-  "install.update": "Direct installations require manual updates.",
+  "install.update": "Install manually once. After that, Decktation checks for new releases and lets you update directly from Gaming Mode, with Decky’s confirmation.",
   "install.firstTitle": "Set up Decky first",
   "install.once": "Decky is a one-time setup. Once installed, plugins are managed from Gaming Mode.",
   "install.noTerminal": "No terminal required.",
@@ -159,6 +159,7 @@
   "theme.auto": "Automatic",
   "theme.light": "Light",
   "theme.dark": "Dark",
-  "install.storeTitle": "Optional: custom Decky store",
-  "install.storeHelp": "In Decky Settings → General → Store Channel, select Custom and enter this URL. This replaces the default store listing; switch back to Default to browse other plugins."
+  "faq.updates.q": "How do updates work?",
+  "faq.updates.a": "Decktation checks for new stable releases and shows an indicator when an update is available. Open Decktation’s Updates page and confirm the installation through Decky. Updates are never installed without your approval.",
+  "routing.note": "Say the channel name in English (party, guild, reply or say), followed by your message in your language. French channel names are also supported."
 }

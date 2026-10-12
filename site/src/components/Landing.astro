@@ -72,8 +72,9 @@ const t = (key: keyof typeof dictionaries.en) => dictionaries[locale][key];
       <div class="section-label" data-i18n="wow.label">{t("wow.label")}</div>
       <h2 data-i18n="wow.title">{t("wow.title")}</h2>
       <p class="lead" data-i18n="wow.body">{t("wow.body")}</p>
+      <p class="routing-note" data-i18n="routing.note">{t("routing.note")}</p>
       <div class="wow-grid">
-        <figure class="wow-shot"><div class="wow-gameplay animated-demo" data-phase="done"><img src="/assets/wow-chat-empty.webp" width="1280" height="720" loading="lazy" alt={t("a11y.wow")}/><img class="wow-chat-filled" src={`/assets/wow-chat-filled-${locale}.webp`} width="1280" height="720" loading="lazy" alt="" aria-hidden="true"/>
+        <figure class="wow-shot"><div class="wow-gameplay animated-demo" data-phase="done"><img src="/assets/wow-chat-empty.webp" width="1280" height="720" loading="lazy" alt={t("a11y.wow")}/><img class="wow-chat-filled" src={`/assets/wow-chat-filled-${locale === "es" ? "es" : "en"}.webp`} width="1280" height="720" loading="lazy" alt="" aria-hidden="true"/>
             <div class="demo-overlay wow-recording" aria-hidden="true"><span class="demo-dot"></span><div class="demo-bars"><span style="--bar:0"></span><span style="--bar:1"></span><span style="--bar:2"></span><span style="--bar:3"></span><span style="--bar:4"></span><span style="--bar:5"></span><span style="--bar:6"></span><span style="--bar:7"></span><span style="--bar:8"></span></div><span class="demo-transcribing" data-i18n="demo.transcribing">{t("demo.transcribing")}</span></div></div><figcaption data-i18n="asset.wow">{t("asset.wow")}</figcaption></figure>
         <div class="routing"><div class="route route-label"><span data-i18n="routing.say">{t("routing.say")}</span><span></span><strong data-i18n="routing.types">{t("routing.types")}</strong></div>
           <div class="route"><span data-i18n="routing.party.spoken">{t("routing.party.spoken")}</span><span>→</span><strong data-i18n="routing.party.typed">{t("routing.party.typed")}</strong></div>
@@ -112,9 +113,8 @@ const t = (key: keyof typeof dictionaries.en) => dictionaries[locale][key];
         <li><h4 data-i18n="install.desktop">{t("install.desktop")}</h4><p data-i18n="install.desktopHelp">{t("install.desktopHelp")}</p></li>
         <li><h4  data-i18n="install.downloadStep">{t("install.downloadStep")}</h4><p class="install-emphasis" data-i18n="install.deviceWarning">{t("install.deviceWarning")}</p><div id="install-transfer"><p  data-i18n="install.addressHelp">{t("install.addressHelp")}</p><p><a href="https://decky.xyz/download">decky.xyz/download</a></p><button type="button" class="btn" id="confirm-steamos" data-i18n="install.onDevice">{t("install.onDevice")}</button></div><div id="install-device-download" hidden><a class="btn primary" href="https://decky.xyz/download" data-i18n="install.decky">{t("install.decky")}</a><button type="button" class="text-link" id="other-device" data-i18n="install.otherDevice">{t("install.otherDevice")}</button></div></li>
         <li><h4  data-i18n="install.run">{t("install.run")}</h4><p data-i18n="install.adminHelp">{t("install.adminHelp")}</p><details><summary  data-i18n="install.firefox">{t("install.firefox")}</summary><p  data-i18n="install.firefoxHelp">{t("install.firefoxHelp")}</p></details></li>
-        <li><h4  data-i18n="install.return">{t("install.return")}</h4></li></ol><a class="text-link" href="https://github.com/SteamDeckHomebrew/decky-loader#-installation" data-i18n="install.docs">{t("install.docs")}</a><div class="cta-row"><button type="button" class="btn" id="decky-finished" data-i18n="install.finished">{t("install.finished")}</button></div></div>
+        <li><h4  data-i18n="install.return">{t("install.return")}</h4><a class="install-docs-link" href="https://github.com/SteamDeckHomebrew/decky-loader#-installation" data-i18n="install.docs">{t("install.docs")}</a></li></ol><div class="cta-row"><button type="button" class="btn" id="decky-finished" data-i18n="install.finished">{t("install.finished")}</button></div></div>
 
-      <details class="custom-store"><summary data-i18n="install.storeTitle">{t("install.storeTitle")}</summary><p data-i18n="install.storeHelp">{t("install.storeHelp")}</p><p><a href="https://decktation.com/plugins.json">https://decktation.com/plugins.json</a></p></details>
     </div></div>
   </section>
 
@@ -139,6 +139,7 @@ const t = (key: keyof typeof dictionaries.en) => dictionaries[locale][key];
       <div class="section-label" data-i18n="faq.label">{t("faq.label")}</div>
       <h2 data-i18n="faq.title">{t("faq.title")}</h2>
       <div class="faq">
+        <details><summary data-i18n="faq.updates.q">{t("faq.updates.q")}</summary><p data-i18n="faq.updates.a">{t("faq.updates.a")}</p></details>
         <details><summary data-i18n="faq.internet.q">{t("faq.internet.q")}</summary><p data-i18n="faq.internet.a">{t("faq.internet.a")}</p></details>
         <details><summary data-i18n="faq.upload.q">{t("faq.upload.q")}</summary><p data-i18n="faq.upload.a">{t("faq.upload.a")}</p></details>
         <details><summary data-i18n="faq.games.q">{t("faq.games.q")}</summary><p data-i18n="faq.games.a">{t("faq.games.a")}</p></details>
