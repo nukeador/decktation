@@ -65,7 +65,6 @@ sys.path.insert(0, plugin_path)
 
 # Import diagnostics support without connecting to Sentry. Collection is
 # opt-in and is initialized only after the persisted user preference is read.
-telemetry = False
 telemetry_available = False
 plugin_version = "unknown"
 try:
@@ -81,13 +80,14 @@ try:
         clear_controller_context as telemetry_clear_controller_context,
         flush as telemetry_flush,
         finish_dictation_trace as telemetry_finish_dictation,
-        initialize as initialize_telemetry,
+        is_enabled as telemetry_is_enabled,
         set_enabled as telemetry_set_enabled,
         start_dictation_trace as telemetry_start_dictation,
     )
 
     telemetry_available = True
 except Exception as e:
+    telemetry_is_enabled = lambda: False
     logger.error(f"Failed to import diagnostics: {e}")
 
 # Read consent before importing optional voice dependencies so startup import
@@ -106,12 +106,13 @@ if telemetry_available:
         if os.path.exists(BUTTON_CONFIG_FILE):
             with open(BUTTON_CONFIG_FILE, "r") as diagnostics_config_file:
                 diagnostics_config = json.load(diagnostics_config_file)
-            telemetry = bool(diagnostics_config.get("shareDiagnostics", False))
-        if telemetry:
-            initialize_telemetry(plugin_version)
+            diagnostics_enabled = bool(diagnostics_config.get("shareDiagnostics", False))
+        else:
+            diagnostics_enabled = False
+        telemetry_set_enabled(diagnostics_enabled, plugin_version)
+        if telemetry_is_enabled():
             telemetry_breadcrumb("plugin.initializing")
     except Exception as e:
-        telemetry = False
         logger.error(f"Failed to initialize diagnostics: {e}")
 
 # Debug: Log Python environment
@@ -131,7 +132,7 @@ try:
 except ImportError as e:
     logger.error(f"Failed to import WoWVoiceChat: {e}")
     logger.error(f"Traceback: {traceback.format_exc()}")
-    if telemetry:
+    if telemetry_is_enabled():
         telemetry_capture_error("voice_service.import_failed", e)
 
 # File paths for subprocess communication
@@ -417,7 +418,7 @@ class Plugin:
 
     @staticmethod
     def _start_dictation_trace():
-        if telemetry:
+        if telemetry_is_enabled():
             Plugin.dictation_transaction = telemetry_start_dictation(
                 Plugin.active_preset,
                 Plugin._controller_type(),
@@ -662,7 +663,7 @@ class Plugin:
                                         if Plugin.haptic_feedback:
                                             Plugin.haptic_feedback.end_session()
                                         Plugin._finish_dictation_trace(False)
-                                        if telemetry:
+                                        if telemetry_is_enabled():
                                             telemetry_capture_error(
                                                 "recording.start_failed",
                                                 e,
@@ -680,7 +681,7 @@ class Plugin:
                                 Plugin.voice_service.stop_recording()
                             except Exception as e:
                                 Plugin._finish_dictation_trace(False)
-                                if telemetry:
+                                if telemetry_is_enabled():
                                     telemetry_capture_error(
                                         "recording.stop_failed",
                                         e,
@@ -714,13 +715,13 @@ class Plugin:
                     health_check_counter = 0
                     if Plugin.listener_process and Plugin.listener_process.poll() is not None:
                         logger.warning("Controller listener died, restarting...")
-                        if telemetry:
+                        if telemetry_is_enabled():
                             telemetry_capture_error(
                                 "controller.listener_crashed",
                                 controller_type=Plugin._controller_type(),
                                 exit_code=Plugin.listener_process.returncode,
                             )
-                        if not Plugin.start_controller_listener() and telemetry:
+                        if not Plugin.start_controller_listener() and telemetry_is_enabled():
                             telemetry_capture_error(
                                 "controller.listener_restart_failed",
                                 controller_type=Plugin._controller_type(),
@@ -806,12 +807,12 @@ class Plugin:
                         preset=Plugin.active_preset,
                         controller_type=Plugin._controller_type(),
                     )
-                    if telemetry else None
+                    if telemetry_is_enabled() else None
                 ),
                 recording_state_callback=Plugin.haptic_feedback.emit,
             )
             logger.info("Voice service initialized (model will load on first use)")
-            if telemetry:
+            if telemetry_is_enabled():
                 telemetry_breadcrumb("voice_service.initialized")
 
             # Restore enabled state from config
@@ -830,16 +831,16 @@ class Plugin:
                 Plugin.poll_thread = threading.Thread(target=Plugin.poll_button_state, daemon=True)
                 Plugin.poll_thread.start()
                 logger.info("Controller input ready (using external listener)")
-                if telemetry:
+                if telemetry_is_enabled():
                     telemetry_breadcrumb("controller.listener_started")
             else:
                 logger.error("Failed to start controller listener")
-                if telemetry:
+                if telemetry_is_enabled():
                     telemetry_capture_error("controller.listener_start_failed")
 
         except Exception as e:
             logger.error(f"Failed to initialize: {traceback.format_exc()}")
-            if telemetry:
+            if telemetry_is_enabled():
                 telemetry_capture_error("plugin.initialization_failed", e)
         return
 
@@ -858,11 +859,11 @@ class Plugin:
                 Plugin.recording_overlay.stop()
         except Exception as e:
             logger.error(f"Error during unload: {traceback.format_exc()}")
-            if telemetry:
+            if telemetry_is_enabled():
                 telemetry_capture_error("plugin.unload_failed", e)
         finally:
             await self._shutdown_voice_service()
-        if telemetry:
+        if telemetry_is_enabled():
             telemetry_flush()
         return
 
@@ -956,21 +957,20 @@ class Plugin:
 
     async def set_share_diagnostics(self, enabled: bool):
         """Persist and immediately apply anonymous diagnostics consent."""
-        global telemetry
         try:
             config = _read_button_config()
             config["shareDiagnostics"] = bool(enabled)
             _write_button_config(config)
 
-            telemetry = bool(enabled) and telemetry_available
+            diagnostics_enabled = bool(enabled) and telemetry_available
             if telemetry_available:
-                telemetry_set_enabled(telemetry, plugin_version)
+                telemetry_set_enabled(diagnostics_enabled, plugin_version)
+            diagnostics_active = telemetry_is_enabled()
             logger.info(
-                f"Anonymous diagnostics {'enabled' if telemetry else 'disabled'}"
+                f"Anonymous diagnostics {'enabled' if diagnostics_active else 'disabled'}"
             )
-            return {"success": True, "enabled": telemetry}
+            return {"success": True, "enabled": diagnostics_active}
         except Exception as e:
-            telemetry = False
             logger.error(f"Error saving diagnostics preference: {e}")
             return {"success": False, "error": str(e)}
 
@@ -1281,7 +1281,7 @@ class Plugin:
                     if Plugin.haptic_feedback:
                         Plugin.haptic_feedback.end_session()
                     Plugin._finish_dictation_trace(False)
-                    if telemetry:
+                    if telemetry_is_enabled():
                         telemetry_capture_error(
                             "recording.start_failed",
                             e,
@@ -1311,7 +1311,7 @@ class Plugin:
                 await asyncio.to_thread(Plugin.voice_service.stop_recording, send)
             except Exception as e:
                 Plugin._finish_dictation_trace(False)
-                if telemetry:
+                if telemetry_is_enabled():
                     telemetry_capture_error(
                         "recording.stop_failed",
                         e,
