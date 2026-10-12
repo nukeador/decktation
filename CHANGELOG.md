@@ -7,16 +7,23 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.3.19] - 2026-10-12
+
 ### Added
 
 - Added a public website for Decktation downloads and project information.
 - Added validated stable plugin updates with confirmation in Decky.
 - Expanded opt-in diagnostics with transcription, cancellation, inference backend,
-  and device/OS metrics.
+  and coarse device/OS metrics.
 
 ### Fixed
 
 - Improved language dropdown colors in dark mode.
+
+### Removed
+
+- Removed standalone keyboard push-to-talk and the unused automatic channel
+  selection option from the CLI.
 
 ## [0.3.18] - 2026-10-09
 
