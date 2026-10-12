@@ -2,6 +2,7 @@
 // Pages would redirect the origin back to this Worker.
 const UPSTREAM_BASE = "https://silverfoxy.github.io/decktation";
 const UPSTREAM_CATALOG = `${UPSTREAM_BASE}/store/plugins.json`;
+const LANDING_LOCALES = new Set(["es", "de", "fr", "ja", "ko", "pl", "pt", "ru", "zh"]);
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -123,7 +124,9 @@ export default {
         headers: { Location: `${url.origin}/downloads/${url.search}` },
       });
     }
-    if (["/", "/index.html", "/es", "/es/", "/es/index.html", "/styles.css", "/app.js", "/robots.txt", "/sitemap.xml"].includes(url.pathname)
+    const localeRoute = /^\/([^/]+)(?:\/|\/index\.html)?$/.exec(url.pathname);
+    if (["/", "/index.html", "/styles.css", "/app.js", "/robots.txt", "/sitemap.xml"].includes(url.pathname)
+      || (localeRoute && LANDING_LOCALES.has(localeRoute[1]))
       || url.pathname.startsWith("/_astro/") || url.pathname.startsWith("/assets/") || url.pathname.startsWith("/vendor/")) {
       return env.ASSETS.fetch(request);
     }

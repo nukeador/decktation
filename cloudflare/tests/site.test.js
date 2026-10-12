@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readdirSync } from "node:fs";
 import test from "node:test";
 import worker from "../src/index.js";
 
@@ -114,6 +115,27 @@ test("landing locales and assets are served from the Worker asset binding", asyn
   for (const path of ["/", "/es/", "/styles.css?v=1", "/app.js", "/assets/decktation-logo.png", "/vendor/fontawesome/css/all.min.css", "/robots.txt", "/sitemap.xml"]) {
     const response = await worker.fetch(request(path), env);
     assert.equal(await response.text(), new URL(request(path).url).pathname);
+  }
+  assert.equal(fetch.mock.callCount(), 0);
+});
+
+test("every translated landing route uses assets for GET and HEAD", async (t) => {
+  const fetch = t.mock.method(globalThis, "fetch", () => { throw new Error("Unexpected origin fetch"); });
+  const locales = readdirSync(new URL("../../site/src/i18n/", import.meta.url))
+    .filter(name => name.endsWith(".json")).map(name => name.slice(0, -5));
+  const env = { ASSETS: { fetch: async (req) => new Response(null, {
+    headers: { "X-Asset-Path": new URL(req.url).pathname },
+  }) } };
+  for (const locale of locales) {
+    const paths = locale === "en" ? ["/", "/index.html"]
+      : [`/${locale}`, `/${locale}/`, `/${locale}/index.html`];
+    for (const path of paths) {
+      for (const method of ["GET", "HEAD"]) {
+        const response = await worker.fetch(request(`${path}?test=1`, method), env);
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get("X-Asset-Path"), path);
+      }
+    }
   }
   assert.equal(fetch.mock.callCount(), 0);
 });
