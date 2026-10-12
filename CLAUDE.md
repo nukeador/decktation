@@ -4,13 +4,13 @@ This file gives Claude Code and other contributors current repository guidance.
 
 ## Project overview
 
-## Release Changelog
-
-When preparing a release, update `CHANGELOG.md` as part of the release commit. Record all user-facing changes since the previous release under the new version and date, and keep the `Unreleased` section for changes intended for a later release. Check the commits since the previous release so user-facing changes are not missed.
-
 Decktation is a Decky Loader plugin for controller push-to-talk dictation on Steam Deck. The TypeScript/React panel is in `src/`; the Python plugin backend and voice service are in `backend/src/`. The backend uses a bundled resident `whisper-server` (Vulkan when available, CPU fallback), captures audio locally, recognizes optional spoken chat-channel prefixes, and types text into the focused app.
 
 The optional WoW addon is in `WowAddon/DecktationContext/`. It writes game context to WoW SavedVariables. WoW does not save each in-memory update immediately, so context read from that file can be stale during a play session. See [`doc/WOW_INTEGRATION.md`](doc/WOW_INTEGRATION.md).
+
+## Release changelog
+
+When preparing a release, update `CHANGELOG.md` as part of the release commit. Record all user-facing changes since the previous release under the new version and date, and keep the `Unreleased` section for changes intended for a later release. Check the commits since the previous release so user-facing changes are not missed.
 
 ## Build and test
 

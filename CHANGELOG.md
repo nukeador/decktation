@@ -11,6 +11,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 - Added a public website for Decktation downloads and project information.
 - Added validated stable plugin updates with confirmation in Decky.
+- Expanded opt-in diagnostics with transcription, cancellation, inference backend,
+  and device/OS metrics.
 
 ### Fixed
 
