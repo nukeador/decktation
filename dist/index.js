@@ -45,7 +45,7 @@
         }
     }
 
-    var version = "0.3.18";
+    var version = "0.3.19";
 
     // Read the actual QAM surface. Document visibility alone does not establish
     // whether a persistent Steam sidebar is on screen.
@@ -89,7 +89,7 @@
         return foundMenu ? false : null;
     }
 
-    var _manifest = {"name":"Decktation","version":"0.3.18","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
+    var _manifest = {"name":"Decktation","version":"0.3.19","author":"silverfoxy","flags":["root"],"api_version":1,"publish":{"tags":["voice","dictation","speech-to-text","input","chat","gaming","accessibility"],"description":"Push-to-talk dictation for Steam Deck. Context-aware speech-to-text using whisper.cpp.","image":"https://raw.githubusercontent.com/silverfoxy/decktation/master/store-card.png"}};
 
     const manifest = _manifest;
     const API_VERSION = 2;
@@ -1091,6 +1091,11 @@
                     React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                         React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setPage("help") }, "Help & permissions"))),
                 page === "diagnostics" && React__default["default"].createElement(React__default["default"].Fragment, null,
+                    React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Microphone help" },
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement("div", null, "Voice not recognized, missing words, or crackling audio? Open the microphone troubleshooting guide.")),
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => deckyFrontendLib.Router.NavigateToExternalWeb("https://github.com/silverfoxy/decktation/blob/master/doc/TROUBLESHOOTING.md#microphone-crackles-pops-or-cuts-out") }, "Having problems with your microphone?"))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Input and service" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", null,
@@ -1124,7 +1129,7 @@
                             React__default["default"].createElement("div", { role: "alert" }, statusError || rpcError))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Diagnostics sharing" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Share", description: "Optional scrubbed diagnostics sent to Sentry", checked: shareDiagnostics, onChange: async (next) => {
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Share", description: "Sends scrubbed errors, usage counts, and performance metrics to Sentry, including inference backend and coarse device/OS details. Audio and transcripts stay local.", checked: shareDiagnostics, onChange: async (next) => {
                                     setShareDiagnostics(next);
                                     const result = await setShareDiagnosticsRpc(next);
                                     if (!result.success) {

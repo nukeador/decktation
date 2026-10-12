@@ -869,6 +869,12 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					<PanelSectionRow><ButtonItem layout="below" onClick={() => setPage("help")}>Help & permissions</ButtonItem></PanelSectionRow>
 				</>}
 				{page === "diagnostics" && <>
+					<PanelSection title="Microphone help">
+						<PanelSectionRow><div>Voice not recognized, missing words, or crackling audio? Open the microphone troubleshooting guide.</div></PanelSectionRow>
+						<PanelSectionRow><ButtonItem layout="below" onClick={() => Router.NavigateToExternalWeb("https://github.com/silverfoxy/decktation/blob/master/doc/TROUBLESHOOTING.md#microphone-crackles-pops-or-cuts-out")}>
+							Having problems with your microphone?
+						</ButtonItem></PanelSectionRow>
+					</PanelSection>
 					<PanelSection title="Input and service">
 						<PanelSectionRow><div>Controller: {controllerStatus}</div></PanelSectionRow>
 						{pendingDraft && <PanelSectionRow><div>Review confirmation: {reviewBlockReason || "Ready"}</div></PanelSectionRow>}
