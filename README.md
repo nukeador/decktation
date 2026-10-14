@@ -9,7 +9,9 @@ Speak naturally and Decktation transcribes your words locally, then types them i
 - Hold a configurable controller button combination to record; **L1 + R1** is the default.
 - Choose a preset for World of Warcraft, Guild Wars 2, or generic text entry.
 - Speak a channel prefix such as “party” to route game chat.
+- Say “command gg” or “command ready” to enter `/gg` or `/ready` without a chat-channel prefix.
 - Adjust the Whisper model and transcription language in the plugin.
+- Enable **Spoken punctuation** in Advanced settings to turn English commands such as “comma” and “question mark” into symbols.
 - The optional WoW context addon can provide saved game context, but its updates are not reliably live; see [upstream issue #13](https://github.com/silverfoxy/decktation/issues/13).
 
 ## Install Decktation

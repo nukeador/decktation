@@ -24,6 +24,7 @@ def test_settings_rpc_functions_are_not_shadowed_by_react_state_setters():
         "set_haptic_feedback": "setHapticFeedbackRpc",
         "set_recording_indicator": "setRecordingIndicatorRpc",
         "set_transcription_options": "setTranscriptionOptionsRpc",
+        "set_spoken_punctuation": "setSpokenPunctuationRpc",
     }
 
     for backend_method, rpc_name in expected_calls.items():

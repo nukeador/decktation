@@ -228,6 +228,7 @@
     const setHapticFeedbackRpc = callable("set_haptic_feedback");
     const setActivePresetRpc = callable("set_active_preset");
     const setModelSizeRpc = callable("set_model_size");
+    const setSpokenPunctuationRpc = callable("set_spoken_punctuation");
     const setTranscriptionOptionsRpc = callable("set_transcription_options");
     class DecktationLogic {
         constructor() {
@@ -532,6 +533,7 @@
         const [shareDiagnostics, setShareDiagnostics] = React.useState(false);
         const [modelSize, setModelSize] = React.useState("base");
         const [transcriptionLanguage, setTranscriptionLanguage] = React.useState("auto");
+        const [spokenPunctuation, setSpokenPunctuation] = React.useState(false);
         const [lastTranscription, setLastTranscription] = React.useState("");
         const [lastTranscriptionTime, setLastTranscriptionTime] = React.useState("");
         const [rpcError, setRpcError] = React.useState("");
@@ -663,6 +665,7 @@
                         if (config.transcriptionLanguage) {
                             setTranscriptionLanguage(config.transcriptionLanguage);
                         }
+                        setSpokenPunctuation(config.spokenPunctuation === true);
                         // Restore enabled state
                         if (config.enabled) {
                             setEnabled(true);
@@ -1124,6 +1127,21 @@
                                         setRememberLastChannel(!next);
                                         setRpcError(result.error || "Could not update channel setting");
                                     }
+                                } })),
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement(deckyFrontendLib.ToggleField, { label: "Spoken punctuation", checked: spokenPunctuation, description: "With English or Auto Detect, say comma, period, or question mark to insert punctuation. Turn off to type these words literally.", onChange: async (next) => {
+                                    try {
+                                        const result = await setSpokenPunctuationRpc(next);
+                                        if (result.success) {
+                                            setSpokenPunctuation(next);
+                                            setRpcError("");
+                                        }
+                                        else
+                                            setRpcError(result.error || "Could not set spoken punctuation");
+                                    }
+                                    catch (error) {
+                                        setRpcError(String(error));
+                                    }
                                 } }))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Feedback" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
@@ -1271,7 +1289,18 @@
                                 React__default["default"].createElement("strong", null, buttons.join('+')),
                                 " ",
                                 buttons.length > 1 ? "together " : "",
-                                "to record. Release to transcribe and type into the active game or app. Keep it in the foreground."))),
+                                "to record. Release to transcribe and type into the active game or app. Keep it in the foreground.")),
+                        React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+                            React__default["default"].createElement("div", { style: { fontSize: '13px', lineHeight: '1.6' } },
+                                "Say ",
+                                React__default["default"].createElement("strong", null, "command gg"),
+                                " to enter ",
+                                React__default["default"].createElement("strong", null, "/gg"),
+                                ", or",
+                                React__default["default"].createElement("strong", null, " command ready"),
+                                " for ",
+                                React__default["default"].createElement("strong", null, "/ready"),
+                                ". Use English or Auto Detect. Commands follow your sending settings."))),
                     React__default["default"].createElement(deckyFrontendLib.PanelSection, { title: "Permissions" },
                         React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
                             React__default["default"].createElement("div", { style: { fontSize: '13px', lineHeight: '1.5' } }, "Decktation uses Decky root access only to read raw Steam Deck controller input and to create virtual keyboard events for dictated text. Your transcription is passed to the bundled keyboard helper as data, never as a shell command.")))))));

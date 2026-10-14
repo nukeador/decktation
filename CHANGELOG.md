@@ -7,6 +7,13 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- Optional local English spoken punctuation commands in Advanced settings and the
+  standalone CLI, including comma, period, question mark, and exclamation mark.
+- Explicit “command …” dictation for game slash commands, bypassing chat
+  channel prefixes while respecting review, countdown, and manual-send settings.
+
 ## [0.3.19] - 2026-10-12
 
 ### Added

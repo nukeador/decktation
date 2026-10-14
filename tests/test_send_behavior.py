@@ -248,3 +248,53 @@ class TestManualSendMode:
         svc.manual_send = True
         svc.send_to_wow_chat("hello", channel="type")
         assert commands(mock_run) == [PASTE]
+
+
+@pytest.mark.parametrize("preset", [WOW_PRESET, GUILDWARS2_PRESET, GENERIC_PRESET])
+@pytest.mark.parametrize("manual", [False, True])
+@pytest.mark.parametrize("mode", ["immediate", "review", "countdown"])
+@pytest.mark.parametrize("prefix", ["command", "command slash"])
+@patch("subprocess.run")
+def test_explicit_slash_commands_bypass_channels_and_respect_send_mode(
+    mock_run, preset, manual, mode, prefix, monkeypatch
+):
+    mock_run.return_value = MagicMock(returncode=0)
+    remembered = MagicMock()
+    svc = WoWVoiceChat(preset={**preset, "casual_case": True}, lazy_load=True,
+                       manual_send=manual, review_mode=mode == "review",
+                       confirm_delay=3 if mode == "countdown" else 0,
+                       remember_last_channel=True, last_channel="party",
+                       channel_rememberer=remembered)
+    previous = svc.last_channel
+    monkeypatch.setattr("wow_voice_chat.threading.Timer", MagicMock())
+    svc.queue_transcription(f"{prefix} ready.")
+    if mode != "immediate":
+        draft = svc.pending_snapshot()
+        assert draft["text"] == "/ready"
+        assert draft["channel"] == "command"
+        assert draft["destination"] == "Command"
+        assert not draft["explicit_channel"]
+        assert draft["action"] == (
+            "Type into chat" if manual or preset["chat_send_key"] is None else "Send"
+        )
+        assert draft["mode"] == mode
+        assert PASTED_TEXT == []
+        assert svc.confirm_pending(draft["id"], countdown=mode == "countdown")
+    expected_keys = ([ENTER] if preset["chat_open_key"] == "enter" else [])
+    expected_keys += [PASTE]
+    if preset["chat_send_key"] == "enter" and not manual:
+        expected_keys += [ENTER]
+    assert commands(mock_run) == expected_keys
+    assert PASTED_TEXT == ["/ready"]
+    assert svc.last_channel == previous
+    remembered.assert_not_called()
+
+
+@patch("subprocess.run")
+def test_command_preserves_argument_case_and_bypasses_remembered_party(mock_run):
+    mock_run.return_value = MagicMock(returncode=0)
+    svc = WoWVoiceChat(preset={**WOW_PRESET, "casual_case": True}, lazy_load=True,
+                       remember_last_channel=True, last_channel="party")
+    assert svc.send_to_wow_chat("command slash whisper Thrall Hello there.")
+    assert PASTED_TEXT == ["/whisper Thrall Hello there"]
+    assert svc.last_channel == "party"

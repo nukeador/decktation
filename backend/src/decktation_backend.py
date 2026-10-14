@@ -180,6 +180,7 @@ DEFAULT_BUTTON_CONFIG = {
     "shareDiagnostics": False,
     "modelSize": "base",
     "transcriptionLanguage": "auto",
+    "spokenPunctuation": False,
 }
 
 SUPPORTED_WHISPER_MODEL_SIZES = {"base", "small", "medium"}
@@ -812,6 +813,7 @@ class Plugin:
                 last_channel=last_channel,
                 channel_rememberer=Plugin._remember_channel,
                 model_size=model_size,
+                spoken_punctuation=saved_config.get("spokenPunctuation", False),
                 transcription_language=(
                     None if transcription_language == "auto" else transcription_language
                 ),
@@ -1201,6 +1203,21 @@ class Plugin:
             return {"success": True}
         except Exception as e:
             logger.error(f"Error setting remember last channel: {traceback.format_exc()}")
+            return {"success": False, "error": str(e)}
+
+    async def set_spoken_punctuation(self, enabled: bool = False):
+        """Persist and apply English spoken punctuation without reloading Whisper."""
+        try:
+            if not isinstance(enabled, bool):
+                raise ValueError("Spoken punctuation must be a boolean")
+            config = _read_button_config()
+            config["spokenPunctuation"] = enabled
+            _write_button_config(config)
+            if Plugin.voice_service:
+                Plugin.voice_service.spoken_punctuation = enabled
+            return {"success": True}
+        except Exception as e:
+            logger.error(f"Error setting spoken punctuation: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
 
     async def set_transcription_options(self, language: str = "auto", translateToEnglish: bool = False):

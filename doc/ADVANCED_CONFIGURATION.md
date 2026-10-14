@@ -6,6 +6,7 @@ Most settings can be changed in the Decktation panel. The source configuration f
 
 - **Model:** Base is fastest, Small is a balanced choice, and Medium is more accurate but slower. A model may download from Hugging Face the first time it is used.
 - **Language:** Choose a transcription language, or leave **Lang** on **Auto** for automatic detection.
+- **Spoken punctuation:** Off by default. Enable in **Advanced settings → Sending** to convert English punctuation commands with **Auto Detect** or **English** selected. Other selected languages leave the words unchanged. Say “hello comma how are you question mark” to produce `hello, how are you?`. Supported commands are comma, period/full stop, question mark, exclamation mark/point, colon, semicolon, and ellipsis. Commands ignore case; multiword commands also accept hyphens. Casual chat keeps explicitly spoken trailing periods and ellipses, while still removing Whisper's automatic trailing periods. Turn it off when dictating these words literally. Processing stays local and does not add another model. Standalone users can pass `--spoken-punctuation`.
 - **Transcription sending:** Choose Send immediately, Review before sending, or Send after countdown. Review stays visible until you tap your recording binding to send or hold it for 0.6 seconds to cancel. Long messages and typing failures require review in the Decktation panel. Countdown waits 3–6 seconds and a press of the recording binding cancels it; opening QAM pauses it for explicit review. Existing Confirm settings migrate to countdown.
 - **Press Enter yourself:** Types the message without submitting it. In review mode, the confirmation action is labeled Type into chat. Press Enter in the game to send.
 - **Remember channel:** Reuses the last channel you spoke when the next message has no channel prefix.
@@ -24,6 +25,31 @@ Decktation includes three presets defined in [`defaults/game_presets.json`](../d
 In WoW or GW2, start a message with a spoken channel name to route it. For example, “party ready” selects party chat, and “guild: hello” selects guild chat. Prefix matching is case-insensitive; a space, colon, comma, or period can separate the channel from the message. The **type** channel enters the text without opening or sending game chat. Trigger words are configured in [`defaults/channel_languages.json`](../defaults/channel_languages.json).
 
 Built-in WoW channels include `say`, `party`, `raid`, `guild`, `officer`, `yell`, `instance`, `whisper`, `reply`, `type`, and `alert` (raid warning). GW2 includes `say`, `map`, `party`, `squad` (also `raid`), `team`, `guild`, `guild one` through `guild six`, `whisper`, and `type`.
+
+### Spoken slash commands
+
+With **English** or **Auto Detect** selected, begin with **command**:
+
+| Spoken text | Entered text |
+| --- | --- |
+| command gg | `/gg` |
+| command ready | `/ready` |
+| command whisper Thrall hello | `/whisper Thrall hello` |
+
+The longer **command slash** prefix is also accepted, as is `command /gg` if
+Whisper recognizes the slash itself. A command name must follow the prefix.
+This prefix works independently of the **Spoken punctuation** setting. Bare
+“slash gg” stays literal. Command names are lowercased; argument case is kept.
+Whisper's automatic trailing sentence punctuation is removed. If Spoken
+punctuation is enabled, punctuation commands in arguments still work, without
+changing the slash command name.
+
+Commands bypass `/s`, `/p`, and other preset channel prefixes and leave the
+remembered chat channel unchanged. Game presets open and submit chat using their
+normal keys; **Press Enter yourself** skips submission. Review and countdown
+settings still apply, and review shows **Command** as the destination. Generic
+only types into the focused field. Decktation sends the literal command name the
+transcription recognized; it does not validate which commands the game supports.
 
 ### Add a custom channel
 

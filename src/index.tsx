@@ -62,6 +62,7 @@ const setRecordingIndicatorRpc = callable<[mode: string], RpcResponse>("set_reco
 const setHapticFeedbackRpc = callable<[enabled: boolean], RpcResponse>("set_haptic_feedback");
 const setActivePresetRpc = callable<[game: string], RpcResponse>("set_active_preset");
 const setModelSizeRpc = callable<[modelSize: string], RpcResponse>("set_model_size");
+const setSpokenPunctuationRpc = callable<[enabled: boolean], RpcResponse>("set_spoken_punctuation");
 const setTranscriptionOptionsRpc = callable<
 	[language: string],
 	RpcResponse
@@ -376,6 +377,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 	const [shareDiagnostics, setShareDiagnostics] = useState<boolean>(false);
 	const [modelSize, setModelSize] = useState<string>("base");
 	const [transcriptionLanguage, setTranscriptionLanguage] = useState<string>("auto");
+	const [spokenPunctuation, setSpokenPunctuation] = useState<boolean>(false);
 	const [lastTranscription, setLastTranscription] = useState<string>("");
 	const [lastTranscriptionTime, setLastTranscriptionTime] = useState<string>("");
 	const [rpcError, setRpcError] = useState<string>("");
@@ -498,6 +500,7 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 					if (config.transcriptionLanguage) {
 						setTranscriptionLanguage(config.transcriptionLanguage);
 					}
+					setSpokenPunctuation(config.spokenPunctuation === true);
 					// Restore enabled state
 					if (config.enabled) {
 						setEnabled(true);
@@ -889,6 +892,15 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 								const result = await setRememberLastChannelRpc(next);
 								if (!result.success) { setRememberLastChannel(!next); setRpcError(result.error || "Could not update channel setting"); }
 							}} /></PanelSectionRow>
+						<PanelSectionRow><ToggleField label="Spoken punctuation" checked={spokenPunctuation}
+							description="With English or Auto Detect, say comma, period, or question mark to insert punctuation. Turn off to type these words literally."
+							onChange={async (next: boolean) => {
+								try {
+									const result = await setSpokenPunctuationRpc(next);
+									if (result.success) { setSpokenPunctuation(next); setRpcError(""); }
+									else setRpcError(result.error || "Could not set spoken punctuation");
+								} catch (error) { setRpcError(String(error)); }
+							}} /></PanelSectionRow>
 					</PanelSection>
 					<PanelSection title="Feedback">
 						<PanelSectionRow><DropdownItem label="Recording cue" menuLabel="Recording cue" rgOptions={[{data:"toast",label:"Toast"},{data:"overlay",label:"Overlay"},{data:"none",label:"None"}]} selectedOption={recordingIndicator} onChange={async (option) => { const mode = option.data as string; setRecordingIndicator(mode); logic.recordingIndicator = mode; const result = await setRecordingIndicatorRpc(mode); if (!result.success) setRpcError(result.error || "Could not update recording cue"); }} /></PanelSectionRow>
@@ -983,6 +995,11 @@ const DecktationPanel: VFC<{ logic: DecktationLogic }> = ({ logic }) => {
 						<PanelSectionRow><div style={{ fontSize: '13px', lineHeight: '1.6' }}>
 							Hold <strong>{buttons.join('+')}</strong> {buttons.length > 1 ? "together " : ""}to record.
 							Release to transcribe and type into the active game or app. Keep it in the foreground.
+						</div></PanelSectionRow>
+						<PanelSectionRow><div style={{ fontSize: '13px', lineHeight: '1.6' }}>
+							Say <strong>command gg</strong> to enter <strong>/gg</strong>, or
+							<strong> command ready</strong> for <strong>/ready</strong>.
+							Use English or Auto Detect. Commands follow your sending settings.
 						</div></PanelSectionRow>
 					</PanelSection>
 					<PanelSection title="Permissions">

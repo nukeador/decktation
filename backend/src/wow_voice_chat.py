@@ -33,6 +33,88 @@ def _capitalize_standalone_i(text: str) -> str:
     return re.sub(r"\bi\b", "I", text)
 
 
+_SPOKEN_PUNCTUATION = {
+    "question mark": "?",
+    "exclamation mark": "!",
+    "exclamation point": "!",
+    "full stop": ".",
+    "period": ".",
+    "comma": ",",
+    "semicolon": ";",
+    "colon": ":",
+    "ellipsis": "...",
+}
+_SPOKEN_PUNCTUATION_PATTERN = re.compile(
+    r"[ \t]*[.,!?;:]*[ \t]*(?<!\w)("
+    + "|".join(re.escape(command).replace(r"\ ", r"[ \t-]+")
+               for command in _SPOKEN_PUNCTUATION)
+    + r")(?!\w)[ \t]*[.,!?;:]*[ \t]*",
+    re.IGNORECASE,
+)
+
+
+class _TranscriptionText(str):
+    """Keep punctuation provenance and command routing until chat formatting.
+
+    A string remains compatible with existing callers and JSON previews. The
+    annotation belongs to this recording, rather than shared service state.
+    """
+    def __new__(cls, text, spoken_terminal_period=False, slash_command=False):
+        result = super().__new__(cls, text)
+        result.spoken_terminal_period = spoken_terminal_period
+        result.slash_command = slash_command
+        return result
+
+
+def _replace_spoken_punctuation(text: str) -> str:
+    """Interpret English dictation commands, including Whisper's adjacent marks.
+
+    Commands override punctuation next to them so 'ready, comma.' becomes
+    'ready,' rather than 'ready,,.'. No commands means no changes to the text.
+    """
+    spoken_terminal_period = False
+
+    def replace(match):
+        nonlocal spoken_terminal_period
+        command = re.sub(r"[ \t-]+", " ", match.group(1).lower())
+        symbol = _SPOKEN_PUNCTUATION[command]
+        if match.end() == len(text) and symbol.endswith("."):
+            spoken_terminal_period = True
+        return symbol + " "
+
+    converted, count = _SPOKEN_PUNCTUATION_PATTERN.subn(replace, text)
+    if count:
+        converted = re.sub(r"[ \t]+(?=[.,!?;:])", "", converted).strip()
+        return _TranscriptionText(converted, spoken_terminal_period)
+    return text
+
+
+_SPOKEN_COMMAND_PREFIX = re.compile(
+    r"^command\b[ \t,.:;-]+(?:slash\b[ \t,.:;-]*|/[ \t]*)?",
+    re.IGNORECASE,
+)
+
+
+def _replace_spoken_slash_command(text: str, spoken_punctuation=False) -> str:
+    """Convert an explicit command prefix without treating ordinary slash words as commands."""
+    original = text
+    text = text.strip()
+    prefix = _SPOKEN_COMMAND_PREFIX.match(text)
+    if not prefix:
+        return original
+    # Whisper often punctuates an isolated command like an ordinary sentence.
+    body = text[prefix.end():].strip().rstrip(".!?").rstrip()
+    command = re.fullmatch(r"([A-Za-z0-9_][A-Za-z0-9_-]*)(?:[ \t]+(.*))?", body)
+    if not command:
+        return original
+    name, arguments = command.groups()
+    arguments = (arguments or "").strip()
+    if spoken_punctuation:
+        arguments = _replace_spoken_punctuation(arguments)
+    message = "/" + name.lower() + (" " + arguments if arguments else "")
+    return _TranscriptionText(message, slash_command=True)
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,14 +149,14 @@ def _vulkan_environment():
     return env
 
 
-def _format_casual_message(text: str) -> str:
+def _format_casual_message(text: str, preserve_punctuation=False) -> str:
     """Format text for casual gaming chat."""
     if not text:
         return text
 
     text = _capitalize_standalone_i(text)
 
-    if text.endswith("."):
+    if text.endswith(".") and not preserve_punctuation:
         text = text.rstrip(".")
 
     words = text.split(" ")
@@ -85,7 +167,7 @@ def _format_casual_message(text: str) -> str:
 
 
 class WoWVoiceChat:
-    def __init__(self, context_file="wow_context.json", sample_rate=44100, default_channel="say", lazy_load=False, test_mode=False, test_audio_file=None, preset=None, confirm_delay=0, manual_send=False, transcription_language=None, model_size="base", diagnostic_reporter=None, remember_last_channel=False, last_channel=None, channel_rememberer=None, recording_state_callback=None, review_mode=False, pending_callback=None, metric_reporter=None):
+    def __init__(self, context_file="wow_context.json", sample_rate=44100, default_channel="say", lazy_load=False, test_mode=False, test_audio_file=None, preset=None, confirm_delay=0, manual_send=False, transcription_language=None, model_size="base", diagnostic_reporter=None, remember_last_channel=False, last_channel=None, channel_rememberer=None, recording_state_callback=None, review_mode=False, pending_callback=None, metric_reporter=None, spoken_punctuation=False):
         self.preset = preset or {}
         self.diagnostic_reporter = diagnostic_reporter
         self.metric_reporter = metric_reporter
@@ -104,6 +186,7 @@ class WoWVoiceChat:
         self.last_channel = last_channel
         self.channel_rememberer = channel_rememberer
         self.transcription_language = None if transcription_language in (None, "", "auto") else transcription_language
+        self.spoken_punctuation = spoken_punctuation
         self.model_size = model_size
         self.pending_text = None
         self._pending_timer = None
@@ -388,7 +471,14 @@ class WoWVoiceChat:
             # injection intentionally rejects control characters; convert
             # only presentation line breaks to spaces at this boundary.
             text = re.sub(r"[ \t]*[\r\n]+[ \t]*", " ", text).strip()
-            return _capitalize_standalone_i(text)
+            text = _capitalize_standalone_i(text)
+            if self.transcription_language in (None, "en"):
+                text = _replace_spoken_slash_command(text, self._spoken_punctuation_active())
+            if self._spoken_punctuation_active() and not (
+                isinstance(text, _TranscriptionText) and text.slash_command
+            ):
+                text = _replace_spoken_punctuation(text)
+            return text
 
     def _transcribe_whisper(self, audio_input, initial_prompt, hotwords):
         """Transcribe with the active worker, retrying once on CPU after GPU failure."""
@@ -439,6 +529,16 @@ class WoWVoiceChat:
 
     def _parse_channel_and_text(self, text):
         """Return the parsed channel, message, and whether a channel was spoken."""
+        if not (isinstance(text, _TranscriptionText) and text.slash_command):
+            if self.transcription_language in (None, "en"):
+                text = _replace_spoken_slash_command(text, self._spoken_punctuation_active())
+        if isinstance(text, _TranscriptionText) and text.slash_command:
+            # Commands bypass channel selection and casual-case formatting.
+            # They also leave the remembered chat channel unchanged.
+            return "command", str(text), False
+        preserve_punctuation = (
+            isinstance(text, _TranscriptionText) and text.spoken_terminal_period
+        )
         text = text.strip()
         text_lower = text.lower()
 
@@ -450,15 +550,18 @@ class WoWVoiceChat:
                 if text_lower.startswith(prefix) and channel_name in self.channel_commands:
                     message = text[len(prefix):].strip()
                     if self.casual_case:
-                        message = _format_casual_message(message)
+                        message = _format_casual_message(message, preserve_punctuation)
                     return channel_name, message, True
 
         channel = self.last_channel if (
             self.remember_last_channel and self.last_channel in self.channel_commands
         ) else self.default_channel
         if self.casual_case:
-            text = _format_casual_message(text)
+            text = _format_casual_message(text, preserve_punctuation)
         return channel, text, False
+
+    def _spoken_punctuation_active(self):
+        return self.spoken_punctuation and self.transcription_language in (None, "en")
 
     def set_transcription_options(self, language=None):
         """Update whisper.cpp transcription options without reloading the model."""
@@ -511,13 +614,16 @@ class WoWVoiceChat:
                 return
             draft_id = uuid.uuid4().hex
             delay = self._confirm_delay_for(message) if not self.review_mode else 0
+            typing_only = self.manual_send or channel == "type" or (
+                channel == "command" and self.preset.get("chat_send_key", "enter") is None
+            )
             self.pending_text = message
             self.pending_draft = {
                 "id": draft_id, "text": message, "channel": channel,
                 "destination": channel.title() if channel != "type" else "Active app",
                 "mode": "review" if self.review_mode else "countdown",
                 "deadline": time.time() + delay if delay else None,
-                "action": "Type into chat" if self.manual_send or channel == "type" else "Send",
+                "action": "Type into chat" if typing_only else "Send",
                 "manual": self.manual_send, "explicit_channel": explicit,
                 "error": "", "sending": False,
             }
@@ -606,7 +712,7 @@ class WoWVoiceChat:
                 draft["deadline"] = None
                 draft["mode"] = "review"
                 draft["error"] = "Typing failed. Check game focus before retrying; some input may already have been typed."
-            self._publish_pending(("Typed into chat" if draft["manual"] or draft["channel"] == "type" else "Sent") if success else None)
+            self._publish_pending(("Typed into chat" if draft["action"] == "Type into chat" else "Sent") if success else None)
             return bool(success)
 
     def _send_pending(self, draft_id=None):
@@ -868,7 +974,7 @@ class WoWVoiceChat:
                 if self.channel_rememberer:
                     self.channel_rememberer(channel)
 
-        channel_cmd = self.channel_commands.get(channel, "/s ")
+        channel_cmd = "" if channel == "command" else self.channel_commands.get(channel, "/s ")
 
         full_message = f"{channel_cmd}{text}"
         if any(ord(char) < 32 or ord(char) == 127 for char in full_message):
@@ -1200,12 +1306,15 @@ if __name__ == "__main__":
                        help="Pause between recordings in continuous mode (default: 1)")
     parser.add_argument("--control-file", default="wow_voice_control.json",
                        help="Control file path for 'daemon' mode (default: wow_voice_control.json)")
+    parser.add_argument("--spoken-punctuation", action="store_true",
+                       help="Convert English punctuation commands such as comma and question mark")
 
     args = parser.parse_args()
 
     default_channel = args.channel
 
-    service = WoWVoiceChat(context_file=args.context, default_channel=default_channel)
+    service = WoWVoiceChat(context_file=args.context, default_channel=default_channel,
+                          spoken_punctuation=args.spoken_punctuation)
 
     if args.mode == "once":
         service.run_once(duration=args.duration)
