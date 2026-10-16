@@ -384,7 +384,8 @@ render_pages_content() {
     done
   fi
 
-  cat >"$PAGES_DIR/index.html" <<EOF
+  mkdir -p "$PAGES_DIR/downloads"
+  cat >"$PAGES_DIR/downloads/index.html" <<EOF
 <!doctype html>
 <html lang="en">
 <head>
@@ -487,9 +488,10 @@ render_pages_content() {
 </html>
 EOF
 
-  # Keep /downloads/ available on both the Worker and the original Pages host.
-  mkdir -p "$PAGES_DIR/downloads"
-  cp "$PAGES_DIR/index.html" "$PAGES_DIR/downloads/index.html"
+  # Landing owns the root; plugin builds only update the download catalog.
+  if [ ! -f "$PAGES_DIR/index.html" ]; then
+    cp "$PAGES_DIR/downloads/index.html" "$PAGES_DIR/index.html"
+  fi
 
   touch "$PAGES_DIR/.nojekyll"
 }
