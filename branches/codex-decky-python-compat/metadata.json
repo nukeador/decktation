@@ -1,0 +1,8 @@
+{
+  "plugin": "Decktation",
+  "channel": "branch",
+  "ref": "codex/decky-python-compat",
+  "commit": "ceedd4e4c5aeb3e6150c7c9e0e67ae87fc948bbf",
+  "zip_url": "https://nukeador.github.io/decktation/branches/codex-decky-python-compat/Decktation.zip",
+  "generated_at": "2026-10-18T20:35:48Z"
+}
